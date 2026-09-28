@@ -1,0 +1,11 @@
+# Dependencias y compilados
+node_modules/
+dist/
+build/
+.env
+.env.local
+*.log
+
+# Archivos locales de apoyo / notas individuales (no subir al repositorio grupal)
+PLAN_SPRINT1_INDIVIDUAL.md
+med.md
