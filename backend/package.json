@@ -1,0 +1,16 @@
+{
+  "name": "medisalud-backend",
+  "version": "1.0.0",
+  "description": "Motor de Reservas y Gestión de Agendas Medisalud (Sprint 1: MED-15, MED-9, MED-10, MED-11, MED-16)",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test:sprint1": "node tests/verify-sprint1.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "nodemailer": "^6.10.0",
+    "pg": "^8.13.3"
+  }
+}
