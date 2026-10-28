@@ -4,9 +4,9 @@ services:
     container_name: medisalud-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: medisalud
-      POSTGRES_PASSWORD: medisalud_secret_2026
-      POSTGRES_DB: medisalud_db
+      POSTGRES_USER: ${POSTGRES_USER:-medisalud}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-medisalud_secret_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-medisalud_db}
       TZ: America/Santiago
     ports:
       - "5432:5432"
@@ -33,10 +33,24 @@ services:
       PORT: 4000
       DB_HOST: db
       DB_PORT: 5432
-      DB_USER: medisalud
-      DB_PASSWORD: medisalud_secret_2026
-      DB_NAME: medisalud_db
+      DB_USER: ${POSTGRES_USER:-medisalud}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-medisalud_secret_2026}
+      DB_NAME: ${POSTGRES_DB:-medisalud_db}
       TZ: America/Santiago
+      SECRETARY_PASSWORD: ${SECRETARY_PASSWORD:-}
+      SECRETARY_TOKEN_SECRET: ${SECRETARY_TOKEN_SECRET:-}
+      PUBLIC_WEB_URL: ${PUBLIC_WEB_URL:-http://localhost:5173}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_FROM: ${SENDGRID_FROM:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_WHATSAPP_FROM: ${TWILIO_WHATSAPP_FROM:-}
     ports:
       - "4000:4000"
 

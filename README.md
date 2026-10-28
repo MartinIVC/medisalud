@@ -34,5 +34,23 @@ docker compose up -d --build
 docker exec medisalud-backend npm run test:sprint1
 ```
 
+### Configuración local actualizada
+
+1. Copiar `.env.example` a `.env` y cambiar las claves antes de iniciar los servicios. La contraseña de secretaría y el secreto de firma son obligatorios para usar el panel; las credenciales de proveedores habilitan envíos reales.
+2. En una base PostgreSQL existente, respaldar primero y ejecutar `database/migrations/20261028_sprint2.sql`. La migración agrega la cola de notificaciones, respuestas de asistencia, historial de origen e integridad contra horarios solapados. Si existen intervalos históricos superpuestos, corregirlos antes de agregar la restricción.
+3. Para una base nueva, el esquema actualizado se aplica desde `database/01_init.sql`.
+
+El correo de confirmación se guarda en PostgreSQL dentro de la transacción de reserva. El worker reintenta los envíos cada 30 segundos. Sin SendGrid o SMTP configurado, los mensajes quedan pendientes/fallidos y nunca se presentan como entregados. WhatsApp requiere las credenciales de Twilio. El estado `ACEPTADO` representa aceptación del proveedor; la entrega final requiere integrar sus callbacks.
+
+El panel de secretaría y los endpoints administrativos requieren sesión. El login se configura mediante `SECRETARY_PASSWORD` y `SECRETARY_TOKEN_SECRET`. Las sesiones vencen en ocho horas.
+
+## Trabajo Sprint 2 incorporado
+
+- **MED-12 / RF-04:** formulario de reserva rápida presencial o telefónica protegido por sesión; conserva la validación RUT y el control concurrente común.
+- **MED-13 / RF-05:** recordatorios persistentes 24 horas antes en correo y WhatsApp, acciones con token de un solo uso para confirmar o cancelar, y reintentos del worker.
+- **MED-18 / RNF-03:** configuración para SendGrid/SMTP y estados de notificación persistidos. La validación DNS SPF/DKIM/DMARC y la medición de >95 % requieren dominio, proveedor y cuentas reales; siguen pendientes de evidencia externa.
+
+La actualización del calendario de secretaría se consulta cada dos segundos. La sincronización en tiempo real entre navegadores todavía no usa WebSockets y puede tardar hasta ese intervalo.
+
 * **Portal Web (Paciente y Panel Secretaría):** `http://localhost:5173`
 * **API Healthcheck (`MED-15`):** `http://localhost:4000/api/health`
