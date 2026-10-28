@@ -4,12 +4,27 @@ const { pool } = require('./db');
 const disponibilidadRoutes = require('./routes/disponibilidad');
 const agendasRoutes = require('./routes/agendas');
 const reservasRoutes = require('./routes/reservas');
+const { createSecretaryToken } = require('./middleware/auth');
+const { processEmailQueue } = require('./utils/mailer');
 
 const app = express();
 const PORT = Number(process.env.PORT || 4000);
 
 app.use(cors());
 app.use(express.json());
+
+app.post('/api/auth/secretaria', (req, res) => {
+  const configured = process.env.SECRETARY_PASSWORD;
+  if (!configured || typeof req.body?.password !== 'string' ||
+      Buffer.byteLength(configured) !== Buffer.byteLength(req.body.password) ||
+      !require('crypto').timingSafeEqual(Buffer.from(configured), Buffer.from(req.body.password))) {
+    return res.status(401).json({ ok: false, error: 'Credenciales inválidas o acceso no configurado.' });
+  }
+  if (!process.env.SECRETARY_TOKEN_SECRET || Buffer.byteLength(process.env.SECRETARY_TOKEN_SECRET) < 32) {
+    return res.status(503).json({ ok: false, error: 'SECRETARY_TOKEN_SECRET debe tener al menos 32 bytes.' });
+  }
+  res.json({ ok: true, token: createSecretaryToken(), expires_in: 28800 });
+});
 
 /**
  * GET /api/health
@@ -50,6 +65,17 @@ app.get('/api/health', async (_req, res) => {
 app.use('/api', disponibilidadRoutes);
 app.use('/api', agendasRoutes);
 app.use('/api', reservasRoutes);
+
+let processingQueue = false;
+async function processNotifications() {
+  if (processingQueue) return;
+  processingQueue = true;
+  try { await processEmailQueue(); }
+  catch (error) { console.error('[Notificaciones] No se pudo procesar la cola:', error.message); }
+  finally { processingQueue = false; }
+}
+processNotifications();
+setInterval(processNotifications, 30_000).unref();
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`[Medisalud Backend] Servidor activo en http://0.0.0.0:${PORT}`);

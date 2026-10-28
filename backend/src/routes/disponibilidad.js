@@ -75,7 +75,12 @@ router.get('/disponibilidad', async (req, res) => {
   try {
     const { especialidad_id, medico_id, fecha_desde, fecha_hasta, fecha } = req.query;
     const params = [];
-    const conditions = [`a.estado = 'DISPONIBLE'`, `m.activo = TRUE`];
+    const conditions = [
+      `a.estado = 'DISPONIBLE'`,
+      `m.activo = TRUE`,
+      `((a.fecha + a.hora_inicio) AT TIME ZONE 'America/Santiago') > NOW()`,
+      `NOT EXISTS (SELECT 1 FROM bloqueos_agenda ba WHERE ba.fecha = a.fecha AND (ba.medico_id IS NULL OR ba.medico_id = a.medico_id))`,
+    ];
 
     if (especialidad_id) {
       params.push(Number(especialidad_id));
@@ -91,7 +96,7 @@ router.get('/disponibilidad', async (req, res) => {
       params.push(fecha);
       conditions.push(`a.fecha = $${params.length}::DATE`);
     } else {
-      const desde = fecha_desde || new Date().toISOString().slice(0, 10);
+      const desde = fecha_desde || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date());
       params.push(desde);
       conditions.push(`a.fecha >= $${params.length}::DATE`);
 

@@ -2,9 +2,16 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { formatRutInput, validateRutClient } from './utils/rut';
 
 export default function App() {
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date());
+  const appointmentToken = new URLSearchParams(window.location.search).get('cita_token');
+  const [appointmentReply, setAppointmentReply] = useState('');
 
   const [activeTab, setActiveTab] = useState('paciente'); // 'paciente' | 'secretaria'
+  const [secretaryToken, setSecretaryToken] = useState(() => sessionStorage.getItem('medisalud-secretaria-token') || '');
+  const [secretaryPassword, setSecretaryPassword] = useState('');
+  const [secretaryError, setSecretaryError] = useState('');
+  const [receptionBlock, setReceptionBlock] = useState(null);
+  const [receptionData, setReceptionData] = useState({ nombre: '', rut: '', email: '', telefono: '+569', origen: 'PRESENCIAL' });
   const [health, setHealth] = useState(null);
   const [especialidades, setEspecialidades] = useState([]);
   const [medicos, setMedicos] = useState([]);
@@ -73,13 +80,14 @@ export default function App() {
   }, [selectedEsp, selectedMedico, selectedFecha]);
 
   const fetchSecAgendas = useCallback(async () => {
+    if (!secretaryToken) return;
     const params = new URLSearchParams();
     if (secMedicoId) params.set('medico_id', secMedicoId);
     if (secFecha) params.set('fecha', secFecha);
-    const res = await fetch(`/api/agendas?${params.toString()}`);
+    const res = await fetch(`/api/agendas?${params.toString()}`, { headers: { Authorization: `Bearer ${secretaryToken}` } });
     const data = await res.json();
     if (data.ok) setSecAgendas(data.bloques);
-  }, [secMedicoId, secFecha]);
+  }, [secMedicoId, secFecha, secretaryToken]);
 
   useEffect(() => {
     fetchHealth();
@@ -95,6 +103,58 @@ export default function App() {
       fetchSecAgendas();
     }
   }, [activeTab, fetchSecAgendas]);
+
+  useEffect(() => {
+    if (activeTab !== 'secretaria' || !secretaryToken) return undefined;
+    const timer = window.setInterval(fetchSecAgendas, 2000);
+    return () => window.clearInterval(timer);
+  }, [activeTab, secretaryToken, fetchSecAgendas]);
+
+  async function loginSecretary(event) {
+    event.preventDefault();
+    setSecretaryError('');
+    const response = await fetch('/api/auth/secretaria', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: secretaryPassword }),
+    });
+    const data = await response.json();
+    if (!response.ok) { setSecretaryError(data.error || 'No fue posible iniciar sesión.'); return; }
+    sessionStorage.setItem('medisalud-secretaria-token', data.token);
+    setSecretaryToken(data.token);
+    setSecretaryPassword('');
+  }
+
+  async function submitReceptionBooking(event) {
+    event.preventDefault();
+    if (!receptionBlock) return;
+    const response = await fetch('/api/reservas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secretaryToken}`, 'Idempotency-Key': crypto.randomUUID() },
+      body: JSON.stringify({
+        agenda_id: receptionBlock.agenda_id, paciente_nombre: receptionData.nombre,
+        paciente_rut: receptionData.rut, paciente_email: receptionData.email,
+        paciente_telefono: receptionData.telefono, origen: receptionData.origen,
+      }),
+    });
+    const data = await response.json();
+    setSecFeedback(data);
+    if (response.ok) {
+      setReceptionBlock(null);
+      setReceptionData({ nombre: '', rut: '', email: '', telefono: '+569', origen: 'PRESENCIAL' });
+      fetchSecAgendas(); fetchDisponibilidad(); fetchHealth();
+    }
+  }
+
+  async function replyToAppointment(action) {
+    const response = await fetch('/api/citas/responder', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: appointmentToken, accion: action }),
+    });
+    const data = await response.json();
+    setAppointmentReply(response.ok
+      ? action === 'CANCELAR' ? 'La cita fue cancelada y el cupo quedó liberado.' : 'Gracias. Registramos que asistirás.'
+      : data.error || 'No fue posible actualizar la cita.');
+  }
 
   const medicosFiltrados = selectedEsp
     ? medicos.filter((m) => String(m.especialidad_id) === String(selectedEsp))
@@ -114,6 +174,7 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           agenda_id: selectedBloque.agenda_id,
+          origen: 'WEB',
           paciente_rut: pacienteRut,
           paciente_nombre: pacienteNombre,
           paciente_email: pacienteEmail,
@@ -146,7 +207,7 @@ export default function App() {
     setSecFeedback(null);
     const res = await fetch('/api/agendas/configurar', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secretaryToken}` },
       body: JSON.stringify({
         medico_id: Number(secMedicoId),
         fecha: secFecha,
@@ -166,7 +227,7 @@ export default function App() {
     setSecFeedback(null);
     const res = await fetch('/api/agendas/bloquear', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secretaryToken}` },
       body: JSON.stringify({
         medico_id: Number(secMedicoId),
         fecha: secFecha,
@@ -185,7 +246,7 @@ export default function App() {
     const endpoint = bloque.estado === 'BLOQUEADO' ? '/api/agendas/desbloquear' : '/api/agendas/bloquear';
     await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secretaryToken}` },
       body: JSON.stringify({
         agenda_id: bloque.agenda_id,
         motivo: secMotivoBloqueo || 'Bloqueo manual por secretaría (MED-10)',
@@ -194,6 +255,22 @@ export default function App() {
     fetchSecAgendas();
     fetchDisponibilidad();
     fetchHealth();
+  }
+
+  if (appointmentToken) {
+    return (
+      <main className="min-h-screen bg-slate-50 p-6 flex items-center justify-center">
+        <section className="max-w-md w-full rounded-xl bg-white border border-slate-200 shadow-sm p-6 space-y-4">
+          <h1 className="text-xl font-bold text-slate-800">Respuesta a tu cita</h1>
+          <p className="text-sm text-slate-600">Selecciona si asistirás o si necesitas liberar el horario reservado.</p>
+          <div className="flex gap-3">
+            <button onClick={() => replyToAppointment('CONFIRMAR')} className="flex-1 rounded bg-teal-700 text-white px-3 py-2 font-semibold">Asistiré</button>
+            <button onClick={() => replyToAppointment('CANCELAR')} className="flex-1 rounded bg-rose-700 text-white px-3 py-2 font-semibold">Cancelar cita</button>
+          </div>
+          {appointmentReply && <p role="status" className="text-sm text-slate-700">{appointmentReply}</p>}
+        </section>
+      </main>
+    );
   }
 
   return (
@@ -275,7 +352,19 @@ export default function App() {
 
       {/* Contenido Principal */}
       <main className="max-w-7xl mx-auto w-full px-4 py-6 flex-1">
-        {activeTab === 'paciente' ? (
+        {activeTab === 'secretaria' && !secretaryToken ? (
+          <section className="max-w-md mx-auto mt-12 bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <h2 className="text-lg font-bold text-slate-800">Acceso de secretaría</h2>
+            <p className="text-sm text-slate-600 mt-1">Ingrese la contraseña configurada para este entorno.</p>
+            <form className="mt-4 space-y-3" onSubmit={loginSecretary}>
+              <input type="password" autoComplete="current-password" required value={secretaryPassword}
+                onChange={(event) => setSecretaryPassword(event.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              {secretaryError && <p role="alert" className="text-sm text-rose-700">{secretaryError}</p>}
+              <button className="w-full bg-teal-700 hover:bg-teal-800 text-white font-semibold py-2.5 rounded-lg text-sm">Iniciar sesión</button>
+            </form>
+          </section>
+        ) : activeTab === 'paciente' ? (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Columna Izquierda: Filtros A-01 (MED-9) */}
             <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 h-fit">
@@ -810,6 +899,12 @@ export default function App() {
                             : 'Habilitado en Portal Web (A-02)'}
                         </td>
                         <td className="py-2.5 px-3 text-right">
+                          {b.estado === 'DISPONIBLE' && (
+                            <button type="button" onClick={() => setReceptionBlock(b)}
+                              className="px-2.5 py-1 rounded font-semibold bg-teal-700 text-white hover:bg-teal-800 mr-2">
+                              Reservar recepción
+                            </button>
+                          )}
                           {b.estado !== 'RESERVADO' && (
                             <button
                               type="button"
@@ -829,6 +924,27 @@ export default function App() {
                   </tbody>
                 </table>
               </div>
+              {receptionBlock && (
+                <form onSubmit={submitReceptionBooking} className="mt-5 rounded-lg border border-teal-200 bg-teal-50 p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="md:col-span-2 flex justify-between items-center">
+                    <h3 className="font-semibold text-sm">Reserva rápida · {receptionBlock.hora_inicio}–{receptionBlock.hora_fin}</h3>
+                    <button type="button" onClick={() => setReceptionBlock(null)} className="text-xs underline">Cerrar</button>
+                  </div>
+                  <select value={receptionData.origen} onChange={(e) => setReceptionData({ ...receptionData, origen: e.target.value })}
+                    className="rounded border border-slate-300 px-3 py-2 text-sm">
+                    <option value="PRESENCIAL">Presencial</option><option value="TELEFONO">Telefónica</option>
+                  </select>
+                  <input required placeholder="RUT" value={receptionData.rut} onChange={(e) => setReceptionData({ ...receptionData, rut: e.target.value })}
+                    className="rounded border border-slate-300 px-3 py-2 text-sm" />
+                  <input required placeholder="Nombre completo" value={receptionData.nombre} onChange={(e) => setReceptionData({ ...receptionData, nombre: e.target.value })}
+                    className="rounded border border-slate-300 px-3 py-2 text-sm" />
+                  <input required type="email" placeholder="Correo" value={receptionData.email} onChange={(e) => setReceptionData({ ...receptionData, email: e.target.value })}
+                    className="rounded border border-slate-300 px-3 py-2 text-sm" />
+                  <input required type="tel" placeholder="Teléfono +569..." value={receptionData.telefono} onChange={(e) => setReceptionData({ ...receptionData, telefono: e.target.value })}
+                    className="rounded border border-slate-300 px-3 py-2 text-sm" />
+                  <button className="rounded bg-teal-700 text-white font-semibold px-3 py-2 text-sm">Confirmar reserva</button>
+                </form>
+              )}
             </section>
           </div>
         )}

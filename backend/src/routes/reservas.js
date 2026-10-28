@@ -2,7 +2,8 @@ const express = require('express');
 const crypto = require('crypto');
 const { pool } = require('../db');
 const { validateRut } = require('../utils/rutValidator');
-const { sendConfirmationEmail, getSentEmails } = require('../utils/mailer');
+const { enqueueConfirmationEmail } = require('../utils/mailer');
+const { requireSecretary } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -10,7 +11,7 @@ const router = express.Router();
  * GET /api/reservas
  * Lista las reservas confirmadas y los correos de confirmación emitidos (A-05)
  */
-router.get('/reservas', async (_req, res) => {
+router.get('/reservas', requireSecretary, async (_req, res) => {
   try {
     const result = await pool.query(`
       SELECT
@@ -38,15 +39,57 @@ router.get('/reservas', async (_req, res) => {
       LIMIT 50
     `);
 
+    const notifications = await pool.query(`
+      SELECT id, cita_id, canal, tipo, estado, proveedor, intentos, error, programado_en, enviado_en
+      FROM notificaciones ORDER BY creado_en DESC LIMIT 20
+    `);
     res.json({
       ok: true,
       total: result.rows.length,
       reservas: result.rows,
-      correos_recientes: getSentEmails().slice(0, 15),
+      notificaciones_recientes: notifications.rows,
     });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }
+});
+
+router.post('/citas/responder', async (req, res) => {
+  const token = String(req.body?.token || '');
+  const action = String(req.body?.accion || '').toUpperCase();
+  if (!/^[A-Za-z0-9_-]{40,50}$/.test(token) || !['CONFIRMAR', 'CANCELAR'].includes(action)) {
+    return res.status(400).json({ ok: false, error: 'Token o acción inválida.' });
+  }
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const found = await client.query(
+      `SELECT id, agenda_id, estado, asistencia_estado FROM citas_medicas
+       WHERE token_respuesta_hash=$1 AND token_respuesta_expira > NOW() FOR UPDATE`, [tokenHash]
+    );
+    if (!found.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ ok: false, error: 'El enlace expiró o ya no es válido.' });
+    }
+    const cita = found.rows[0];
+    if (cita.estado === 'CANCELADA') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ ok: false, error: 'La cita ya fue cancelada.' });
+    }
+    if (action === 'CANCELAR') {
+      await client.query("UPDATE citas_medicas SET estado='CANCELADA', asistencia_estado='CANCELADA', token_respuesta_hash=NULL WHERE id=$1", [cita.id]);
+      await client.query("UPDATE agendas SET estado='DISPONIBLE', updated_at=NOW() WHERE id=$1 AND estado='RESERVADO'", [cita.agenda_id]);
+      await client.query("UPDATE notificaciones SET estado='OMITIDA' WHERE cita_id=$1 AND tipo='RECORDATORIO' AND estado='PENDIENTE'", [cita.id]);
+    } else {
+      await client.query("UPDATE citas_medicas SET asistencia_estado='ASISTIRA', token_respuesta_hash=NULL WHERE id=$1", [cita.id]);
+    }
+    await client.query('COMMIT');
+    return res.json({ ok: true, estado: action === 'CANCELAR' ? 'CANCELADA' : 'ASISTIRA' });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    return res.status(500).json({ ok: false, error: 'No fue posible actualizar la cita.' });
+  } finally { client.release(); }
 });
 
 /**
@@ -55,7 +98,10 @@ router.get('/reservas', async (_req, res) => {
  * MED-16 (RNF-01 / Riesgo R01): Bloqueo pesimista a nivel de fila (SELECT ... FOR UPDATE)
  * y aislamiento transaccional en PostgreSQL para garantizar 0% de overbooking.
  */
-router.post('/reservas', async (req, res) => {
+router.post('/reservas', (req, res, next) => {
+  if (['PRESENCIAL', 'TELEFONO'].includes(req.body?.origen)) return requireSecretary(req, res, next);
+  next();
+}, async (req, res) => {
   const startHr = process.hrtime.bigint();
   const {
     agenda_id,
@@ -64,6 +110,8 @@ router.post('/reservas', async (req, res) => {
     paciente_email,
     paciente_telefono,
   } = req.body;
+  const source = ['WEB', 'PRESENCIAL', 'TELEFONO'].includes(req.body.origen) ? req.body.origen : 'WEB';
+  const requestKey = String(req.get('Idempotency-Key') || '').trim();
 
   // 1. Validación de campos obligatorios (A-03)
   if (!agenda_id || !paciente_rut || !paciente_nombre || !paciente_email || !paciente_telefono) {
@@ -74,6 +122,12 @@ router.post('/reservas', async (req, res) => {
       codigo_error: 'CAMPOS_INCOMPLETOS',
       mensaje: 'Todos los datos del paciente (RUT, nombre, correo y teléfono) y el bloque horario son obligatorios.',
     });
+  }
+  if (!Number.isInteger(Number(agenda_id)) || Number(agenda_id) <= 0 ||
+      String(paciente_nombre).trim().length > 150 || !/^\S+@\S+\.\S+$/.test(String(paciente_email).trim()) ||
+      !/^\+?[0-9 ()-]{8,30}$/.test(String(paciente_telefono).trim()) ||
+      (requestKey && requestKey.length > 100)) {
+    return res.status(400).json({ ok: false, codigo_error: 'DATOS_INVALIDOS', mensaje: 'Revise el correo, teléfono, nombre y bloque seleccionado.' });
   }
 
   // 2. Actividad A-04: Validación algorítmica de RUT chileno (Módulo 11)
@@ -94,7 +148,16 @@ router.post('/reservas', async (req, res) => {
   // 3. Actividad A-04 y MED-16: Transacción con Bloqueo Pesimista (SELECT ... FOR UPDATE)
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
+
+    const target = await client.query('SELECT medico_id FROM agendas WHERE id=$1', [Number(agenda_id)]);
+    if (!target.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ ok: false, codigo_error: 'BLOQUE_NO_EXISTE', mensaje: 'El bloque horario seleccionado no existe.' });
+    }
+    // Las operaciones de configuración y reserva toman primero el bloqueo del médico
+    // para mantener un orden común y evitar interbloqueos.
+    await client.query('SELECT id FROM medicos WHERE id=$1 FOR UPDATE', [target.rows[0].medico_id]);
 
     // Bloquea la fila específica en la tabla agendas hasta que termine esta transacción (COMMIT/ROLLBACK)
     const lockQuery = await client.query(
@@ -108,7 +171,8 @@ router.post('/reservas', async (req, res) => {
         TO_CHAR(a.hora_fin, 'HH24:MI') AS hora_fin,
         m.nombre AS medico_nombre,
         m.box_atencion,
-        e.nombre AS especialidad_nombre
+        e.nombre AS especialidad_nombre,
+        m.activo
       FROM agendas a
       INNER JOIN medicos m ON m.id = a.medico_id
       INNER JOIN especialidades e ON e.id = m.especialidad_id
@@ -130,6 +194,34 @@ router.post('/reservas', async (req, res) => {
     }
 
     const bloque = lockQuery.rows[0];
+
+    // Serializar reservas del mismo profesional y evitar reservar cualquier parte
+    // de otro intervalo ya tomado, incluso si se cargaron datos históricos solapados.
+    if (!bloque.activo || bloque.fecha < new Date().toLocaleDateString('en-CA', { timeZone: 'America/Santiago' })) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ ok: false, codigo_error: 'BLOQUE_NO_RESERVABLE', mensaje: 'El profesional o el horario ya no está disponible.' });
+    }
+
+    if (requestKey) {
+      const previous = await client.query('SELECT id, codigo_reserva, agenda_id FROM citas_medicas WHERE solicitud_id = $1', [requestKey]);
+      if (previous.rowCount) {
+        await client.query('ROLLBACK');
+        return res.status(200).json({ ok: true, repetida: true, reserva: previous.rows[0] });
+      }
+    }
+
+    const conflicting = await client.query(
+      `SELECT id FROM agendas
+       WHERE medico_id = $1 AND fecha = $2::date AND id <> $3
+         AND estado = 'RESERVADO'
+         AND hora_inicio < $5::time AND hora_fin > $4::time
+       LIMIT 1`,
+      [bloque.medico_id, bloque.fecha, bloque.id, bloque.hora_inicio, bloque.hora_fin]
+    );
+    if (conflicting.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ ok: false, codigo_error: 'BLOQUE_SUPERPUESTO', mensaje: 'El horario se superpone con otra cita reservada.' });
+    }
 
     // Compuerta Exclusiva BPMN (X): ¿RUT válido y cupo disponible? -> Rama "No" (A-06)
     if (bloque.estado !== 'DISPONIBLE') {
@@ -159,6 +251,9 @@ router.post('/reservas', async (req, res) => {
 
     const uniqueSuffix = crypto.randomBytes(3).toString('hex').toUpperCase();
     const codigoReserva = `MED-2026-${uniqueSuffix}`;
+    const responseToken = crypto.randomBytes(32).toString('base64url');
+    const responseTokenHash = crypto.createHash('sha256').update(responseToken).digest('hex');
+    const responseUrl = `${process.env.PUBLIC_WEB_URL || 'http://localhost:5173'}/?cita_token=${responseToken}`;
 
     const insertCita = await client.query(
       `
@@ -171,8 +266,14 @@ router.post('/reservas', async (req, res) => {
         paciente_email,
         paciente_telefono,
         estado,
-        correo_enviado
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'CONFIRMADA', TRUE)
+        correo_enviado,
+        origen,
+        solicitud_id,
+        token_respuesta_hash,
+        token_respuesta_expira,
+        reminder_programado
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'CONFIRMADA', FALSE, $8, $9, $10, NOW() + INTERVAL '30 days',
+        ((($11::date + $12::time) AT TIME ZONE 'America/Santiago') - INTERVAL '24 hours'))
       RETURNING id, codigo_reserva, created_at
       `,
       [
@@ -183,13 +284,17 @@ router.post('/reservas', async (req, res) => {
         paciente_nombre.trim(),
         paciente_email.trim(),
         paciente_telefono.trim(),
+        source,
+        requestKey || null,
+        responseTokenHash,
+        bloque.fecha,
+        bloque.hora_inicio,
       ]
     );
 
-    await client.query('COMMIT');
-
-    // Despacho de correo automático de confirmación (A-05)
-    const emailComprobante = await sendConfirmationEmail({
+    // Registrar el correo en la misma transacción; un reinicio no pierde la cola.
+    const emailComprobante = await enqueueConfirmationEmail({
+      client,
       codigoReserva,
       pacienteNombre: paciente_nombre.trim(),
       pacienteRut: rutValidation.formatted,
@@ -201,6 +306,22 @@ router.post('/reservas', async (req, res) => {
       horaInicio: bloque.hora_inicio,
       horaFin: bloque.hora_fin,
     });
+    const reminderText = `Medisalud: recuerda tu cita con ${bloque.medico_nombre} el ${bloque.fecha} a las ${bloque.hora_inicio}. Confirma o cancela aquí: ${responseUrl}`;
+    for (const [channel, recipient, subject] of [
+      ['EMAIL', paciente_email.trim(), 'Recordatorio de cita — Medisalud'],
+      ['WHATSAPP', paciente_telefono.trim(), null],
+    ]) {
+      await client.query(
+        `INSERT INTO notificaciones (cita_id, canal, tipo, destinatario, asunto, contenido, programado_en, estado)
+         VALUES ($1, $2, 'RECORDATORIO', $3, $4, $5,
+           ((($6::date + $7::time) AT TIME ZONE 'America/Santiago') - INTERVAL '24 hours'),
+           CASE WHEN ((($6::date + $7::time) AT TIME ZONE 'America/Santiago') - INTERVAL '24 hours') <= NOW()
+             THEN 'OMITIDA' ELSE 'PENDIENTE' END)
+         ON CONFLICT (cita_id, canal, tipo) DO NOTHING`,
+        [insertCita.rows[0].id, channel, recipient, subject, reminderText, bloque.fecha, bloque.hora_inicio]
+      );
+    }
+    await client.query('COMMIT');
 
     const elapsedMs = Number(process.hrtime.bigint() - startHr) / 1e6;
 
@@ -210,7 +331,7 @@ router.post('/reservas', async (req, res) => {
       criterio: 'CA-02 Sin conflicto (Recorrido exitoso)',
       actividad_bpmn: 'A-05 Registrar reserva y enviar confirmación',
       latencia_ms: Number(elapsedMs.toFixed(2)),
-      mensaje: `Reserva confirmada exitosamente con código ${codigoReserva}. Se ha enviado el comprobante a ${paciente_email.trim()}.`,
+      mensaje: `Reserva confirmada exitosamente con código ${codigoReserva}. El comprobante quedó en cola de envío.`,
       reserva: {
         id: insertCita.rows[0].id,
         codigo_reserva: codigoReserva,

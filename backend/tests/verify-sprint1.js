@@ -10,6 +10,15 @@ async function runTests() {
   console.log(' VERIFICACIÓN AUTOMATIZADA SPRINT 1 — SISTEMA MEDISALUD (16 PTS)');
   console.log('======================================================================\n');
 
+  const loginRes = await fetch(`${API_URL}/auth/secretaria`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: process.env.SECRETARY_PASSWORD }),
+  });
+  const login = await loginRes.json();
+  if (!loginRes.ok) throw new Error('Configura SECRETARY_PASSWORD y SECRETARY_TOKEN_SECRET para ejecutar esta suite.');
+  const secretaryHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${login.token}` };
+
   // 1. Verificar MED-15 (Staging + PostgreSQL + 4 especialidades + 15 médicos)
   const healthRes = await fetch(`${API_URL}/health`);
   const health = await healthRes.json();
@@ -22,7 +31,7 @@ async function runTests() {
   const futureDate = '2026-11-15';
   const configRes = await fetch(`${API_URL}/agendas/configurar`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: secretaryHeaders,
     body: JSON.stringify({
       medico_id: 2,
       fecha: futureDate,
@@ -53,7 +62,7 @@ async function runTests() {
   // Bloquear segundo horario por secretaría (MED-10 CA-02) y comprobar que desaparece de MED-9
   await fetch(`${API_URL}/agendas/bloquear`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: secretaryHeaders,
     body: JSON.stringify({
       agenda_id: blockToLock.agenda_id,
       motivo: 'Licencia médica parcial prueba MED-10',

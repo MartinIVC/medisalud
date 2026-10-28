@@ -1,5 +1,6 @@
 const express = require('express');
 const { pool } = require('../db');
+const { requireSecretary } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -8,7 +9,7 @@ const router = express.Router();
  * Consulta administrativa para secretarias (MED-10): muestra TODOS los bloques
  * (DISPONIBLE, RESERVADO y BLOQUEADO) para un médico y fecha.
  */
-router.get('/agendas', async (req, res) => {
+router.get('/agendas', requireSecretary, async (req, res) => {
   try {
     const { medico_id, fecha } = req.query;
     const params = [];
@@ -70,7 +71,7 @@ router.get('/agendas', async (req, res) => {
  * MED-10 (RF-03 / HU02 - CA-01): Parametrizar bloques horarios de 15, 20 o 30 minutos
  * para uno de los 15 médicos especialistas en una fecha o rango de fechas.
  */
-router.post('/agendas/configurar', async (req, res) => {
+router.post('/agendas/configurar', requireSecretary, async (req, res) => {
   const {
     medico_id,
     fecha,
@@ -87,7 +88,10 @@ router.post('/agendas/configurar', async (req, res) => {
     });
   }
 
-  if (![15, 20, 30].includes(duracion)) {
+  const validTime = (value) => /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+  if (!Number.isInteger(Number(medico_id)) || Number(medico_id) <= 0 ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(fecha) ||
+      ![15, 20, 30].includes(duracion) || !validTime(hora_inicio) || !validTime(hora_fin) || hora_inicio >= hora_fin) {
     return res.status(400).json({
       ok: false,
       error: 'Según RF-03 (MED-10), la duración del bloque debe ser estrictamente 15, 20 o 30 minutos.',
@@ -97,6 +101,15 @@ router.post('/agendas/configurar', async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await client.query('SELECT id FROM medicos WHERE id = $1 AND activo = TRUE FOR UPDATE', [Number(medico_id)]);
+    const blockedDay = await client.query(
+      'SELECT 1 FROM bloqueos_agenda WHERE fecha=$1::date AND (medico_id IS NULL OR medico_id=$2) LIMIT 1',
+      [fecha, Number(medico_id)]
+    );
+    if (blockedDay.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ ok: false, error: 'La fecha está bloqueada por feriado o ausencia registrada.' });
+    }
 
     // Eliminar bloques DISPONIBLES previos en ese rango que no tengan citas reservadas para regenerar con la nueva duración
     await client.query(
@@ -123,7 +136,12 @@ router.post('/agendas/configurar', async (req, res) => {
       INSERT INTO agendas (medico_id, fecha, hora_inicio, hora_fin, duracion_min, estado)
       SELECT $1::INT, $2::DATE, h_ini, h_fin, $5::INT, 'DISPONIBLE'
       FROM intervalos
-      WHERE h_ini < $4::TIME
+      WHERE h_fin <= $4::TIME
+        AND NOT EXISTS (
+          SELECT 1 FROM agendas existente
+          WHERE existente.medico_id = $1::INT AND existente.fecha = $2::DATE
+            AND existente.hora_inicio < h_fin AND existente.hora_fin > h_ini
+        )
       ON CONFLICT (medico_id, fecha, hora_inicio) DO NOTHING
       RETURNING id, TO_CHAR(hora_inicio, 'HH24:MI') AS hora_inicio, TO_CHAR(hora_fin, 'HH24:MI') AS hora_fin, duracion_min, estado
       `,
@@ -151,7 +169,7 @@ router.post('/agendas/configurar', async (req, res) => {
  * POST /api/agendas/bloquear
  * MED-10 (RF-03 / HU02 - CA-02): Bloquear días festivos, licencias médicas o bloques específicos
  */
-router.post('/agendas/bloquear', async (req, res) => {
+router.post('/agendas/bloquear', requireSecretary, async (req, res) => {
   const {
     medico_id,
     fecha,
@@ -174,6 +192,7 @@ router.post('/agendas/bloquear', async (req, res) => {
         [Number(agenda_id), motivo]
       );
     } else if (es_feriado_global && fecha) {
+      await pool.query('INSERT INTO bloqueos_agenda (medico_id, fecha, motivo) VALUES (NULL, $1::date, $2)', [fecha, motivo]);
       result = await pool.query(
         `
         UPDATE agendas
@@ -184,6 +203,7 @@ router.post('/agendas/bloquear', async (req, res) => {
         [fecha, motivo]
       );
     } else if (medico_id && fecha) {
+      await pool.query('INSERT INTO bloqueos_agenda (medico_id, fecha, motivo) VALUES ($1, $2::date, $3)', [Number(medico_id), fecha, motivo]);
       result = await pool.query(
         `
         UPDATE agendas
@@ -216,7 +236,7 @@ router.post('/agendas/bloquear', async (req, res) => {
  * POST /api/agendas/desbloquear
  * Permite a la secretaria rehabilitar un bloque bloqueado a estado DISPONIBLE
  */
-router.post('/agendas/desbloquear', async (req, res) => {
+router.post('/agendas/desbloquear', requireSecretary, async (req, res) => {
   const { agenda_id, medico_id, fecha } = req.body;
   try {
     let result;
@@ -231,6 +251,7 @@ router.post('/agendas/desbloquear', async (req, res) => {
         [Number(agenda_id)]
       );
     } else if (medico_id && fecha) {
+      await pool.query('DELETE FROM bloqueos_agenda WHERE fecha=$2::date AND medico_id=$1', [Number(medico_id), fecha]);
       result = await pool.query(
         `
         UPDATE agendas

@@ -5,6 +5,8 @@
 
 BEGIN;
 
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
 -- 1. Tabla de Especialidades Médicas (4 áreas del Centro Médico Medisalud)
 CREATE TABLE IF NOT EXISTS especialidades (
     id SERIAL PRIMARY KEY,
@@ -39,7 +41,9 @@ CREATE TABLE IF NOT EXISTS agendas (
     motivo_bloqueo VARCHAR(255),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     -- Restricción de integridad: un médico no puede tener dos bloques que inicien a la misma hora y fecha
-    CONSTRAINT uq_medico_fecha_hora UNIQUE (medico_id, fecha, hora_inicio)
+    CONSTRAINT uq_medico_fecha_hora UNIQUE (medico_id, fecha, hora_inicio),
+    CONSTRAINT ex_agendas_sin_superposicion EXCLUDE USING gist
+      (medico_id WITH =, tsrange(fecha + hora_inicio, fecha + hora_fin, '[)') WITH &&)
 );
 
 -- 4. Tabla de Citas Médicas Reservadas (MED-11 y MED-16)
@@ -47,7 +51,7 @@ CREATE TABLE IF NOT EXISTS agendas (
 CREATE TABLE IF NOT EXISTS citas_medicas (
     id SERIAL PRIMARY KEY,
     codigo_reserva VARCHAR(30) NOT NULL UNIQUE,
-    agenda_id INTEGER NOT NULL UNIQUE REFERENCES agendas(id) ON DELETE RESTRICT,
+    agenda_id INTEGER NOT NULL REFERENCES agendas(id) ON DELETE RESTRICT,
     medico_id INTEGER NOT NULL REFERENCES medicos(id) ON DELETE RESTRICT,
     paciente_rut VARCHAR(15) NOT NULL,
     paciente_nombre VARCHAR(150) NOT NULL,
@@ -55,9 +59,49 @@ CREATE TABLE IF NOT EXISTS citas_medicas (
     paciente_telefono VARCHAR(30) NOT NULL,
     estado VARCHAR(20) NOT NULL DEFAULT 'CONFIRMADA'
         CHECK (estado IN ('CONFIRMADA', 'CANCELADA')),
-    correo_enviado BOOLEAN NOT NULL DEFAULT TRUE,
+    asistencia_estado VARCHAR(20) NOT NULL DEFAULT 'PENDIENTE'
+        CHECK (asistencia_estado IN ('PENDIENTE', 'ASISTIRA', 'CANCELADA')),
+    correo_enviado BOOLEAN NOT NULL DEFAULT FALSE,
+    origen VARCHAR(20) NOT NULL DEFAULT 'WEB' CHECK (origen IN ('WEB','PRESENCIAL','TELEFONO')),
+    solicitud_id VARCHAR(100) UNIQUE,
+    token_respuesta_hash VARCHAR(64),
+    token_respuesta_expira TIMESTAMP WITH TIME ZONE,
+    reminder_programado TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_citas_agenda_activas ON citas_medicas(agenda_id) WHERE estado = 'CONFIRMADA';
+
+CREATE TABLE IF NOT EXISTS notificaciones (
+    id BIGSERIAL PRIMARY KEY,
+    cita_id INTEGER NOT NULL REFERENCES citas_medicas(id) ON DELETE CASCADE,
+    canal VARCHAR(10) NOT NULL CHECK (canal IN ('EMAIL','WHATSAPP')),
+    tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('CONFIRMACION','RECORDATORIO')),
+    destinatario VARCHAR(255) NOT NULL,
+    asunto VARCHAR(255),
+    contenido TEXT NOT NULL,
+    estado VARCHAR(20) NOT NULL DEFAULT 'PENDIENTE'
+      CHECK (estado IN ('PENDIENTE','ENVIANDO','ACEPTADO','ENTREGADO','FALLIDA','OMITIDA')),
+    intentos INTEGER NOT NULL DEFAULT 0,
+    error TEXT,
+    proveedor VARCHAR(40),
+    proveedor_id VARCHAR(255),
+    reintentar_en TIMESTAMP WITH TIME ZONE,
+    programado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    enviado_en TIMESTAMP WITH TIME ZONE,
+    creado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_notificacion_cita_canal_tipo UNIQUE (cita_id, canal, tipo)
+);
+CREATE INDEX IF NOT EXISTS idx_notificaciones_pendientes ON notificaciones(estado, programado_en);
+
+CREATE TABLE IF NOT EXISTS bloqueos_agenda (
+    id BIGSERIAL PRIMARY KEY,
+    medico_id INTEGER REFERENCES medicos(id) ON DELETE CASCADE,
+    fecha DATE NOT NULL,
+    motivo VARCHAR(255) NOT NULL,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_bloqueos_agenda_fecha ON bloqueos_agenda(fecha, medico_id);
 
 -- =============================================================================
 -- Índices sobre llaves foráneas y filtros de búsqueda (RNF-01 / MED-9 < 2,0 s)
