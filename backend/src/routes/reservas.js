@@ -4,6 +4,9 @@ const { pool } = require('../db');
 const { validateRut } = require('../utils/rutValidator');
 const { enqueueConfirmationEmail } = require('../utils/mailer');
 const { requireSecretary } = require('../middleware/auth');
+const { asyncHandler, HttpError } = require('../middleware/errors');
+const { parseReservation } = require('../schemas/inputs');
+const { withTransaction } = require('../db/transaction');
 
 const router = express.Router();
 
@@ -11,7 +14,7 @@ const router = express.Router();
  * GET /api/reservas
  * Lista las reservas confirmadas y los correos de confirmación emitidos (A-05)
  */
-router.get('/reservas', requireSecretary, async (_req, res) => {
+router.get('/reservas', requireSecretary, asyncHandler(async (_req, res) => {
   try {
     const result = await pool.query(`
       SELECT
@@ -50,9 +53,9 @@ router.get('/reservas', requireSecretary, async (_req, res) => {
       notificaciones_recientes: notifications.rows,
     });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    throw err;
   }
-});
+}));
 
 async function readAppointmentResponseDetails(token) {
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
@@ -72,7 +75,7 @@ async function readAppointmentResponseDetails(token) {
   return result.rows[0] || null;
 }
 
-router.get('/citas/responder', async (req, res) => {
+router.get('/citas/responder', asyncHandler(async (req, res) => {
   const token = String(req.query?.token || '');
   if (!/^[A-Za-z0-9_-]{40,50}$/.test(token)) {
     return res.status(400).json({ ok: false, error: 'El enlace no es válido.' });
@@ -83,32 +86,29 @@ router.get('/citas/responder', async (req, res) => {
     res.set('Cache-Control', 'no-store');
     return res.json({ ok: true, cita });
   } catch {
-    return res.status(500).json({ ok: false, error: 'No pudimos cargar el detalle de la cita.' });
+    throw new HttpError(503, 'SERVICE_UNAVAILABLE', 'No pudimos cargar el detalle de la cita.');
   }
-});
+}));
 
-router.post('/citas/responder', async (req, res) => {
+router.post('/citas/responder', asyncHandler(async (req, res) => {
   const token = String(req.body?.token || '');
   const action = String(req.body?.accion || '').toUpperCase();
   if (!/^[A-Za-z0-9_-]{40,50}$/.test(token) || !['CONFIRMAR', 'CANCELAR'].includes(action)) {
     return res.status(400).json({ ok: false, error: 'Token o acción inválida.' });
   }
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-  const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    const response = await withTransaction(pool, async (client) => {
     const found = await client.query(
       `SELECT id, agenda_id, estado, asistencia_estado FROM citas_medicas
        WHERE token_respuesta_hash=$1 AND token_respuesta_expira > NOW() FOR UPDATE`, [tokenHash]
     );
     if (!found.rowCount) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ ok: false, error: 'El enlace expiró o ya no es válido.' });
+      throw new HttpError(404, 'RESPONSE_LINK_NOT_FOUND', 'El enlace expiró o ya no es válido.');
     }
     const cita = found.rows[0];
     if (cita.estado === 'CANCELADA') {
-      await client.query('ROLLBACK');
-      return res.status(409).json({ ok: false, error: 'La cita ya fue cancelada.' });
+      throw new HttpError(409, 'APPOINTMENT_CANCELLED', 'La cita ya fue cancelada.');
     }
     if (action === 'CANCELAR') {
       await client.query("UPDATE citas_medicas SET estado='CANCELADA', asistencia_estado='CANCELADA', token_respuesta_hash=NULL WHERE id=$1", [cita.id]);
@@ -117,13 +117,14 @@ router.post('/citas/responder', async (req, res) => {
     } else {
       await client.query("UPDATE citas_medicas SET asistencia_estado='ASISTIRA', token_respuesta_hash=NULL WHERE id=$1", [cita.id]);
     }
-    await client.query('COMMIT');
-    return res.json({ ok: true, estado: action === 'CANCELAR' ? 'CANCELADA' : 'ASISTIRA' });
+    return { ok: true, estado: action === 'CANCELAR' ? 'CANCELADA' : 'ASISTIRA' };
+    });
+    return res.json(response);
   } catch (error) {
-    await client.query('ROLLBACK').catch(() => {});
-    return res.status(500).json({ ok: false, error: 'No fue posible actualizar la cita.' });
-  } finally { client.release(); }
-});
+    if (error instanceof HttpError) throw error;
+    throw new HttpError(503, 'SERVICE_UNAVAILABLE', 'No fue posible actualizar la cita.');
+  }
+}));
 
 /**
  * POST /api/reservas
@@ -134,34 +135,21 @@ router.post('/citas/responder', async (req, res) => {
 router.post('/reservas', (req, res, next) => {
   if (['PRESENCIAL', 'TELEFONO'].includes(req.body?.origen)) return requireSecretary(req, res, next);
   next();
-}, async (req, res) => {
+}, asyncHandler(async (req, res) => {
   const startHr = process.hrtime.bigint();
-  const {
-    agenda_id,
-    paciente_rut,
-    paciente_nombre,
-    paciente_email,
-    paciente_telefono,
-  } = req.body;
-  const source = ['WEB', 'PRESENCIAL', 'TELEFONO'].includes(req.body.origen) ? req.body.origen : 'WEB';
-  const requestKey = String(req.get('Idempotency-Key') || '').trim();
-
-  // 1. Validación de campos obligatorios (A-03)
-  if (!agenda_id || !paciente_rut || !paciente_nombre || !paciente_email || !paciente_telefono) {
+  const parsed = parseReservation(req.body, (req.get('Idempotency-Key') || '').trim());
+  if (Object.keys(parsed.errors).length) {
     return res.status(400).json({
       ok: false,
       jira: 'MED-11',
-      actividad_bpmn: 'A-06 Informar rechazo y solicitar nueva selección',
-      codigo_error: 'CAMPOS_INCOMPLETOS',
-      mensaje: 'Todos los datos del paciente (RUT, nombre, correo y teléfono) y el bloque horario son obligatorios.',
+      codigo_error: parsed.errors.paciente_rut ? 'RUT_INVALIDO' : 'DATOS_INVALIDOS',
+      code: 'VALIDATION_ERROR',
+      error: 'Revisa los datos de la reserva.',
+      mensaje: 'Revisa los datos de la reserva.',
+      fields: parsed.errors,
     });
   }
-  if (!Number.isInteger(Number(agenda_id)) || Number(agenda_id) <= 0 ||
-      String(paciente_nombre).trim().length > 150 || !/^\S+@\S+\.\S+$/.test(String(paciente_email).trim()) ||
-      !/^\+?[0-9 ()-]{8,30}$/.test(String(paciente_telefono).trim()) ||
-      (requestKey && requestKey.length > 100)) {
-    return res.status(400).json({ ok: false, codigo_error: 'DATOS_INVALIDOS', mensaje: 'Revise el correo, teléfono, nombre y bloque seleccionado.' });
-  }
+  const { agendaId: agenda_id, rut: paciente_rut, nombre: paciente_nombre, email: paciente_email, telefono: paciente_telefono, origen: source, requestKey } = parsed.value;
 
   // 2. Actividad A-04: Validación algorítmica de RUT chileno (Módulo 11)
   const rutValidation = validateRut(paciente_rut);
@@ -384,7 +372,7 @@ router.post('/reservas', (req, res, next) => {
       comprobante_correo: emailComprobante,
     });
   } catch (err) {
-    await client.query('ROLLBACK');
+    await client.query('ROLLBACK').catch(() => {});
     const elapsedMs = Number(process.hrtime.bigint() - startHr) / 1e6;
 
     // Manejo de colisión por índice UNIQUE o serialización en PostgreSQL
@@ -399,10 +387,10 @@ router.post('/reservas', (req, res, next) => {
       });
     }
 
-    return res.status(500).json({ ok: false, error: err.message });
+    throw err;
   } finally {
     client.release();
   }
-});
+}));
 
 module.exports = router;

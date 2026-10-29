@@ -32,6 +32,13 @@ function formatRut(rut) {
 }
 
 function validateRut(rut) {
+  if (typeof rut !== 'string' || !/^(?:\d{1,8}|\d{1,2}(?:\.\d{3})+)-?[0-9kK]$/.test(rut.trim())) {
+    return {
+      valid: false,
+      formatted: typeof rut === 'string' ? rut.trim() : '',
+      reason: 'El RUT debe usar solo números, puntos opcionales y un dígito verificador (0-9 o K).',
+    };
+  }
   const cleaned = cleanRut(rut);
   if (cleaned.length < 8 || cleaned.length > 9) {
     return {

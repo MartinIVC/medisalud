@@ -1,6 +1,8 @@
 const express = require('express');
 const { pool } = require('../db');
 const { requireSecretary } = require('../middleware/auth');
+const { asyncHandler } = require('../middleware/errors');
+const { isValidDate, positiveInteger, parseAgendaConfiguration, parseAgendaBlockAction } = require('../schemas/inputs');
 
 const router = express.Router();
 
@@ -9,9 +11,14 @@ const router = express.Router();
  * Consulta administrativa para secretarias (MED-10): muestra TODOS los bloques
  * (DISPONIBLE, RESERVADO y BLOQUEADO) para un médico y fecha.
  */
-router.get('/agendas', requireSecretary, async (req, res) => {
+router.get('/agendas', requireSecretary, asyncHandler(async (req, res) => {
+  const { medico_id, fecha } = req.query;
+  const fields = {};
+  if (medico_id !== undefined && !/^\d+$/.test(medico_id)) fields.medico_id = 'Indica un médico válido.';
+  if (medico_id !== undefined && (!positiveInteger(Number(medico_id)))) fields.medico_id = 'Indica un médico válido.';
+  if (fecha !== undefined && !isValidDate(fecha)) fields.fecha = 'Indica una fecha real con formato AAAA-MM-DD.';
+  if (Object.keys(fields).length) return res.status(400).json({ ok: false, code: 'VALIDATION_ERROR', error: 'Revisa los filtros de agenda.', fields });
   try {
-    const { medico_id, fecha } = req.query;
     const params = [];
     const conditions = [];
 
@@ -62,49 +69,33 @@ router.get('/agendas', requireSecretary, async (req, res) => {
       bloques: result.rows,
     });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    throw err;
   }
-});
+}));
 
 /**
  * POST /api/agendas/configurar
  * MED-10 (RF-03 / HU02 - CA-01): Parametrizar bloques horarios de 15, 20 o 30 minutos
  * para un médico activo registrado en el sistema.
  */
-router.post('/agendas/configurar', requireSecretary, async (req, res) => {
-  const {
-    medico_id,
-    fecha,
-    hora_inicio = '09:00',
-    hora_fin = '13:00',
-    duracion_min = 30,
-  } = req.body;
-
-  const duracion = Number(duracion_min);
-  if (!medico_id || !fecha) {
-    return res.status(400).json({
-      ok: false,
-      error: 'Debe indicar medico_id y fecha para parametrizar la agenda.',
-    });
+router.post('/agendas/configurar', requireSecretary, asyncHandler(async (req, res) => {
+  const parsed = parseAgendaConfiguration(req.body);
+  if (Object.keys(parsed.errors).length) {
+    return res.status(400).json({ ok: false, code: 'VALIDATION_ERROR', error: 'Revisa los datos de configuración de agenda.', fields: parsed.errors });
   }
-
-  const validTime = (value) => /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
-  if (!Number.isInteger(Number(medico_id)) || Number(medico_id) <= 0 ||
-      !/^\d{4}-\d{2}-\d{2}$/.test(fecha) ||
-      ![15, 20, 30].includes(duracion) || !validTime(hora_inicio) || !validTime(hora_fin) || hora_inicio >= hora_fin) {
-    return res.status(400).json({
-      ok: false,
-      error: 'Según RF-03 (MED-10), la duración del bloque debe ser estrictamente 15, 20 o 30 minutos.',
-    });
-  }
+  const { medicoId: medico_id, fecha, horaInicio: hora_inicio, horaFin: hora_fin, duracion } = parsed.value;
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await client.query('SELECT id FROM medicos WHERE id = $1 AND activo = TRUE FOR UPDATE', [Number(medico_id)]);
+    const doctor = await client.query('SELECT id FROM medicos WHERE id = $1 AND activo = TRUE FOR UPDATE', [medico_id]);
+    if (!doctor.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ ok: false, code: 'DOCTOR_NOT_FOUND', error: 'El médico no existe o está inactivo.' });
+    }
     const blockedDay = await client.query(
       'SELECT 1 FROM bloqueos_agenda WHERE fecha=$1::date AND (medico_id IS NULL OR medico_id=$2) LIMIT 1',
-      [fecha, Number(medico_id)]
+      [fecha, medico_id]
     );
     if (blockedDay.rowCount) {
       await client.query('ROLLBACK');
@@ -121,7 +112,7 @@ router.post('/agendas/configurar', requireSecretary, async (req, res) => {
         AND hora_inicio < $4::TIME
         AND estado = 'DISPONIBLE'
       `,
-      [Number(medico_id), fecha, hora_inicio, hora_fin]
+      [medico_id, fecha, hora_inicio, hora_fin]
     );
 
     const insertResult = await client.query(
@@ -145,7 +136,7 @@ router.post('/agendas/configurar', requireSecretary, async (req, res) => {
       ON CONFLICT (medico_id, fecha, hora_inicio) DO NOTHING
       RETURNING id, TO_CHAR(hora_inicio, 'HH24:MI') AS hora_inicio, TO_CHAR(hora_fin, 'HH24:MI') AS hora_fin, duracion_min, estado
       `,
-      [Number(medico_id), fecha, hora_inicio, hora_fin, duracion]
+      [medico_id, fecha, hora_inicio, hora_fin, duracion]
     );
 
     await client.query('COMMIT');
@@ -158,25 +149,36 @@ router.post('/agendas/configurar', requireSecretary, async (req, res) => {
       bloques_creados: insertResult.rows,
     });
   } catch (err) {
-    await client.query('ROLLBACK');
-    res.status(500).json({ ok: false, error: err.message });
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
   } finally {
     client.release();
   }
-});
+}));
 
 /**
  * POST /api/agendas/bloquear
  * MED-10 (RF-03 / HU02 - CA-02): Bloquear días festivos, licencias médicas o bloques específicos
  */
-router.post('/agendas/bloquear', requireSecretary, async (req, res) => {
+router.post('/agendas/bloquear', requireSecretary, asyncHandler(async (req, res) => {
+  const parsed = parseAgendaBlockAction(req.body);
   const {
     medico_id,
     fecha,
     agenda_id,
     es_feriado_global = false,
     motivo = 'Licencia médica / Día festivo (MED-10)',
-  } = req.body;
+  } = parsed.value;
+  const fields = parsed.errors;
+  const bodyIsValid = Object.keys(fields).length === 0;
+  const hasAgenda = parsed.value.agenda_id !== undefined;
+  const hasGlobalDate = parsed.value.es_feriado_global === true && parsed.value.fecha !== undefined;
+  const hasDoctorDate = parsed.value.es_feriado_global !== true && parsed.value.medico_id !== undefined && parsed.value.fecha !== undefined;
+  if (!bodyIsValid || [hasAgenda, hasGlobalDate, hasDoctorDate].filter(Boolean).length !== 1 ||
+      (parsed.value.es_feriado_global !== undefined && typeof parsed.value.es_feriado_global !== 'boolean')) {
+    return res.status(400).json({ ok: false, code: 'VALIDATION_ERROR', error: 'Indica un bloque, un médico y fecha, o un feriado global y fecha.', fields });
+  }
+  const motivoNormalizado = typeof motivo === 'string' ? motivo.trim() : motivo;
 
   try {
     let result;
@@ -189,10 +191,10 @@ router.post('/agendas/bloquear', requireSecretary, async (req, res) => {
         WHERE id = $1 AND estado = 'DISPONIBLE'
         RETURNING id
         `,
-        [Number(agenda_id), motivo]
+        [agenda_id, motivoNormalizado]
       );
     } else if (es_feriado_global && fecha) {
-      await pool.query('INSERT INTO bloqueos_agenda (medico_id, fecha, motivo) VALUES (NULL, $1::date, $2)', [fecha, motivo]);
+      await pool.query('INSERT INTO bloqueos_agenda (medico_id, fecha, motivo) VALUES (NULL, $1::date, $2)', [fecha, motivoNormalizado]);
       result = await pool.query(
         `
         UPDATE agendas
@@ -200,10 +202,10 @@ router.post('/agendas/bloquear', requireSecretary, async (req, res) => {
         WHERE fecha = $1::DATE AND estado = 'DISPONIBLE'
         RETURNING id
         `,
-        [fecha, motivo]
+        [fecha, motivoNormalizado]
       );
     } else if (medico_id && fecha) {
-      await pool.query('INSERT INTO bloqueos_agenda (medico_id, fecha, motivo) VALUES ($1, $2::date, $3)', [Number(medico_id), fecha, motivo]);
+      await pool.query('INSERT INTO bloqueos_agenda (medico_id, fecha, motivo) VALUES ($1, $2::date, $3)', [medico_id, fecha, motivoNormalizado]);
       result = await pool.query(
         `
         UPDATE agendas
@@ -211,7 +213,7 @@ router.post('/agendas/bloquear', requireSecretary, async (req, res) => {
         WHERE medico_id = $1 AND fecha = $2::DATE AND estado = 'DISPONIBLE'
         RETURNING id
         `,
-        [Number(medico_id), fecha, motivo]
+        [medico_id, fecha, motivoNormalizado]
       );
     } else {
       return res.status(400).json({
@@ -228,16 +230,22 @@ router.post('/agendas/bloquear', requireSecretary, async (req, res) => {
       mensaje: `Se bloquearon ${result.rowCount} bloques horarios (${motivo}). Ya no aparecerán disponibles en el Portal Web.`,
     });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    throw err;
   }
-});
+}));
 
 /**
  * POST /api/agendas/desbloquear
  * Permite a la secretaria rehabilitar un bloque bloqueado a estado DISPONIBLE
  */
-router.post('/agendas/desbloquear', requireSecretary, async (req, res) => {
-  const { agenda_id, medico_id, fecha } = req.body;
+router.post('/agendas/desbloquear', requireSecretary, asyncHandler(async (req, res) => {
+  const parsed = parseAgendaBlockAction(req.body);
+  const { agenda_id, medico_id, fecha } = parsed.value;
+  const hasAgenda = agenda_id !== undefined;
+  const hasDoctorDate = medico_id !== undefined && fecha !== undefined;
+  if (Object.keys(parsed.errors).length || [hasAgenda, hasDoctorDate].filter(Boolean).length !== 1) {
+    return res.status(400).json({ ok: false, code: 'VALIDATION_ERROR', error: 'Indica un bloque o un médico y fecha válidos.', fields: parsed.errors });
+  }
   try {
     let result;
     if (agenda_id) {
@@ -248,10 +256,10 @@ router.post('/agendas/desbloquear', requireSecretary, async (req, res) => {
         WHERE id = $1 AND estado = 'BLOQUEADO'
         RETURNING id
         `,
-        [Number(agenda_id)]
+        [agenda_id]
       );
     } else if (medico_id && fecha) {
-      await pool.query('DELETE FROM bloqueos_agenda WHERE fecha=$2::date AND medico_id=$1', [Number(medico_id), fecha]);
+      await pool.query('DELETE FROM bloqueos_agenda WHERE fecha=$2::date AND medico_id=$1', [medico_id, fecha]);
       result = await pool.query(
         `
         UPDATE agendas
@@ -259,7 +267,7 @@ router.post('/agendas/desbloquear', requireSecretary, async (req, res) => {
         WHERE medico_id = $1 AND fecha = $2::DATE AND estado = 'BLOQUEADO'
         RETURNING id
         `,
-        [Number(medico_id), fecha]
+        [medico_id, fecha]
       );
     } else {
       return res.status(400).json({ ok: false, error: 'Indique agenda_id o (medico_id + fecha).' });
@@ -272,8 +280,8 @@ router.post('/agendas/desbloquear', requireSecretary, async (req, res) => {
       mensaje: `${result.rowCount} bloque(s) rehabilitados como DISPONIBLE.`,
     });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    throw err;
   }
-});
+}));
 
 module.exports = router;

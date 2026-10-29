@@ -2,6 +2,7 @@ const express = require('express');
 const { pool } = require('../db');
 const { requireSecretary } = require('../middleware/auth');
 const { validateRut } = require('../utils/rutValidator');
+const { asyncHandler } = require('../middleware/errors');
 
 const router = express.Router();
 const allowedFields = new Set(['rut', 'nombre', 'email', 'especialidad_id', 'box_atencion']);
@@ -52,10 +53,10 @@ function fieldErrorsFor(body) {
   return errors;
 }
 
-router.post('/medicos', requireSecretary, async (req, res) => {
+router.post('/medicos', requireSecretary, asyncHandler(async (req, res) => {
   const fields = fieldErrorsFor(req.body);
   if (Object.keys(fields).length) {
-    return res.status(400).json({ ok: false, error: 'Revisa los datos del médico.', fields });
+    return res.status(400).json({ ok: false, code: 'VALIDATION_ERROR', error: 'Revisa los datos del médico.', fields });
   }
 
   const rutValidation = validateRut(req.body.rut.trim());
@@ -101,9 +102,8 @@ router.post('/medicos', requireSecretary, async (req, res) => {
       });
     }
 
-    console.error('[Médicos] No se pudo crear el registro:', error.message);
-    return res.status(500).json({ ok: false, error: 'No pudimos registrar al médico. Intenta nuevamente.' });
+    throw error;
   }
-});
+}));
 
 module.exports = router;

@@ -6,6 +6,7 @@ const agendasRoutes = require('./routes/agendas');
 const reservasRoutes = require('./routes/reservas');
 const medicosRoutes = require('./routes/medicos');
 const { createSecretaryToken } = require('./middleware/auth');
+const { errorHandler } = require('./middleware/errors');
 
 function createApp({ database = pool } = {}) {
   const app = express();
@@ -57,13 +58,7 @@ function createApp({ database = pool } = {}) {
   app.use('/api', reservasRoutes);
   app.use('/api', medicosRoutes);
 
-  app.use((error, _req, res, _next) => {
-    if (error.type === 'entity.parse.failed') {
-      return res.status(400).json({ ok: false, code: 'INVALID_JSON', error: 'El cuerpo de la solicitud no contiene JSON válido.' });
-    }
-    console.error('[API] Error no controlado:', error.message);
-    return res.status(500).json({ ok: false, code: 'INTERNAL_ERROR', error: 'Ocurrió un error interno. Intenta nuevamente.' });
-  });
+  app.use(errorHandler);
 
   return app;
 }
