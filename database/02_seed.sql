@@ -117,7 +117,7 @@ BEGIN
             'MED-2026-DEMO1', v_agenda_id, 1,
             '11.111.111-1', 'Paciente Ejemplo Pre-Reservado', 'paciente.demo@correo.cl', '+56987654321', 'CONFIRMADA'
         )
-        ON CONFLICT (agenda_id) DO NOTHING;
+        ON CONFLICT (agenda_id) WHERE estado = 'CONFIRMADA' DO NOTHING;
     END IF;
 END $$;
 

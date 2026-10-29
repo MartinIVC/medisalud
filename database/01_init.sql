@@ -27,6 +27,10 @@ CREATE TABLE IF NOT EXISTS medicos (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- La unicidad considera equivalentes los RUT con o sin puntos y guion.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_medicos_rut_normalizado
+    ON medicos (UPPER(REGEXP_REPLACE(rut, '[^0-9kK]', '', 'g')));
+
 -- 3. Tabla de Agendas / Bloques Horarios (MED-10, MED-9, MED-16)
 -- Soporta bloques de 15, 20 o 30 minutos y estados DISPONIBLE, RESERVADO, BLOQUEADO
 CREATE TABLE IF NOT EXISTS agendas (
