@@ -18,26 +18,26 @@ SELECT setval('especialidades_id_seq', (SELECT MAX(id) FROM especialidades));
 INSERT INTO medicos (id, rut, nombre, email, box_atencion, especialidad_id, activo) VALUES
     -- Medicina General (4 médicos)
     (1,  '12.345.678-5', 'Dr. Alejandro Soto Rojas',      'asoto@medisalud.cl',      'Box 101', 1, TRUE),
-    (2,  '14.829.310-2', 'Dra. Camila Valdés Muñoz',      'cvaldes@medisalud.cl',    'Box 102', 1, TRUE),
-    (3,  '16.402.819-K', 'Dr. Cristóbal Herrera Díaz',    'cherrera@medisalud.cl',   'Box 103', 1, TRUE),
-    (4,  '18.920.145-7', 'Dra. Valentina Contreras Paz',  'vcontreras@medisalud.cl', 'Box 104', 1, TRUE),
+    (2,  '19.000.002-8', 'Dra. Camila Valdés Muñoz',      'cvaldes@medisalud.cl',    'Box 102', 1, TRUE),
+    (3,  '19.000.003-6', 'Dr. Cristóbal Herrera Díaz',    'cherrera@medisalud.cl',   'Box 103', 1, TRUE),
+    (4,  '19.000.004-4', 'Dra. Valentina Contreras Paz',  'vcontreras@medisalud.cl', 'Box 104', 1, TRUE),
 
     -- Pediatría (4 médicos)
-    (5,  '11.223.344-9', 'Dra. Patricia Morales Silva',   'pmorales@medisalud.cl',   'Box 201', 2, TRUE),
-    (6,  '13.579.246-8', 'Dr. Sebastián Riquelme Bravo',  'sriquelme@medisalud.cl',  'Box 202', 2, TRUE),
-    (7,  '15.678.901-3', 'Dra. Francisca Lagos Pizarro',  'flagos@medisalud.cl',     'Box 203', 2, TRUE),
-    (8,  '17.890.123-4', 'Dr. Matías Fuentes Garrido',    'mfuentes@medisalud.cl',   'Box 204', 2, TRUE),
+    (5,  '19.000.005-2', 'Dra. Patricia Morales Silva',   'pmorales@medisalud.cl',   'Box 201', 2, TRUE),
+    (6,  '19.000.006-0', 'Dr. Sebastián Riquelme Bravo',  'sriquelme@medisalud.cl',  'Box 202', 2, TRUE),
+    (7,  '19.000.007-9', 'Dra. Francisca Lagos Pizarro',  'flagos@medisalud.cl',     'Box 203', 2, TRUE),
+    (8,  '19.000.008-7', 'Dr. Matías Fuentes Garrido',    'mfuentes@medisalud.cl',   'Box 204', 2, TRUE),
 
     -- Traumatología (4 médicos)
-    (9,  '10.987.654-1', 'Dr. Rodrigo Araya Sepúlveda',   'raraya@medisalud.cl',     'Box 301', 3, TRUE),
-    (10, '13.246.810-5', 'Dra. Carolina Tapia Bustos',    'ctapia@medisalud.cl',     'Box 302', 3, TRUE),
+    (9,  '19.000.009-5', 'Dr. Rodrigo Araya Sepúlveda',   'raraya@medisalud.cl',     'Box 301', 3, TRUE),
+    (10, '19.000.010-9', 'Dra. Carolina Tapia Bustos',    'ctapia@medisalud.cl',     'Box 302', 3, TRUE),
     (11, '15.432.109-8', 'Dr. Nicolás Vergara Molina',    'nvergara@medisalud.cl',   'Box 303', 3, TRUE),
-    (12, '19.123.456-0', 'Dr. Gonzalo Carrasco Vega',     'gcarrasco@medisalud.cl',  'Box 304', 3, TRUE),
+    (12, '19.000.012-5', 'Dr. Gonzalo Carrasco Vega',     'gcarrasco@medisalud.cl',  'Box 304', 3, TRUE),
 
     -- Dermatología (3 médicos)
-    (13, '12.876.543-2', 'Dra. Javiera Espinoza Castro',  'jespinoza@medisalud.cl',  'Box 401', 4, TRUE),
-    (14, '14.567.890-1', 'Dr. Tomás Peñaloza Núñez',      'tpenaloza@medisalud.cl',  'Box 402', 4, TRUE),
-    (15, '16.789.012-6', 'Dra. Macarena Sanhueza Ríos',   'msanhueza@medisalud.cl',  'Box 403', 4, TRUE)
+    (13, '19.000.013-3', 'Dra. Javiera Espinoza Castro',  'jespinoza@medisalud.cl',  'Box 401', 4, TRUE),
+    (14, '19.000.014-1', 'Dr. Tomás Peñaloza Núñez',      'tpenaloza@medisalud.cl',  'Box 402', 4, TRUE),
+    (15, '19.000.015-K', 'Dra. Macarena Sanhueza Ríos',   'msanhueza@medisalud.cl',  'Box 403', 4, TRUE)
 ON CONFLICT (rut) DO NOTHING;
 
 SELECT setval('medicos_id_seq', (SELECT MAX(id) FROM medicos));

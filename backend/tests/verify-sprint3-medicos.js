@@ -1,10 +1,20 @@
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const { randomInt } = require('node:crypto');
+const { requireDisposableTestEnvironment } = require('./disposable-env');
+const testEnvironment = requireDisposableTestEnvironment();
+if (process.env.DB_NAME && process.env.DB_NAME !== testEnvironment.database.name) {
+  throw new Error('DB_NAME no coincide con la base declarada en TEST_DATABASE_URL.');
+}
+process.env.DB_HOST = testEnvironment.database.host;
+process.env.DB_PORT = testEnvironment.database.port;
+process.env.DB_USER = testEnvironment.database.user;
+process.env.DB_PASSWORD = testEnvironment.database.password;
+process.env.DB_NAME = testEnvironment.database.name;
 const { pool } = require('../src/db');
 const { calculateDv, formatRut } = require('../src/utils/rutValidator');
 
-const API_URL = process.env.API_URL || 'http://localhost:4000/api';
+const API_URL = testEnvironment.apiUrl;
 const createdDoctorIds = [];
 
 function createRut() {

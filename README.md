@@ -183,18 +183,47 @@ En Linux/macOS:
 docker compose exec -T db psql -U medisalud -d medisalud_db < database/migrations/20261028_medicos_rut_normalizado.sql
 ```
 
-## Prueba automatizada
+Para instalaciones que aún no tienen las columnas de toma de notificaciones o la respuesta de idempotencia, aplica después las migraciones `20261028_notifications_leases.sql` y `20261028_idempotency_response.sql`, en ese orden. La base nueva ya incluye esos campos en `database/01_init.sql`.
 
-La suite del Sprint 1 modifica la base local y lanza solicitudes concurrentes. No la ejecutes contra datos reales. Requiere SECRETARY_PASSWORD y SECRETARY_TOKEN_SECRET en .env:
+PowerShell:
 
 ```powershell
-docker compose exec backend npm run test:sprint1
+Get-Content -Raw .\database\migrations\20261028_notifications_leases.sql |
+  docker compose exec -T db psql -U medisalud -d medisalud_db
+Get-Content -Raw .\database\migrations\20261028_idempotency_response.sql |
+  docker compose exec -T db psql -U medisalud -d medisalud_db
 ```
 
-La suite puede reservar el bloque de prueba; recrea la base local antes de repetirla si necesitas los datos semilla originales.
-
-La suite de Sprint 3 crea médicos de prueba con RUT aleatorios y los elimina al terminar si no tienen agendas ni citas vinculadas. Ejecútala solo contra una base de desarrollo, con el backend y PostgreSQL activos:
+Linux/macOS:
 
 ```bash
-docker compose exec backend npm run test:sprint3
+docker compose exec -T db psql -U medisalud -d medisalud_db < database/migrations/20261028_notifications_leases.sql
+docker compose exec -T db psql -U medisalud -d medisalud_db < database/migrations/20261028_idempotency_response.sql
 ```
+
+## Verificación automatizada
+
+Para ejecutar las comprobaciones de calidad localmente necesitas Node.js 22.13.0 o posterior, mientras sea menor que la versión 27. Instala dependencias desde los tres lockfiles y ejecuta el conjunto habitual:
+
+```bash
+npm ci
+npm ci --prefix backend
+npm ci --prefix frontend
+npm run check
+```
+
+`npm run check` ejecuta ESLint, verifica el formato con Prettier, corre las pruebas unitarias de backend y frontend, revisa la sintaxis del arranque del backend y crea el build de Vite con Tailwind incluido. El navegador ya no descarga estilos desde un CDN.
+
+Las pruebas de aceptación Sprint 1 y Sprint 3 modifican datos y solo aceptan una base local cuyo nombre termina en `_test`, declarada explícitamente mediante `TEST_DATABASE_URL` y `TEST_API_URL`. Usa el Compose aislado, que mantiene PostgreSQL en memoria y no lee ni modifica la base normal del proyecto:
+
+```bash
+docker compose -f docker-compose.test.yml down -v
+docker compose -f docker-compose.test.yml up -d --build
+docker compose -f docker-compose.test.yml exec -T backend-test npm run test:sprint1
+docker compose -f docker-compose.test.yml exec -T backend-test npm run test:sprint3
+docker compose -f docker-compose.test.yml down -v
+```
+
+Para repetir la aceptación desde una base vacía, ejecuta `down -v` antes de volver a `up`. El servicio de prueba no tiene credenciales de proveedores: valida la cola local, pero no entrega correos ni mensajes reales. CI ejecuta las mismas suites sobre PostgreSQL 16 descartable.
+
+El contrato de errores HTTP y la representación aceptada para RUT están descritos en [API_CONTRACT.md](API_CONTRACT.md).

@@ -30,6 +30,9 @@ export function formatRutInput(rut) {
 }
 
 export function validateRutClient(rut) {
+  if (typeof rut !== 'string' || !/^(?:\d{1,8}|\d{1,2}(?:\.\d{3})+)-?[0-9kK]$/.test(rut.trim())) {
+    return { valid: false, message: 'Ingrese un RUT con números, puntos opcionales y dígito verificador.' };
+  }
   const cleaned = cleanRut(rut);
   if (cleaned.length < 8 || cleaned.length > 9) {
     return { valid: false, message: 'Ingrese un RUT de 7 u 8 dígitos más dígito verificador.' };

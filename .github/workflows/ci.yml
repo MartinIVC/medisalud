@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: medisalud_test
+          POSTGRES_PASSWORD: medisalud_test_only
+          POSTGRES_DB: medisalud_test
+          TZ: America/Santiago
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U medisalud_test -d medisalud_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_USER: medisalud_test
+      DB_PASSWORD: medisalud_test_only
+      DB_NAME: medisalud_test
+      SECRETARY_PASSWORD: medisalud_test_only
+      SECRETARY_TOKEN_SECRET: disposable-test-secret-not-for-deployment
+      TEST_DATABASE_URL: postgresql://medisalud_test:medisalud_test_only@127.0.0.1:5432/medisalud_test
+      TEST_API_URL: http://127.0.0.1:4000/api
+      PGPASSWORD: medisalud_test_only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+            frontend/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix backend
+      - run: npm ci --prefix frontend
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
+      - run: npm --prefix backend run check
+      - run: npm run build
+      - name: Initialize disposable PostgreSQL database
+        run: |
+          psql -h 127.0.0.1 -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 -f database/01_init.sql
+          psql -h 127.0.0.1 -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 -f database/02_seed.sql
+      - name: Start API for acceptance checks
+        run: |
+          npm --prefix backend start > /tmp/medisalud-backend.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent "$TEST_API_URL/health"; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/medisalud-backend.log
+          exit 1
+      - run: npm --prefix backend run test:sprint1
+      - run: npm --prefix backend run test:sprint3

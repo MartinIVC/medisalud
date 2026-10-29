@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatRutInput } from '../../utils/rut.js';
 
 export default function PatientPortal({ state, actions }) {
   const {

@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import AppointmentResponse from './features/citas/AppointmentResponse';
 import PatientPortal from './features/paciente/PatientPortal';
 import usePatientPortal from './features/paciente/usePatientPortal';
@@ -15,7 +15,9 @@ export default function App() {
     medicos: secretaryPortal.state.medicos,
     especialidades: secretaryPortal.state.especialidades,
   });
-  patientAvailabilityRef.current = patientPortal.actions.fetchDisponibilidad;
+  useEffect(() => {
+    patientAvailabilityRef.current = patientPortal.actions.fetchDisponibilidad;
+  }, [patientPortal.actions.fetchDisponibilidad]);
 
   if (appointmentToken) return <AppointmentResponse token={appointmentToken} />;
 

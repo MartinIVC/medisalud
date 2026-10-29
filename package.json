@@ -1,0 +1,22 @@
+{
+  "name": "medisalud-tooling",
+  "private": true,
+  "engines": {
+    "node": ">=22.13 <27"
+  },
+  "scripts": {
+    "format": "prettier --write \"backend/src/**/*.{js,cjs}\" \"backend/tests/**/*.{js,cjs}\" \"frontend/src/**/*.{js,jsx,css}\" \"frontend/tests/**/*.{js,mjs}\" \"shared/**/*.json\" package.json backend/package.json frontend/package.json eslint.config.mjs frontend/tailwind.config.cjs frontend/postcss.config.cjs docker-compose.test.yml .github/workflows/ci.yml",
+    "format:check": "prettier --check \"backend/src/**/*.{js,cjs}\" \"backend/tests/**/*.{js,cjs}\" \"frontend/src/**/*.{js,jsx,css}\" \"frontend/tests/**/*.{js,mjs}\" \"shared/**/*.json\" package.json backend/package.json frontend/package.json eslint.config.mjs frontend/tailwind.config.cjs frontend/postcss.config.cjs docker-compose.test.yml .github/workflows/ci.yml",
+    "lint": "eslint backend/src backend/tests frontend/src frontend/tests",
+    "test": "npm --prefix backend test && npm --prefix frontend test",
+    "build": "npm --prefix frontend run build",
+    "check": "npm run lint && npm run format:check && npm test && npm --prefix backend run check && npm run build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.13.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10"
+  }
+}

@@ -6,7 +6,6 @@ const { asyncHandler, sendError } = require('../middleware/errors');
 
 const router = express.Router();
 const allowedFields = new Set(['rut', 'nombre', 'email', 'especialidad_id', 'box_atencion']);
-const normalizedRutPattern = /^(?:\d+|\d{1,2}(?:\.\d{3})+)-?[0-9kK]$/;
 
 function fieldErrorsFor(body) {
   const errors = {};
@@ -20,12 +19,8 @@ function fieldErrorsFor(body) {
     errors.rut = 'Ingresa el RUT del médico.';
   } else {
     const rut = data.rut.trim();
-    if (!normalizedRutPattern.test(rut)) {
-      errors.rut = 'Ingresa un RUT chileno sin texto adicional, por ejemplo 12.345.678-5.';
-    } else {
-      const validation = validateRut(rut);
-      if (!validation.valid) errors.rut = validation.reason;
-    }
+    const validation = validateRut(rut);
+    if (!validation.valid) errors.rut = validation.reason;
   }
 
   if (typeof data.nombre !== 'string' || !data.nombre.trim()) {

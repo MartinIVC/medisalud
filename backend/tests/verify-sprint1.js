@@ -3,7 +3,8 @@
  * Ejecuta pruebas reales contra el backend y PostgreSQL para certificar DoD individual.
  */
 
-const API_URL = process.env.API_URL || 'http://localhost:4000/api';
+const { requireDisposableTestEnvironment } = require('./disposable-env');
+const { apiUrl: API_URL } = requireDisposableTestEnvironment();
 
 async function runTests() {
   console.log('======================================================================');
@@ -28,7 +29,7 @@ async function runTests() {
   console.log(`✅ [MED-15 | 2 pts] PostgreSQL operativo (${health.ping_ms} ms) — 4 especialidades, ${health.resumen.medicos_activos} médicos activos (mínimo inicial: 15).`);
 
   // 2. Verificar MED-10 (Parametrización de bloques de 15, 20 o 30 min y bloqueo de licencia)
-  const futureDate = '2026-11-15';
+  const futureDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const configRes = await fetch(`${API_URL}/agendas/configurar`, {
     method: 'POST',
     headers: secretaryHeaders,
@@ -140,7 +141,7 @@ async function runTests() {
   console.log(`   - Confirmadas (A-05)      : ${confirmed.length} (Código: ${confirmed[0].body.reserva.codigo_reserva})`);
   console.log(`   - Rechazadas (A-06)       : ${rejected.length} (0% Overbooking)`);
   console.log(`   - Latencia p95            : ${p95Latency.toFixed(2)} ms (Umbral RNF-01 <= 2000 ms)`);
-  console.log(`✅ [MED-11 | 5 pts] CA-02 (A-05): Reserva registrada y comprobante de correo emitido.`);
+  console.log('✅ [MED-11 | 5 pts] CA-02 (A-05): Reserva registrada y notificación incorporada a la cola.');
   console.log('\n======================================================================');
   console.log(' RESULTADO FINAL: 100% DE TARJETAS DEL SPRINT 1 VERIFICADAS CON ÉXITO');
   console.log('======================================================================');

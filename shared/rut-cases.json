@@ -1,0 +1,10 @@
+[
+  { "value": "12.345.678-5", "valid": true, "formatted": "12.345.678-5" },
+  { "value": "12345678-5", "valid": true, "formatted": "12.345.678-5" },
+  { "value": "12.345.6785", "valid": true, "formatted": "12.345.678-5" },
+  { "value": "19.000.015-k", "valid": true, "formatted": "19.000.015-K" },
+  { "value": "12 texto 345.678-5", "valid": false },
+  { "value": "12.345.678-9", "valid": false },
+  { "value": "123.456.78-5", "valid": false },
+  { "value": "", "valid": false }
+]

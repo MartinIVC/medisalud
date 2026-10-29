@@ -10,7 +10,6 @@ const router = express.Router();
  * Lista las especialidades médicas con conteo de profesionales activos
  */
 router.get('/especialidades', asyncHandler(async (_req, res) => {
-  try {
     const result = await pool.query(`
       SELECT
         e.id,
@@ -23,9 +22,6 @@ router.get('/especialidades', asyncHandler(async (_req, res) => {
       ORDER BY e.id ASC
     `);
     res.json({ ok: true, especialidades: result.rows });
-  } catch (err) {
-    throw err;
-  }
 }));
 
 /**
@@ -33,7 +29,6 @@ router.get('/especialidades', asyncHandler(async (_req, res) => {
  * Lista los médicos activos (filtrables por especialidad)
  */
 router.get('/medicos', asyncHandler(async (req, res) => {
-  try {
     const { especialidad_id } = req.query;
     if (especialidad_id !== undefined && (typeof especialidad_id !== 'string' || !/^\d+$/.test(especialidad_id) || !positiveInteger(Number(especialidad_id)))) {
       return sendError(res, 400, 'VALIDATION_ERROR', 'Indica una especialidad válida.', { especialidad_id: 'Selecciona una especialidad válida.' });
@@ -64,9 +59,6 @@ router.get('/medicos', asyncHandler(async (req, res) => {
       params
     );
     res.json({ ok: true, medicos: result.rows });
-  } catch (err) {
-    throw err;
-  }
 }));
 
 /**
@@ -77,7 +69,6 @@ router.get('/medicos', asyncHandler(async (req, res) => {
  */
 router.get('/disponibilidad', asyncHandler(async (req, res) => {
   const startHr = process.hrtime.bigint();
-  try {
     const { especialidad_id, medico_id, fecha_desde, fecha_hasta, fecha } = req.query;
     const fields = {};
     for (const [field, value] of [['especialidad_id', especialidad_id], ['medico_id', medico_id]]) {
@@ -154,9 +145,6 @@ router.get('/disponibilidad', asyncHandler(async (req, res) => {
       total_cupos_libres: result.rows.length,
       bloques: result.rows,
     });
-  } catch (err) {
-    throw err;
-  }
 }));
 
 module.exports = router;

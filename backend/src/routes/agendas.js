@@ -19,7 +19,6 @@ router.get('/agendas', requireSecretary, asyncHandler(async (req, res) => {
   if (medico_id !== undefined && (!positiveInteger(Number(medico_id)))) fields.medico_id = 'Indica un médico válido.';
   if (fecha !== undefined && !isValidDate(fecha)) fields.fecha = 'Indica una fecha real con formato AAAA-MM-DD.';
   if (Object.keys(fields).length) return sendError(res, 400, 'VALIDATION_ERROR', 'Revisa los filtros de agenda.', fields);
-  try {
     const params = [];
     const conditions = [];
 
@@ -69,9 +68,6 @@ router.get('/agendas', requireSecretary, asyncHandler(async (req, res) => {
       total: result.rows.length,
       bloques: result.rows,
     });
-  } catch (err) {
-    throw err;
-  }
 }));
 
 /**

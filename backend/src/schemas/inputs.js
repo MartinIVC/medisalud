@@ -29,6 +29,7 @@ function parseReservation(body, requestKey) {
   if (rut && !rut.valid) errors.paciente_rut = rut.reason;
 
   const nombre = typeof data.paciente_nombre === 'string' ? data.paciente_nombre.trim() : '';
+  // eslint-disable-next-line no-control-regex
   if (nombre && (nombre.length > 150 || /[\u0000-\u001f<>]/.test(nombre))) {
     errors.paciente_nombre = 'El nombre no puede superar 150 caracteres ni incluir caracteres de control.';
   }
