@@ -1064,24 +1064,24 @@ export default function App() {
               </div>
               {receptionBlock && (
                 <div className="fixed inset-0 z-40 flex justify-end bg-slate-950/40" onKeyDown={(event) => { if (event.key === 'Escape') setReceptionBlock(null); }} onMouseDown={(event) => { if (event.target === event.currentTarget) setReceptionBlock(null); }}>
-                <form role="dialog" aria-modal="true" aria-labelledby="quick-booking-title" onSubmit={submitReceptionBooking} className="grid h-full w-full min-w-0 grid-cols-1 content-start gap-3 overflow-y-auto bg-white p-5 shadow-xl">
+                <form role="dialog" aria-modal="true" aria-labelledby="quick-booking-title" onSubmit={submitReceptionBooking} className="flex h-full w-full max-w-md min-w-0 flex-col gap-3 overflow-y-auto bg-white p-5 shadow-xl">
                   <div className="flex min-w-0 items-center justify-between gap-3">
                     <div className="min-w-0"><h3 id="quick-booking-title" className="font-semibold text-lg">Nueva reserva</h3><p className="mt-1 text-sm text-slate-600">{receptionBlock.fecha} · {receptionBlock.hora_inicio}–{receptionBlock.hora_fin} · {receptionBlock.medico_nombre}</p></div>
                     <button type="button" onClick={() => setReceptionBlock(null)} className="min-h-11 px-3 text-sm underline">Cerrar</button>
                   </div>
-                  <label className="block min-w-0 text-sm font-semibold">Origen de la reserva
+                  <label className="block w-full min-w-0 text-sm font-semibold">Origen de la reserva
                   <select autoFocus value={receptionData.origen} onChange={(e) => setReceptionData({ ...receptionData, origen: e.target.value })}
-                    className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal">
+                    className="mt-1 block min-h-11 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal">
                     <option value="PRESENCIAL">Presencial</option><option value="TELEFONO">Telefónica</option>
                   </select></label>
-                  <label className="block min-w-0 text-sm font-semibold">RUT<input required placeholder="12.345.678-5" value={receptionData.rut} onChange={(e) => setReceptionData({ ...receptionData, rut: formatRutInput(e.target.value) })}
-                    className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm font-normal" /></label>
-                  <label className="block min-w-0 text-sm font-semibold">Nombre completo<input required placeholder="Nombre y apellidos" value={receptionData.nombre} onChange={(e) => setReceptionData({ ...receptionData, nombre: e.target.value })}
-                    className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm font-normal" /></label>
-                  <label className="block min-w-0 text-sm font-semibold">Correo electrónico<input required type="email" placeholder="nombre@ejemplo.cl" value={receptionData.email} onChange={(e) => setReceptionData({ ...receptionData, email: e.target.value })}
-                    className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm font-normal" /></label>
-                  <label className="block min-w-0 text-sm font-semibold">Teléfono<input required type="tel" placeholder="+56 9 1234 5678" value={receptionData.telefono} onChange={(e) => setReceptionData({ ...receptionData, telefono: e.target.value })}
-                    className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm font-normal" /></label>
+                  <label className="block w-full min-w-0 text-sm font-semibold">RUT<input required placeholder="12.345.678-5" value={receptionData.rut} onChange={(e) => setReceptionData({ ...receptionData, rut: formatRutInput(e.target.value) })}
+                    className="mt-1 block min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm font-normal" /></label>
+                  <label className="block w-full min-w-0 text-sm font-semibold">Nombre completo<input required placeholder="Nombre y apellidos" value={receptionData.nombre} onChange={(e) => setReceptionData({ ...receptionData, nombre: e.target.value })}
+                    className="mt-1 block min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm font-normal" /></label>
+                  <label className="block w-full min-w-0 text-sm font-semibold">Correo electrónico<input required type="email" placeholder="nombre@ejemplo.cl" value={receptionData.email} onChange={(e) => setReceptionData({ ...receptionData, email: e.target.value })}
+                    className="mt-1 block min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm font-normal" /></label>
+                  <label className="block w-full min-w-0 text-sm font-semibold">Teléfono<input required type="tel" placeholder="+56 9 1234 5678" value={receptionData.telefono} onChange={(e) => setReceptionData({ ...receptionData, telefono: e.target.value })}
+                    className="mt-1 block min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm font-normal" /></label>
                   {receptionError && <p role="alert" className="text-sm text-rose-800">{receptionError}</p>}
                   <button className="min-h-11 rounded-lg bg-teal-700 text-white font-semibold px-4 text-sm">Reservar</button>
                 </form>
