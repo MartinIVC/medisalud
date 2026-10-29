@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { formatRutInput, validateRutClient } from './utils/rut';
+import CrearMedico from './components/CrearMedico';
 
 export default function App() {
   const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date());
@@ -11,6 +12,7 @@ export default function App() {
   const [appointmentActionDone, setAppointmentActionDone] = useState(false);
 
   const [activeTab, setActiveTab] = useState('paciente'); // 'paciente' | 'secretaria'
+  const [secretaryView, setSecretaryView] = useState('agenda');
   const [secretaryToken, setSecretaryToken] = useState(() => sessionStorage.getItem('medisalud-secretaria-token') || '');
   const [secretaryPassword, setSecretaryPassword] = useState('');
   const [secretaryError, setSecretaryError] = useState('');
@@ -19,6 +21,9 @@ export default function App() {
   const [receptionError, setReceptionError] = useState('');
   const [especialidades, setEspecialidades] = useState([]);
   const [medicos, setMedicos] = useState([]);
+  const [catalogosLoading, setCatalogosLoading] = useState(false);
+  const [catalogosError, setCatalogosError] = useState('');
+  const [pendingMedicoDraft, setPendingMedicoDraft] = useState(null);
 
   // Filtros Portal Paciente (MED-9: A-01)
   const [selectedEsp, setSelectedEsp] = useState('');
@@ -49,14 +54,29 @@ export default function App() {
   const [secAgendas, setSecAgendas] = useState([]);
   const [secFeedback, setSecFeedback] = useState(null);
   const [secError, setSecError] = useState('');
+  const [scheduleDetailsOpen, setScheduleDetailsOpen] = useState(false);
 
   const fetchCatalogos = useCallback(async () => {
-    const [espRes, medRes] = await Promise.all([
-      fetch('/api/especialidades').then((r) => r.json()),
-      fetch('/api/medicos').then((r) => r.json()),
-    ]);
-    if (espRes.ok) setEspecialidades(espRes.especialidades);
-    if (medRes.ok) setMedicos(medRes.medicos);
+    setCatalogosLoading(true);
+    setCatalogosError('');
+    try {
+      const [espResponse, medResponse] = await Promise.all([
+        fetch('/api/especialidades'),
+        fetch('/api/medicos'),
+      ]);
+      const [espRes, medRes] = await Promise.all([espResponse.json(), medResponse.json()]);
+      if (!espResponse.ok || !medResponse.ok || !espRes.ok || !medRes.ok) {
+        throw new Error('No pudimos cargar las especialidades y los médicos.');
+      }
+      setEspecialidades(espRes.especialidades);
+      setMedicos(medRes.medicos);
+      return true;
+    } catch {
+      setCatalogosError('No pudimos cargar las especialidades y los médicos. Revisa tu conexión e intenta nuevamente.');
+      return false;
+    } finally {
+      setCatalogosLoading(false);
+    }
   }, []);
 
   const fetchDisponibilidad = useCallback(async () => {
@@ -131,6 +151,10 @@ export default function App() {
   }, [activeTab, fetchSecAgendas]);
 
   useEffect(() => {
+    if (activeTab === 'secretaria' && secretaryToken) fetchCatalogos();
+  }, [activeTab, secretaryToken, secretaryView, fetchCatalogos]);
+
+  useEffect(() => {
     if (activeTab !== 'secretaria' || !secretaryToken) return undefined;
     const timer = window.setInterval(fetchSecAgendas, 2000);
     return () => window.clearInterval(timer);
@@ -152,6 +176,21 @@ export default function App() {
     } catch {
       setSecretaryError('No pudimos iniciar sesión. Revisa tu conexión e intenta nuevamente.');
     }
+  }
+
+  const refreshDoctorCatalogs = useCallback(async () => {
+    const refreshed = await fetchCatalogos();
+    await fetchDisponibilidad();
+    return refreshed;
+  }, [fetchCatalogos, fetchDisponibilidad]);
+
+  function handleDoctorSessionExpired(draft) {
+    setPendingMedicoDraft(draft);
+    setSecretaryView('create-medico');
+    sessionStorage.removeItem('medisalud-secretaria-token');
+    setSecretaryToken('');
+    setSecAgendas([]);
+    setSecretaryError('Tu sesión expiró. Inicia sesión nuevamente; conservamos el formulario en esta página.');
   }
 
   async function submitReceptionBooking(event) {
@@ -329,6 +368,8 @@ export default function App() {
     setSecAgendas([]);
     setSecFeedback(null);
     setSecretaryError('');
+    setSecretaryView('agenda');
+    setPendingMedicoDraft(null);
   }
 
   if (appointmentToken) {
@@ -738,11 +779,40 @@ export default function App() {
             </section>
           </div>
           </div>
+        ) : secretaryView === 'create-medico' ? (
+          <div className="space-y-5">
+            <div className="flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={() => setSecretaryView('agenda')} className="min-h-11 px-4 rounded-lg border border-slate-300 text-sm font-semibold text-slate-700">Volver a la agenda</button>
+              <button type="button" onClick={logoutSecretary} className="min-h-11 px-4 rounded-lg border border-slate-300 text-sm font-semibold text-slate-700">Cerrar sesión</button>
+            </div>
+            <CrearMedico
+              secretaryToken={secretaryToken}
+              specialties={especialidades}
+              specialtiesLoading={catalogosLoading}
+              specialtiesError={catalogosError}
+              onRefreshCatalogs={refreshDoctorCatalogs}
+              onSessionExpired={handleDoctorSessionExpired}
+              initialDraft={pendingMedicoDraft}
+              onDraftChange={setPendingMedicoDraft}
+              onClearDraft={() => setPendingMedicoDraft(null)}
+              onCancel={() => setSecretaryView('agenda')}
+              onContinueScheduling={(medicoId) => {
+                setSecMedicoId(String(medicoId));
+                setSecFeedback(null);
+                setSecError('');
+                setScheduleDetailsOpen(true);
+                setSecretaryView('agenda');
+              }}
+            />
+          </div>
         ) : (
           /* Panel Administrativo de Secretaría (MED-10) */
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-3 flex justify-end">
+              <button type="button" onClick={() => setSecretaryView('create-medico')} className="min-h-11 rounded-lg bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800">Crear médico</button>
+            </div>
             <section className="order-2 lg:col-span-3 bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-5 h-fit">
-              <details>
+              <details open={scheduleDetailsOpen} onToggle={(event) => setScheduleDetailsOpen(event.currentTarget.open)}>
               <summary className="cursor-pointer min-h-11 flex items-center font-semibold text-teal-900">Configurar horarios y registrar ausencias</summary>
               <div className="pt-4 space-y-5">
               <div>
