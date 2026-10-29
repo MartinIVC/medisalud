@@ -383,9 +383,10 @@ export default function App() {
             <h2 className="text-lg font-bold text-slate-800">Acceso de secretaría</h2>
             <p className="text-sm text-slate-600 mt-1">Ingrese la contraseña configurada para este entorno.</p>
             <form className="mt-4 space-y-3" onSubmit={loginSecretary}>
-              <input type="password" autoComplete="current-password" required value={secretaryPassword}
+              <label htmlFor="secretary-password" className="block text-sm font-semibold text-slate-700">Contraseña</label>
+              <input id="secretary-password" type="password" autoComplete="current-password" required value={secretaryPassword}
                 onChange={(event) => setSecretaryPassword(event.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                className="w-full min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
               {secretaryError && <p role="alert" className="text-sm text-rose-700">{secretaryError}</p>}
               <button className="w-full bg-teal-700 hover:bg-teal-800 text-white font-semibold py-2.5 rounded-lg text-sm">Iniciar sesión</button>
             </form>
@@ -907,7 +908,27 @@ export default function App() {
                 <button type="button" onClick={() => { const first = secAgendas.find((b) => b.estado === 'DISPONIBLE'); if (first) setReceptionBlock(first); }} disabled={!secAgendas.some((b) => b.estado === 'DISPONIBLE')} className="min-h-11 lg:self-end px-4 rounded-lg bg-teal-700 text-white text-sm font-semibold disabled:opacity-50">Nueva reserva</button>
               </div>
 
-              <div className="overflow-x-auto">
+              {secError && <div role="alert" className="mb-4 rounded-lg bg-rose-50 border border-rose-200 p-3 text-sm text-rose-800">{secError}<button onClick={fetchSecAgendas} className="ml-3 underline font-semibold">Reintentar</button></div>}
+
+              {secAgendas.length === 0 && !secError && <p role="status" className="rounded-lg bg-slate-50 p-6 text-center text-sm text-slate-600">No hay horarios configurados para este profesional y fecha.</p>}
+
+              <div className="md:hidden space-y-3">
+                {secAgendas.map((b) => <article key={b.agenda_id} className="rounded-xl border border-slate-200 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div><h3 className="font-bold text-slate-900">{b.hora_inicio}–{b.hora_fin}</h3><p className="text-sm text-slate-600">{b.duracion_min} minutos</p></div>
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${b.estado === 'DISPONIBLE' ? 'bg-emerald-100 text-emerald-900' : b.estado === 'RESERVADO' ? 'bg-blue-100 text-blue-900' : 'bg-amber-100 text-amber-900'}`}>
+                      {b.estado === 'DISPONIBLE' ? '✓ Disponible' : b.estado === 'RESERVADO' ? '● Reservado' : '■ Bloqueado'}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm text-slate-700">{b.estado === 'RESERVADO' ? `${b.paciente_nombre} (${b.paciente_rut})` : b.estado === 'BLOQUEADO' ? b.motivo_bloqueo : 'Listo para reservar'}</p>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {b.estado === 'DISPONIBLE' && <button type="button" onClick={() => setReceptionBlock(b)} className="min-h-11 rounded-lg bg-teal-700 px-4 text-sm font-semibold text-white">Reservar recepción</button>}
+                    {b.estado !== 'RESERVADO' && <button type="button" onClick={() => handleToggleBloque(b)} className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold">{b.estado === 'BLOQUEADO' ? 'Habilitar' : 'Bloquear'}</button>}
+                  </div>
+                </article>)}
+              </div>
+
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-slate-200 text-slate-500 uppercase">
