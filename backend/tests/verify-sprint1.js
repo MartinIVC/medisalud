@@ -22,10 +22,10 @@ async function runTests() {
   // 1. Verificar MED-15 (Staging + PostgreSQL + 4 especialidades + 15 médicos)
   const healthRes = await fetch(`${API_URL}/health`);
   const health = await healthRes.json();
-  if (!health.ok || health.resumen.especialidades !== 4 || health.resumen.medicos_activos !== 15) {
+  if (!health.ok || health.resumen.especialidades !== 4 || health.resumen.medicos_activos < 15) {
     throw new Error(`Fallo en MED-15: ${JSON.stringify(health)}`);
   }
-  console.log(`✅ [MED-15 | 2 pts] PostgreSQL operativo (${health.ping_ms} ms) — 4 especialidades, 15 médicos activos.`);
+  console.log(`✅ [MED-15 | 2 pts] PostgreSQL operativo (${health.ping_ms} ms) — 4 especialidades, ${health.resumen.medicos_activos} médicos activos (mínimo inicial: 15).`);
 
   // 2. Verificar MED-10 (Parametrización de bloques de 15, 20 o 30 min y bloqueo de licencia)
   const futureDate = '2026-11-15';

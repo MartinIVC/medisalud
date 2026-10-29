@@ -5,7 +5,7 @@ const router = express.Router();
 
 /**
  * GET /api/especialidades
- * Lista las 4 especialidades médicas de Medisalud con conteo de profesionales activos
+ * Lista las especialidades médicas con conteo de profesionales activos
  */
 router.get('/especialidades', async (_req, res) => {
   try {
@@ -28,7 +28,7 @@ router.get('/especialidades', async (_req, res) => {
 
 /**
  * GET /api/medicos?especialidad_id=
- * Lista los 15 médicos especialistas (filtrables por especialidad)
+ * Lista los médicos activos (filtrables por especialidad)
  */
 router.get('/medicos', async (req, res) => {
   try {

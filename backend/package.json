@@ -5,7 +5,8 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "test:sprint1": "node tests/verify-sprint1.js"
+    "test:sprint1": "node tests/verify-sprint1.js",
+    "test:sprint3": "node tests/verify-sprint3-medicos.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

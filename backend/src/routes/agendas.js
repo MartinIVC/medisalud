@@ -69,7 +69,7 @@ router.get('/agendas', requireSecretary, async (req, res) => {
 /**
  * POST /api/agendas/configurar
  * MED-10 (RF-03 / HU02 - CA-01): Parametrizar bloques horarios de 15, 20 o 30 minutos
- * para uno de los 15 médicos especialistas en una fecha o rango de fechas.
+ * para un médico activo registrado en el sistema.
  */
 router.post('/agendas/configurar', requireSecretary, async (req, res) => {
   const {

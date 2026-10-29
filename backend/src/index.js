@@ -4,6 +4,7 @@ const { pool } = require('./db');
 const disponibilidadRoutes = require('./routes/disponibilidad');
 const agendasRoutes = require('./routes/agendas');
 const reservasRoutes = require('./routes/reservas');
+const medicosRoutes = require('./routes/medicos');
 const { createSecretaryToken } = require('./middleware/auth');
 const { processEmailQueue } = require('./utils/mailer');
 
@@ -65,6 +66,7 @@ app.get('/api/health', async (_req, res) => {
 app.use('/api', disponibilidadRoutes);
 app.use('/api', agendasRoutes);
 app.use('/api', reservasRoutes);
+app.use('/api', medicosRoutes);
 
 let processingQueue = false;
 async function processNotifications() {
