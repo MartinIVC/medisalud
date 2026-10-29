@@ -4,6 +4,9 @@ const { withTransaction } = require('../db/transaction');
 const { HttpError } = require('../middleware/errors');
 const { enqueueConfirmationEmail } = require('../notifications/queue');
 
+const SERIALIZATION_MAX_ATTEMPTS = 5;
+const RESERVATION_LOCK_TIMEOUT = '1500ms';
+
 function reservationFingerprint(values) {
   const canonical = JSON.stringify([
     values.agendaId,
@@ -14,6 +17,25 @@ function reservationFingerprint(values) {
     values.origen,
   ]);
   return crypto.createHash('sha256').update(canonical).digest('hex');
+}
+
+async function withSerializableRetry(database, operation) {
+  for (let attempt = 1; attempt <= SERIALIZATION_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await withTransaction(
+        database,
+        async (client) => {
+          await client.query(`SET LOCAL lock_timeout = '${RESERVATION_LOCK_TIMEOUT}'`);
+          return operation(client);
+        },
+        { isolation: 'SERIALIZABLE' },
+      );
+    } catch (error) {
+      if (error.code !== '40001' || attempt === SERIALIZATION_MAX_ATTEMPTS) throw error;
+      const delayMs = Math.min(10 * 2 ** (attempt - 1), 80) + Math.floor(Math.random() * 10);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
 }
 
 async function readIdempotentResponse(database, requestKey, fingerprint) {
@@ -46,7 +68,7 @@ async function createReservation({
 }) {
   const fingerprint = values.requestKey ? reservationFingerprint(values) : null;
   try {
-    return await withTransaction(database, async (client) => {
+    const operation = async (client) => {
       const target = await client.query('SELECT medico_id FROM agendas WHERE id=$1', [
         values.agendaId,
       ]);
@@ -245,13 +267,20 @@ async function createReservation({
         repeated: false,
         response,
       };
-    });
+    };
+    return await withSerializableRetry(database, operation);
   } catch (error) {
     if (error.code === '40001')
       throw new HttpError(
         409,
         'CONCURRENT_RESERVATION',
         'El horario cambió durante la reserva. Selecciona otro horario.',
+      );
+    if (error.code === '55P03')
+      throw new HttpError(
+        409,
+        'CONCURRENT_RESERVATION',
+        'El horario está siendo procesado por otra solicitud. Intenta nuevamente.',
       );
     if (
       error.code === '23505' &&

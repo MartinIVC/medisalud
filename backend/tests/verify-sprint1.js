@@ -6,6 +6,35 @@
 const { requireDisposableTestEnvironment } = require('./disposable-env');
 const { apiUrl: API_URL } = requireDisposableTestEnvironment();
 
+const REQUEST_TIMEOUT_MS = 5000;
+
+async function measuredJsonRequest(url, options = {}) {
+  const startedAt = performance.now();
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    const body = await response.json();
+    return {
+      status: response.status,
+      body,
+      durationMs: performance.now() - startedAt,
+    };
+  } catch (error) {
+    return {
+      status: 0,
+      body: { error: error.message },
+      durationMs: performance.now() - startedAt,
+    };
+  }
+}
+
+function percentile(values, fraction) {
+  const sorted = [...values].sort((left, right) => left - right);
+  return sorted[Math.max(0, Math.ceil(sorted.length * fraction) - 1)];
+}
+
 async function runTests() {
   console.log('======================================================================');
   console.log(' VERIFICACIÓN AUTOMATIZADA SPRINT 1 — SISTEMA MEDISALUD (16 PTS)');
@@ -110,16 +139,17 @@ async function runTests() {
     `✅ [MED-11 | 5 pts] CA-01 (A-06): RUT con dígito verificador inválido rechazado correctamente.`,
   );
 
-  // 5. Verificar MED-16 (RNF-01) y MED-11 (CA-01 / CA-02):
-  //    Lanzar 40 solicitudes concurrentes en la misma fracción de segundo sobre el MISMO bloque horario
+  // 5. Verificar MED-16 (RNF-01): 40 pacientes consultan disponibilidad y disputan un mismo cupo.
   const CONCURRENT_USERS = 40;
   console.log(
-    `\n🚀 [MED-16 | 3 pts] Lanzando ${CONCURRENT_USERS} solicitudes de reserva simultáneas sobre bloque ID=${targetBlock.agenda_id}...`,
+    `\n🚀 [MED-16 | 3 pts] Lanzando una carga mixta de ${CONCURRENT_USERS} pacientes concurrentes...`,
   );
 
-  const requests = Array.from({ length: CONCURRENT_USERS }, (_, idx) => {
-    const t0 = performance.now();
-    return fetch(`${API_URL}/reservas`, {
+  const availabilityRequests = Array.from({ length: CONCURRENT_USERS }, () =>
+    measuredJsonRequest(`${API_URL}/disponibilidad?medico_id=2&fecha=${futureDate}`),
+  );
+  const reservationRequests = Array.from({ length: CONCURRENT_USERS }, (_, idx) =>
+    measuredJsonRequest(`${API_URL}/reservas`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -129,39 +159,103 @@ async function runTests() {
         paciente_email: `paciente${idx + 1}@medisalud.cl`,
         paciente_telefono: '+56998765432',
       }),
-    }).then(async (r) => {
-      const body = await r.json();
-      return {
-        status: r.status,
-        durationMs: performance.now() - t0,
-        body,
-      };
-    });
-  });
+    }),
+  );
 
-  const results = await Promise.all(requests);
-  const confirmed = results.filter((r) => r.status === 201);
-  const rejected = results.filter((r) => r.status === 409);
-  const latencies = results.map((r) => r.durationMs).sort((a, b) => a - b);
-  const p95Latency = latencies[Math.floor(latencies.length * 0.95)];
+  const [availabilityResults, reservationResults] = await Promise.all([
+    Promise.all(availabilityRequests),
+    Promise.all(reservationRequests),
+  ]);
+  const failedAvailability = availabilityResults.filter(
+    (result) => result.status !== 200 || !result.body.ok,
+  );
+  if (failedAvailability.length) {
+    throw new Error(
+      `Fallaron consultas concurrentes de disponibilidad: ${JSON.stringify(failedAvailability[0])}`,
+    );
+  }
+
+  const confirmed = reservationResults.filter((result) => result.status === 201);
+  const rejected = reservationResults.filter((result) => result.status === 409);
+  const availabilityP95 = percentile(
+    availabilityResults.map((result) => result.durationMs),
+    0.95,
+  );
+  const reservationP95 = percentile(
+    reservationResults.map((result) => result.durationMs),
+    0.95,
+  );
 
   if (confirmed.length !== 1 || rejected.length !== CONCURRENT_USERS - 1) {
     throw new Error(
-      `Colisión detectada en MED-16: confirmadas=${confirmed.length}, rechazadas=${rejected.length}`,
+      `Colisión detectada en MED-16: confirmadas=${confirmed.length}, rechazadas=${rejected.length}, otros estados=${reservationResults
+        .map((result) => result.status)
+        .filter((status) => status !== 201 && status !== 409)
+        .join(',')}`,
     );
   }
-  if (p95Latency > 2000) {
-    throw new Error(`p95 excedió 2000 ms: ${p95Latency.toFixed(2)} ms`);
+  if (availabilityP95 > 2000 || reservationP95 > 2000) {
+    throw new Error(
+      `p95 excedió 2000 ms: disponibilidad=${availabilityP95.toFixed(2)} ms, reservas=${reservationP95.toFixed(2)} ms`,
+    );
+  }
+
+  const persistedReservations = await measuredJsonRequest(`${API_URL}/reservas`, {
+    headers: secretaryHeaders,
+  });
+  const confirmedForTarget = persistedReservations.body.reservas?.filter(
+    (reservation) =>
+      reservation.agenda_id === targetBlock.agenda_id && reservation.estado === 'CONFIRMADA',
+  );
+  if (persistedReservations.status !== 200 || confirmedForTarget?.length !== 1) {
+    throw new Error(
+      `Se esperaba exactamente una cita confirmada en el bloque disputado; encontradas=${confirmedForTarget?.length ?? 0}.`,
+    );
   }
 
   console.log(`✅ [MED-16 | 3 pts] Bloqueo pesimista (SELECT ... FOR UPDATE) verificado:`);
-  console.log(`   - Solicitudes simultáneas : ${CONCURRENT_USERS}`);
+  console.log(`   - Pacientes concurrentes  : ${CONCURRENT_USERS}`);
+  console.log(`   - p95 disponibilidad      : ${availabilityP95.toFixed(2)} ms`);
+  console.log(`   - p95 reservas            : ${reservationP95.toFixed(2)} ms`);
   console.log(
     `   - Confirmadas (A-05)      : ${confirmed.length} (Código: ${confirmed[0].body.reserva.codigo_reserva})`,
   );
   console.log(`   - Rechazadas (A-06)       : ${rejected.length} (0% Overbooking)`);
+  console.log('   - Citas persistidas       : 1 en el bloque disputado');
+
+  const distinctBlocks = dispData.bloques
+    .filter(
+      (block) =>
+        block.agenda_id !== targetBlock.agenda_id && block.agenda_id !== blockToLock.agenda_id,
+    )
+    .slice(0, 4);
+  const distinctSlotResults = await Promise.all(
+    distinctBlocks.map((block, idx) =>
+      measuredJsonRequest(`${API_URL}/reservas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agenda_id: block.agenda_id,
+          paciente_rut: '12.345.678-5',
+          paciente_nombre: `Paciente Bloque Independiente #${idx + 1}`,
+          paciente_email: `bloque-independiente-${idx + 1}@medisalud.cl`,
+          paciente_telefono: '+56998765432',
+        }),
+      }),
+    ),
+  );
+  if (
+    distinctSlotResults.length !== 4 ||
+    distinctSlotResults.some((result) => result.status !== 201)
+  ) {
+    throw new Error(
+      `Reservas en bloques distintos no debían colisionar: ${distinctSlotResults
+        .map((result) => `${result.status}:${result.body.code || result.body.error || ''}`)
+        .join(',')}`,
+    );
+  }
   console.log(
-    `   - Latencia p95            : ${p95Latency.toFixed(2)} ms (Umbral RNF-01 <= 2000 ms)`,
+    `✅ [MED-16] ${distinctSlotResults.length} reservas simultáneas en bloques distintos confirmadas sin falsos conflictos.`,
   );
   console.log(
     '✅ [MED-11 | 5 pts] CA-02 (A-05): Reserva registrada y notificación incorporada a la cola.',

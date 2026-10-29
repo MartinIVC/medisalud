@@ -226,4 +226,6 @@ docker compose -f docker-compose.test.yml down -v
 
 Para repetir la aceptación desde una base vacía, ejecuta `down -v` antes de volver a `up`. El servicio de prueba no tiene credenciales de proveedores: valida la cola local, pero no entrega correos ni mensajes reales. CI ejecuta las mismas suites sobre PostgreSQL 16 descartable.
 
+La prueba de aceptación Sprint 1 lanza 40 consultas de disponibilidad y 40 reservas sobre el mismo bloque en una carga mixta. Verifica el p95 observado por el cliente para ambos endpoints (<= 2,0 s), una única cita confirmada y 39 rechazos; también comprueba reservas simultáneas en bloques distintos. La reserva usa `SERIALIZABLE`, permite hasta cinco intentos totales ante abortos de serialización y limita cada espera de bloqueo a 1,5 s.
+
 El contrato de errores HTTP y la representación aceptada para RUT están descritos en [API_CONTRACT.md](API_CONTRACT.md).

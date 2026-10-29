@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { createReservation, reservationFingerprint } = require('../src/services/reservas');
 const { HttpError } = require('../src/middleware/errors');
 
-function fakePool({ slot = {}, previous = null } = {}) {
+function fakePool({ slot = {}, previous = null, failQuery } = {}) {
   const queries = [];
   let released = false;
   const slotData = {
@@ -35,6 +35,12 @@ function fakePool({ slot = {}, previous = null } = {}) {
       currentClient = {
         async query(sql, values = []) {
           queries.push({ sql, values });
+          const failure = failQuery?.(sql);
+          if (failure) {
+            throw Object.assign(new Error('transaction lock failure'), {
+              code: typeof failure === 'string' ? failure : '40001',
+            });
+          }
           if (sql.startsWith('SELECT medico_id FROM agendas'))
             return { rowCount: 1, rows: [{ medico_id: 7 }] };
           if (sql.startsWith('SELECT id, activo FROM medicos'))
@@ -118,6 +124,8 @@ test('la reserva crea la cita y encola las notificaciones en la misma transacci�
   });
   assert.equal(enqueued, true);
   assert.equal(result.response.reserva.paciente_nombre, 'Ana Pérez');
+  assert.equal(database.queries[0].sql, 'BEGIN ISOLATION LEVEL SERIALIZABLE');
+  assert.equal(database.queries[1].sql, "SET LOCAL lock_timeout = '1500ms'");
   assert.equal(
     database.queries.some(({ sql }) =>
       sql.startsWith('UPDATE citas_medicas SET solicitud_respuesta'),
@@ -126,6 +134,55 @@ test('la reserva crea la cita y encola las notificaciones en la misma transacci�
   );
   assert.equal(database.queries.at(-1).sql, 'COMMIT');
   assert.equal(database.released, true);
+});
+
+test('un aborto de serialización transitorio se reintenta y puede completar la reserva', async () => {
+  let failuresRemaining = 1;
+  const database = fakePool({
+    failQuery: () => {
+      if (failuresRemaining === 0) return false;
+      failuresRemaining -= 1;
+      return true;
+    },
+  });
+  const result = await createReservation({ database, values });
+  assert.equal(result.response.reserva.paciente_nombre, 'Ana Pérez');
+  assert.equal(
+    database.queries.filter(({ sql }) => sql === 'BEGIN ISOLATION LEVEL SERIALIZABLE').length,
+    2,
+  );
+});
+
+test('fallos de serialización persistentes se devuelven como conflicto recuperable', async () => {
+  const database = fakePool({
+    failQuery: (sql) => sql.startsWith('SELECT medico_id FROM agendas'),
+  });
+  await assert.rejects(
+    () => createReservation({ database, values }),
+    (error) =>
+      error instanceof HttpError && error.status === 409 && error.code === 'CONCURRENT_RESERVATION',
+  );
+  assert.equal(
+    database.queries.filter(({ sql }) => sql === 'BEGIN ISOLATION LEVEL SERIALIZABLE').length,
+    5,
+  );
+  assert.equal(database.queries.at(-1).sql, 'ROLLBACK');
+});
+
+test('un timeout de bloqueo se devuelve como conflicto sin reintentar', async () => {
+  const database = fakePool({
+    failQuery: (sql) => (sql.startsWith('SELECT id, activo FROM medicos') ? '55P03' : false),
+  });
+  await assert.rejects(
+    () => createReservation({ database, values }),
+    (error) =>
+      error instanceof HttpError && error.status === 409 && error.code === 'CONCURRENT_RESERVATION',
+  );
+  assert.equal(
+    database.queries.filter(({ sql }) => sql === 'BEGIN ISOLATION LEVEL SERIALIZABLE').length,
+    1,
+  );
+  assert.equal(database.queries.at(-1).sql, 'ROLLBACK');
 });
 
 test('una clave repetida recupera el mismo comprobante y no crea otra cita', async () => {
