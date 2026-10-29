@@ -18,7 +18,9 @@ test('JSON inválido y base desconectada usan el contrato de error común', () =
   assert.deepEqual(invalidJson.body, {
     ok: false,
     code: 'INVALID_JSON',
+    codigo_error: 'INVALID_JSON',
     error: 'El cuerpo de la solicitud no contiene JSON válido.',
+    mensaje: 'El cuerpo de la solicitud no contiene JSON válido.',
   });
 
   const unavailable = response();

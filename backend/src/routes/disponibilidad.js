@@ -1,6 +1,6 @@
 const express = require('express');
 const { pool } = require('../db');
-const { asyncHandler } = require('../middleware/errors');
+const { asyncHandler, sendError } = require('../middleware/errors');
 const { isValidDate, positiveInteger } = require('../schemas/inputs');
 
 const router = express.Router();
@@ -36,7 +36,7 @@ router.get('/medicos', asyncHandler(async (req, res) => {
   try {
     const { especialidad_id } = req.query;
     if (especialidad_id !== undefined && (typeof especialidad_id !== 'string' || !/^\d+$/.test(especialidad_id) || !positiveInteger(Number(especialidad_id)))) {
-      return res.status(400).json({ ok: false, code: 'VALIDATION_ERROR', error: 'Indica una especialidad válida.', fields: { especialidad_id: 'Selecciona una especialidad válida.' } });
+      return sendError(res, 400, 'VALIDATION_ERROR', 'Indica una especialidad válida.', { especialidad_id: 'Selecciona una especialidad válida.' });
     }
     const params = [];
     let whereClause = 'WHERE m.activo = TRUE';
@@ -88,7 +88,7 @@ router.get('/disponibilidad', asyncHandler(async (req, res) => {
     }
     if (fecha !== undefined && (fecha_desde !== undefined || fecha_hasta !== undefined)) fields.fecha = 'Usa fecha o un rango de fechas, no ambos.';
     if (fecha_desde && fecha_hasta && fecha_desde > fecha_hasta) fields.fecha_hasta = 'La fecha de término debe ser igual o posterior al inicio.';
-    if (Object.keys(fields).length) return res.status(400).json({ ok: false, code: 'VALIDATION_ERROR', error: 'Revisa los filtros de disponibilidad.', fields });
+    if (Object.keys(fields).length) return sendError(res, 400, 'VALIDATION_ERROR', 'Revisa los filtros de disponibilidad.', fields);
     const params = [];
     const conditions = [
       `a.estado = 'DISPONIBLE'`,

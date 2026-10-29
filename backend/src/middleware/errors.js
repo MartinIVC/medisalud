@@ -14,10 +14,21 @@ function asyncHandler(handler) {
   };
 }
 
+function sendError(res, status, code, message, fields, legacyCode = code) {
+  return res.status(status).json({
+    ok: false,
+    code,
+    codigo_error: legacyCode,
+    error: message,
+    mensaje: message,
+    ...(fields ? { fields } : {}),
+  });
+}
+
 function errorHandler(error, _req, res, _next) {
   if (res.headersSent) return;
   if (error.type === 'entity.parse.failed') {
-    return res.status(400).json({ ok: false, code: 'INVALID_JSON', error: 'El cuerpo de la solicitud no contiene JSON válido.' });
+    return sendError(res, 400, 'INVALID_JSON', 'El cuerpo de la solicitud no contiene JSON válido.');
   }
 
   const status = error.status || (['ECONNREFUSED', 'ETIMEDOUT', '53300'].includes(error.code) ? 503 : 500);
@@ -25,12 +36,8 @@ function errorHandler(error, _req, res, _next) {
     ? error.code
     : status === 503 ? 'SERVICE_UNAVAILABLE' : 'INTERNAL_ERROR';
   if (status >= 500) console.error('[API] Error no controlado:', error.message);
-  return res.status(status).json({
-    ok: false,
-    code,
-    error: status >= 500 ? 'Ocurrió un error interno. Intenta nuevamente.' : error.message,
-    ...(error.fields ? { fields: error.fields } : {}),
-  });
+  const message = status >= 500 ? 'Ocurrió un error interno. Intenta nuevamente.' : error.message;
+  return sendError(res, status, code, message, error.fields);
 }
 
-module.exports = { HttpError, asyncHandler, errorHandler };
+module.exports = { HttpError, asyncHandler, sendError, errorHandler };

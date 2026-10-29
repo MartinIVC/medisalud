@@ -1,7 +1,7 @@
 const express = require('express');
 const { pool } = require('../db');
 const { requireSecretary } = require('../middleware/auth');
-const { asyncHandler } = require('../middleware/errors');
+const { asyncHandler, sendError } = require('../middleware/errors');
 const { isValidDate, positiveInteger, parseAgendaConfiguration, parseAgendaBlockAction } = require('../schemas/inputs');
 const { configureAgenda, blockAgenda, unblockAgenda } = require('../services/agenda');
 
@@ -18,7 +18,7 @@ router.get('/agendas', requireSecretary, asyncHandler(async (req, res) => {
   if (medico_id !== undefined && !/^\d+$/.test(medico_id)) fields.medico_id = 'Indica un médico válido.';
   if (medico_id !== undefined && (!positiveInteger(Number(medico_id)))) fields.medico_id = 'Indica un médico válido.';
   if (fecha !== undefined && !isValidDate(fecha)) fields.fecha = 'Indica una fecha real con formato AAAA-MM-DD.';
-  if (Object.keys(fields).length) return res.status(400).json({ ok: false, code: 'VALIDATION_ERROR', error: 'Revisa los filtros de agenda.', fields });
+  if (Object.keys(fields).length) return sendError(res, 400, 'VALIDATION_ERROR', 'Revisa los filtros de agenda.', fields);
   try {
     const params = [];
     const conditions = [];
@@ -82,7 +82,7 @@ router.get('/agendas', requireSecretary, asyncHandler(async (req, res) => {
 router.post('/agendas/configurar', requireSecretary, asyncHandler(async (req, res) => {
   const parsed = parseAgendaConfiguration(req.body);
   if (Object.keys(parsed.errors).length) {
-    return res.status(400).json({ ok: false, code: 'VALIDATION_ERROR', error: 'Revisa los datos de configuración de agenda.', fields: parsed.errors });
+    return sendError(res, 400, 'VALIDATION_ERROR', 'Revisa los datos de configuración de agenda.', parsed.errors);
   }
   const { duracion } = parsed.value;
   const result = await configureAgenda(pool, parsed.value);
@@ -117,7 +117,7 @@ router.post('/agendas/bloquear', requireSecretary, asyncHandler(async (req, res)
   const hasDoctorDate = parsed.value.es_feriado_global !== true && parsed.value.medico_id !== undefined && parsed.value.fecha !== undefined;
   if (!bodyIsValid || [hasAgenda, hasGlobalDate, hasDoctorDate].filter(Boolean).length !== 1 ||
       (parsed.value.es_feriado_global !== undefined && typeof parsed.value.es_feriado_global !== 'boolean')) {
-    return res.status(400).json({ ok: false, code: 'VALIDATION_ERROR', error: 'Indica un bloque, un médico y fecha, o un feriado global y fecha.', fields });
+    return sendError(res, 400, 'VALIDATION_ERROR', 'Indica un bloque, un médico y fecha, o un feriado global y fecha.', fields);
   }
   const result = await blockAgenda(pool, {
     agendaId: agenda_id,
@@ -147,7 +147,7 @@ router.post('/agendas/desbloquear', requireSecretary, asyncHandler(async (req, r
   const hasDoctorDate = es_feriado_global !== true && medico_id !== undefined && fecha !== undefined;
   if (Object.keys(parsed.errors).length || [hasAgenda, hasGlobalDate, hasDoctorDate].filter(Boolean).length !== 1 ||
       (es_feriado_global !== undefined && typeof es_feriado_global !== 'boolean')) {
-    return res.status(400).json({ ok: false, code: 'VALIDATION_ERROR', error: 'Indica un bloque o un médico y fecha válidos.', fields: parsed.errors });
+    return sendError(res, 400, 'VALIDATION_ERROR', 'Indica un bloque o un médico y fecha válidos.', parsed.errors);
   }
   const result = await unblockAgenda(pool, { agendaId: agenda_id, medicoId: medico_id, fecha, global: es_feriado_global });
   return res.json({

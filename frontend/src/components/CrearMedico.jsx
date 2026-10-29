@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { validateRutClient } from '../utils/rut';
+import { requestApi } from '../api/client';
 
 const emptyForm = { rut: '', nombre: '', email: '', especialidad_id: '', box_atencion: '' };
 const rutShape = /^(?:\d+|\d{1,2}(?:\.\d{3})+)-?[0-9kK]$/;
@@ -78,20 +79,20 @@ export default function CrearMedico({
 
     setSaving(true);
     try {
-      const response = await fetch('/api/medicos', {
+      const response = await requestApi('/api/medicos', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secretaryToken}` },
-        body: JSON.stringify({
+        token: secretaryToken,
+        onUnauthorized: () => onSessionExpired(form),
+        body: {
           rut: form.rut.trim(),
           nombre: form.nombre.trim(),
           email: form.email.trim(),
           especialidad_id: Number(form.especialidad_id),
           box_atencion: form.box_atencion.trim(),
-        }),
+        },
       });
-      const data = await response.json();
+      const data = response.data;
       if (response.status === 401) {
-        onSessionExpired(form);
         return;
       }
       if (!response.ok || !data.ok) {

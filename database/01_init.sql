@@ -68,6 +68,8 @@ CREATE TABLE IF NOT EXISTS citas_medicas (
     correo_enviado BOOLEAN NOT NULL DEFAULT FALSE,
     origen VARCHAR(20) NOT NULL DEFAULT 'WEB' CHECK (origen IN ('WEB','PRESENCIAL','TELEFONO')),
     solicitud_id VARCHAR(100) UNIQUE,
+    solicitud_payload_hash VARCHAR(64),
+    solicitud_respuesta JSONB,
     token_respuesta_hash VARCHAR(64),
     token_respuesta_expira TIMESTAMP WITH TIME ZONE,
     reminder_programado TIMESTAMP WITH TIME ZONE,

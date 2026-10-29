@@ -6,7 +6,7 @@ const agendasRoutes = require('./routes/agendas');
 const reservasRoutes = require('./routes/reservas');
 const medicosRoutes = require('./routes/medicos');
 const { createSecretaryToken } = require('./middleware/auth');
-const { errorHandler } = require('./middleware/errors');
+const { errorHandler, sendError } = require('./middleware/errors');
 
 function createApp({ database = pool } = {}) {
   const app = express();
@@ -19,10 +19,10 @@ function createApp({ database = pool } = {}) {
     if (!configured || typeof req.body?.password !== 'string' ||
         Buffer.byteLength(configured) !== Buffer.byteLength(req.body.password) ||
         !require('crypto').timingSafeEqual(Buffer.from(configured), Buffer.from(req.body.password))) {
-      return res.status(401).json({ ok: false, error: 'Credenciales inválidas o acceso no configurado.' });
+      return sendError(res, 401, 'UNAUTHORIZED', 'Credenciales inválidas o acceso no configurado.');
     }
     if (!process.env.SECRETARY_TOKEN_SECRET || Buffer.byteLength(process.env.SECRETARY_TOKEN_SECRET) < 32) {
-      return res.status(503).json({ ok: false, error: 'SECRETARY_TOKEN_SECRET debe tener al menos 32 bytes.' });
+      return sendError(res, 503, 'SERVICE_UNAVAILABLE', 'SECRETARY_TOKEN_SECRET debe tener al menos 32 bytes.');
     }
     return res.json({ ok: true, token: createSecretaryToken(), expires_in: 28800 });
   });

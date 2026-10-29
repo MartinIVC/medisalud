@@ -2,7 +2,7 @@ const express = require('express');
 const crypto = require('node:crypto');
 const { pool } = require('../db');
 const { requireSecretary } = require('../middleware/auth');
-const { asyncHandler, HttpError } = require('../middleware/errors');
+const { asyncHandler, sendError, HttpError } = require('../middleware/errors');
 const { parseReservation } = require('../schemas/inputs');
 const { withTransaction } = require('../db/transaction');
 const { createReservation } = require('../services/reservas');
@@ -122,33 +122,17 @@ router.post('/reservas', (req, res, next) => {
   if (Object.keys(parsed.errors).length) {
     const invalidRut = Boolean(parsed.errors.paciente_rut);
     const message = invalidRut ? `Reserva rechazada: ${parsed.errors.paciente_rut}` : 'Revisa los datos de la reserva.';
-    return res.status(400).json({
-      ok: false,
-      jira: 'MED-11',
-      codigo_error: invalidRut ? 'RUT_INVALIDO' : 'DATOS_INVALIDOS',
-      code: invalidRut ? 'INVALID_RUT' : 'VALIDATION_ERROR',
-      error: message,
-      mensaje: message,
-      fields: parsed.errors,
-    });
+    return sendError(res, 400, invalidRut ? 'INVALID_RUT' : 'VALIDATION_ERROR', message, parsed.errors,
+      invalidRut ? 'RUT_INVALIDO' : 'DATOS_INVALIDOS');
   }
 
   const startHr = process.hrtime.bigint();
   const result = await createReservation({ pool, values: parsed.value });
   const elapsedMs = Number(process.hrtime.bigint() - startHr) / 1e6;
   if (result.repeated) {
-    return res.status(200).json({ ok: true, repetida: true, reserva: result.reserva });
+    return res.status(200).json({ ...result.response, repetida: true });
   }
-  return res.status(201).json({
-    ok: true,
-    jira: 'MED-11 / MED-16',
-    criterio: 'CA-02 Sin conflicto (Recorrido exitoso)',
-    actividad_bpmn: 'A-05 Registrar reserva y encolar confirmación',
-    latencia_ms: Number(elapsedMs.toFixed(2)),
-    mensaje: `Reserva confirmada exitosamente con código ${result.reserva.codigo_reserva}. El comprobante quedó en cola de envío.`,
-    reserva: result.reserva,
-    comprobante_correo: result.emailComprobante,
-  });
+  return res.status(201).json({ ...result.response, latencia_ms: Number(elapsedMs.toFixed(2)) });
 }));
 
 module.exports = router;

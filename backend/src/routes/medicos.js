@@ -2,7 +2,7 @@ const express = require('express');
 const { pool } = require('../db');
 const { requireSecretary } = require('../middleware/auth');
 const { validateRut } = require('../utils/rutValidator');
-const { asyncHandler } = require('../middleware/errors');
+const { asyncHandler, sendError } = require('../middleware/errors');
 
 const router = express.Router();
 const allowedFields = new Set(['rut', 'nombre', 'email', 'especialidad_id', 'box_atencion']);
@@ -56,7 +56,7 @@ function fieldErrorsFor(body) {
 router.post('/medicos', requireSecretary, asyncHandler(async (req, res) => {
   const fields = fieldErrorsFor(req.body);
   if (Object.keys(fields).length) {
-    return res.status(400).json({ ok: false, code: 'VALIDATION_ERROR', error: 'Revisa los datos del médico.', fields });
+    return sendError(res, 400, 'VALIDATION_ERROR', 'Revisa los datos del médico.', fields);
   }
 
   const rutValidation = validateRut(req.body.rut.trim());
@@ -71,11 +71,8 @@ router.post('/medicos', requireSecretary, asyncHandler(async (req, res) => {
   try {
     const specialty = await pool.query('SELECT id FROM especialidades WHERE id = $1', [values.especialidadId]);
     if (!specialty.rowCount) {
-      return res.status(400).json({
-        ok: false,
-        error: 'La especialidad seleccionada no existe.',
-        fields: { especialidad_id: 'Selecciona una especialidad disponible.' },
-      });
+      return sendError(res, 400, 'SPECIALTY_NOT_FOUND', 'La especialidad seleccionada no existe.',
+        { especialidad_id: 'Selecciona una especialidad disponible.' });
     }
 
     const result = await pool.query(
@@ -88,18 +85,12 @@ router.post('/medicos', requireSecretary, asyncHandler(async (req, res) => {
     return res.status(201).json({ ok: true, medico: result.rows[0] });
   } catch (error) {
     if (error.code === '23505' && ['medicos_rut_key', 'uq_medicos_rut_normalizado'].includes(error.constraint)) {
-      return res.status(409).json({
-        ok: false,
-        error: 'Ya existe un médico registrado con ese RUT. Revisa el registro existente.',
-        fields: { rut: 'Este RUT ya está registrado. Revisa el registro existente.' },
-      });
+      return sendError(res, 409, 'DUPLICATE_RUT', 'Ya existe un médico registrado con ese RUT. Revisa el registro existente.',
+        { rut: 'Este RUT ya está registrado. Revisa el registro existente.' });
     }
     if (error.code === '23503') {
-      return res.status(400).json({
-        ok: false,
-        error: 'La especialidad seleccionada ya no existe. Recarga el catálogo e inténtalo nuevamente.',
-        fields: { especialidad_id: 'Selecciona una especialidad disponible.' },
-      });
+      return sendError(res, 400, 'SPECIALTY_NOT_FOUND', 'La especialidad seleccionada ya no existe. Recarga el catálogo e inténtalo nuevamente.',
+        { especialidad_id: 'Selecciona una especialidad disponible.' });
     }
 
     throw error;

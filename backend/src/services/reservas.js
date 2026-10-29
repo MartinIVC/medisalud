@@ -4,6 +4,34 @@ const { withTransaction } = require('../db/transaction');
 const { HttpError } = require('../middleware/errors');
 const { enqueueConfirmationEmail } = require('../notifications/queue');
 
+function reservationFingerprint(values) {
+  const canonical = JSON.stringify([
+    values.agendaId,
+    values.rut,
+    values.nombre,
+    values.email.toLowerCase(),
+    values.telefono,
+    values.origen,
+  ]);
+  return crypto.createHash('sha256').update(canonical).digest('hex');
+}
+
+async function readIdempotentResponse(database, requestKey, fingerprint) {
+  const existing = await database.query(
+    'SELECT solicitud_payload_hash, solicitud_respuesta FROM citas_medicas WHERE solicitud_id=$1',
+    [requestKey]
+  );
+  if (!existing.rowCount) return null;
+  const row = existing.rows[0];
+  if (row.solicitud_payload_hash !== fingerprint || !row.solicitud_respuesta) {
+    throw new HttpError(409, 'IDEMPOTENCY_CONFLICT', 'La clave de reintento ya se usó con otra solicitud o no puede recuperarse.');
+  }
+  const response = typeof row.solicitud_respuesta === 'string'
+    ? JSON.parse(row.solicitud_respuesta)
+    : row.solicitud_respuesta;
+  return { repeated: true, response };
+}
+
 async function createReservation({
   database = defaultPool,
   values,
@@ -11,6 +39,7 @@ async function createReservation({
   enqueueConfirmation = enqueueConfirmationEmail,
   randomBytes = crypto.randomBytes,
 }) {
+  const fingerprint = values.requestKey ? reservationFingerprint(values) : null;
   try {
     return await withTransaction(database, async (client) => {
       const target = await client.query('SELECT medico_id FROM agendas WHERE id=$1', [values.agendaId]);
@@ -45,11 +74,20 @@ async function createReservation({
 
       if (values.requestKey) {
         const previous = await client.query(
-          `SELECT id, codigo_reserva, agenda_id
+          `SELECT solicitud_payload_hash, solicitud_respuesta
            FROM citas_medicas WHERE solicitud_id=$1`,
           [values.requestKey]
         );
-        if (previous.rowCount) return { repeated: true, reserva: previous.rows[0] };
+        if (previous.rowCount) {
+          const existing = previous.rows[0];
+          if (existing.solicitud_payload_hash !== fingerprint || !existing.solicitud_respuesta) {
+            throw new HttpError(409, 'IDEMPOTENCY_CONFLICT', 'La clave de reintento ya se usó con otra solicitud o no puede recuperarse.');
+          }
+          const response = typeof existing.solicitud_respuesta === 'string'
+            ? JSON.parse(existing.solicitud_respuesta)
+            : existing.solicitud_respuesta;
+          return { repeated: true, response };
+        }
       }
 
       if (!slot.activo || !slot.futuro || slot.bloqueado) {
@@ -84,13 +122,13 @@ async function createReservation({
         `INSERT INTO citas_medicas (
            codigo_reserva, agenda_id, medico_id, paciente_rut, paciente_nombre,
            paciente_email, paciente_telefono, estado, correo_enviado, origen,
-           solicitud_id, token_respuesta_hash, token_respuesta_expira, reminder_programado
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'CONFIRMADA', FALSE, $8, $9, $10,
+           solicitud_id, solicitud_payload_hash, token_respuesta_hash, token_respuesta_expira, reminder_programado
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'CONFIRMADA', FALSE, $8, $9, $10, $11,
                    NOW() + INTERVAL '30 days',
-                   ((($11::date + $12::time) AT TIME ZONE 'America/Santiago') - INTERVAL '24 hours'))
+                   ((($12::date + $13::time) AT TIME ZONE 'America/Santiago') - INTERVAL '24 hours'))
          RETURNING id, codigo_reserva, created_at`,
         [codigoReserva, slot.id, slot.medico_id, values.rut, values.nombre, values.email, values.telefono,
-          values.origen, values.requestKey, responseTokenHash, slot.fecha, slot.hora_inicio]
+          values.origen, values.requestKey, fingerprint, responseTokenHash, slot.fecha, slot.hora_inicio]
       );
 
       const appointment = insertCita.rows[0];
@@ -124,8 +162,12 @@ async function createReservation({
         );
       }
 
-      return {
-        repeated: false,
+      const response = {
+        ok: true,
+        jira: 'MED-11 / MED-16',
+        criterio: 'CA-02 Sin conflicto (Recorrido exitoso)',
+        actividad_bpmn: 'A-05 Registrar reserva y encolar confirmación',
+        mensaje: `Reserva confirmada exitosamente con código ${codigoReserva}. El comprobante quedó en cola de envío.`,
         reserva: {
           id: appointment.id,
           codigo_reserva: codigoReserva,
@@ -142,14 +184,30 @@ async function createReservation({
           hora_fin: slot.hora_fin,
           created_at: appointment.created_at,
         },
-        emailComprobante,
+        comprobante_correo: emailComprobante,
+      };
+      if (values.requestKey) {
+        await client.query(
+          'UPDATE citas_medicas SET solicitud_respuesta=$2::jsonb WHERE id=$1 AND solicitud_payload_hash=$3',
+          [appointment.id, JSON.stringify(response), fingerprint]
+        );
+      }
+
+      return {
+        repeated: false,
+        response,
       };
     });
   } catch (error) {
     if (error.code === '40001') throw new HttpError(409, 'CONCURRENT_RESERVATION', 'El horario cambió durante la reserva. Selecciona otro horario.');
+    if (error.code === '23505' && values.requestKey && /solicitud_id/.test(error.constraint || '')) {
+      const repeated = await readIdempotentResponse(database, values.requestKey, fingerprint);
+      if (repeated) return repeated;
+      throw new HttpError(409, 'IDEMPOTENCY_CONFLICT', 'No fue posible recuperar el resultado de la solicitud repetida.');
+    }
     if (error.code === '23505') throw new HttpError(409, 'CONCURRENT_RESERVATION', 'El horario fue reservado por otra persona. Selecciona otro horario.');
     throw error;
   }
 }
 
-module.exports = { createReservation };
+module.exports = { createReservation, reservationFingerprint };

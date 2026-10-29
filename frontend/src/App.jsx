@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { formatRutInput, validateRutClient } from './utils/rut';
+import { idempotencyKeyFor, requestApi } from './api/client';
 import CrearMedico from './components/CrearMedico';
 
 export default function App() {
@@ -17,6 +18,7 @@ export default function App() {
   const [secretaryPassword, setSecretaryPassword] = useState('');
   const [secretaryError, setSecretaryError] = useState('');
   const [receptionBlock, setReceptionBlock] = useState(null);
+  const receptionRequestRef = useRef(null);
   const [receptionData, setReceptionData] = useState({ nombre: '', rut: '', email: '', telefono: '+569', origen: 'PRESENCIAL' });
   const [receptionError, setReceptionError] = useState('');
   const [especialidades, setEspecialidades] = useState([]);
@@ -34,6 +36,7 @@ export default function App() {
 
   // Modal / Formulario Reserva (MED-11: A-03, A-04, A-05, A-06)
   const [selectedBloque, setSelectedBloque] = useState(null);
+  const patientRequestRef = useRef(null);
   const [pacienteRut, setPacienteRut] = useState('');
   const [pacienteNombre, setPacienteNombre] = useState('');
   const [pacienteEmail, setPacienteEmail] = useState('');
@@ -61,10 +64,11 @@ export default function App() {
     setCatalogosError('');
     try {
       const [espResponse, medResponse] = await Promise.all([
-        fetch('/api/especialidades'),
-        fetch('/api/medicos'),
+        requestApi('/api/especialidades'),
+        requestApi('/api/medicos'),
       ]);
-      const [espRes, medRes] = await Promise.all([espResponse.json(), medResponse.json()]);
+      const espRes = espResponse.data;
+      const medRes = medResponse.data;
       if (!espResponse.ok || !medResponse.ok || !espRes.ok || !medRes.ok) {
         throw new Error('No pudimos cargar las especialidades y los médicos.');
       }
@@ -88,9 +92,9 @@ export default function App() {
       if (selectedMedico) params.set('medico_id', selectedMedico);
       if (selectedFecha) params.set('fecha', selectedFecha);
 
-      const res = await fetch(`/api/disponibilidad?${params.toString()}`);
-      const data = await res.json();
-      if (data.ok) {
+      const response = await requestApi(`/api/disponibilidad?${params.toString()}`);
+      const data = response.data;
+      if (response.ok && data.ok) {
         setDisponibilidad(data);
       } else {
         setAvailabilityError('No pudimos cargar los horarios. Intenta nuevamente.');
@@ -102,27 +106,31 @@ export default function App() {
     }
   }, [selectedEsp, selectedMedico, selectedFecha]);
 
+  const handleSecretaryUnauthorized = useCallback(() => {
+    sessionStorage.removeItem('medisalud-secretaria-token');
+    setSecretaryToken('');
+    setSecretaryError('Tu sesión terminó. Inicia sesión nuevamente para continuar.');
+    setSecAgendas([]);
+  }, []);
+
   const fetchSecAgendas = useCallback(async () => {
     if (!secretaryToken) return;
     const params = new URLSearchParams();
     if (secMedicoId) params.set('medico_id', secMedicoId);
     if (secFecha) params.set('fecha', secFecha);
     try {
-      const res = await fetch(`/api/agendas?${params.toString()}`, { headers: { Authorization: `Bearer ${secretaryToken}` } });
-      if (res.status === 401) {
-        sessionStorage.removeItem('medisalud-secretaria-token');
-        setSecretaryToken('');
-        setSecretaryError('Tu sesión terminó. Inicia sesión nuevamente para continuar.');
-        setSecAgendas([]);
-        return;
-      }
-      const data = await res.json();
-      if (data.ok) { setSecAgendas(data.bloques); setSecError(''); }
+      const response = await requestApi(`/api/agendas?${params.toString()}`, {
+        token: secretaryToken,
+        onUnauthorized: handleSecretaryUnauthorized,
+      });
+      const data = response.data;
+      if (response.status === 401) return;
+      if (response.ok && data.ok) { setSecAgendas(data.bloques); setSecError(''); }
       else setSecError(data.error || 'No pudimos cargar la agenda. Intenta nuevamente.');
     } catch {
       setSecError('No pudimos cargar la agenda. Revisa tu conexión e intenta nuevamente.');
     }
-  }, [secMedicoId, secFecha, secretaryToken]);
+  }, [secMedicoId, secFecha, secretaryToken, handleSecretaryUnauthorized]);
 
   useEffect(() => {
     fetchCatalogos();
@@ -134,10 +142,9 @@ export default function App() {
 
   useEffect(() => {
     if (!appointmentToken) return;
-    fetch(`/api/citas/responder?token=${encodeURIComponent(appointmentToken)}`)
-      .then(async (response) => {
-        const data = await response.json();
-        if (!response.ok || !data.ok) throw new Error(data.error || 'No pudimos cargar el detalle de la cita.');
+    requestApi(`/api/citas/responder?token=${encodeURIComponent(appointmentToken)}`)
+      .then(({ ok, data }) => {
+        if (!ok || !data.ok) throw new Error(data.error || 'No pudimos cargar el detalle de la cita.');
         setAppointmentDetails(data.cita);
       })
       .catch((error) => setAppointmentError(error.message))
@@ -164,11 +171,11 @@ export default function App() {
     event.preventDefault();
     setSecretaryError('');
     try {
-      const response = await fetch('/api/auth/secretaria', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: secretaryPassword }),
+      const response = await requestApi('/api/auth/secretaria', {
+        method: 'POST',
+        body: { password: secretaryPassword },
       });
-      const data = await response.json();
+      const data = response.data;
       if (!response.ok) { setSecretaryError(data.error || 'No fue posible iniciar sesión.'); return; }
       sessionStorage.setItem('medisalud-secretaria-token', data.token);
       setSecretaryToken(data.token);
@@ -193,26 +200,39 @@ export default function App() {
     setSecretaryError('Tu sesión expiró. Inicia sesión nuevamente; conservamos el formulario en esta página.');
   }
 
+  function openReceptionBooking(block) {
+    receptionRequestRef.current = null;
+    setReceptionBlock(block);
+  }
+
+  function closeReceptionBooking() {
+    receptionRequestRef.current = null;
+    setReceptionBlock(null);
+  }
+
   async function submitReceptionBooking(event) {
     event.preventDefault();
     if (!receptionBlock) return;
     setReceptionError('');
     try {
-    const response = await fetch('/api/reservas', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secretaryToken}`, 'Idempotency-Key': crypto.randomUUID() },
-      body: JSON.stringify({
+      const body = {
         agenda_id: receptionBlock.agenda_id, paciente_nombre: receptionData.nombre,
         paciente_rut: receptionData.rut, paciente_email: receptionData.email,
         paciente_telefono: receptionData.telefono, origen: receptionData.origen,
-      }),
-    });
-    const data = await response.json();
-    if (response.ok) {
-      setReceptionBlock(null);
-      setReceptionData({ nombre: '', rut: '', email: '', telefono: '+569', origen: 'PRESENCIAL' });
-      fetchSecAgendas(); fetchDisponibilidad();
-    } else setReceptionError(data.error || data.mensaje || 'No se pudo registrar la reserva. Revisa los datos e intenta nuevamente.');
+      };
+      const response = await requestApi('/api/reservas', {
+        method: 'POST',
+        token: secretaryToken,
+        headers: { 'Idempotency-Key': idempotencyKeyFor(receptionRequestRef, body) },
+        body,
+        onUnauthorized: handleSecretaryUnauthorized,
+      });
+      const data = response.data;
+      if (response.ok) {
+        closeReceptionBooking();
+        setReceptionData({ nombre: '', rut: '', email: '', telefono: '+569', origen: 'PRESENCIAL' });
+        fetchSecAgendas(); fetchDisponibilidad();
+      } else setReceptionError(data.error || data.mensaje || 'No se pudo registrar la reserva. Revisa los datos e inténtalo nuevamente.');
     } catch {
       setReceptionError('No pudimos conectar con el sistema. Los datos siguen en el formulario; inténtalo nuevamente.');
     }
@@ -221,18 +241,18 @@ export default function App() {
   async function replyToAppointment(action) {
     setAppointmentReply('');
     try {
-    const response = await fetch('/api/citas/responder', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: appointmentToken, accion: action }),
-    });
-    const data = await response.json();
-    if (response.ok) {
-      setAppointmentActionDone(true);
-      setAppointmentDetails((current) => ({ ...current, estado: action === 'CANCELAR' ? 'CANCELADA' : 'CONFIRMADA' }));
-    }
-    setAppointmentReply(response.ok
-      ? action === 'CANCELAR' ? 'La cita fue cancelada y el cupo quedó liberado.' : 'Gracias. Registramos que asistirás.'
-      : data.error || 'No fue posible actualizar la cita.');
+      const response = await requestApi('/api/citas/responder', {
+        method: 'POST',
+        body: { token: appointmentToken, accion: action },
+      });
+      const data = response.data;
+      if (response.ok) {
+        setAppointmentActionDone(true);
+        setAppointmentDetails((current) => ({ ...current, estado: action === 'CANCELAR' ? 'CANCELADA' : 'ASISTIRA' }));
+      }
+      setAppointmentReply(response.ok
+        ? action === 'CANCELAR' ? 'La cita fue cancelada y el cupo quedó liberado.' : 'Gracias. Registramos que asistirás.'
+        : data.error || 'No fue posible actualizar la cita.');
     } catch {
       setAppointmentReply('No pudimos actualizar la cita. Revisa tu conexión e intenta nuevamente.');
     }
@@ -263,21 +283,23 @@ export default function App() {
     setReservaResult(null);
 
     try {
-      const res = await fetch('/api/reservas', {
+      const body = {
+        agenda_id: selectedBloque.agenda_id,
+        origen: 'WEB',
+        paciente_rut: pacienteRut,
+        paciente_nombre: pacienteNombre,
+        paciente_email: pacienteEmail,
+        paciente_telefono: pacienteTelefono,
+      };
+      const res = await requestApi('/api/reservas', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agenda_id: selectedBloque.agenda_id,
-          origen: 'WEB',
-          paciente_rut: pacienteRut,
-          paciente_nombre: pacienteNombre,
-          paciente_email: pacienteEmail,
-          paciente_telefono: pacienteTelefono,
-        }),
+        headers: { 'Idempotency-Key': idempotencyKeyFor(patientRequestRef, body) },
+        body,
       });
-      const data = await res.json();
+      const data = res.data;
       if (res.ok && data.ok) {
         setReservaResult({ type: 'success', data });
+        patientRequestRef.current = null;
         setBookingStep('confirmacion');
         fetchDisponibilidad();
       } else {
@@ -301,19 +323,19 @@ export default function App() {
   async function handleConfigurarAgenda(e) {
     e.preventDefault();
     setSecFeedback(null);
-    const res = await fetch('/api/agendas/configurar', {
+    const res = await requestApi('/api/agendas/configurar', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secretaryToken}` },
-      body: JSON.stringify({
+      token: secretaryToken,
+      onUnauthorized: handleSecretaryUnauthorized,
+      body: {
         medico_id: Number(secMedicoId),
         fecha: secFecha,
         hora_inicio: secHoraInicio,
         hora_fin: secHoraFin,
         duracion_min: Number(secDuracion),
-      }),
+      },
     });
-    const data = await res.json();
-    setSecFeedback(data);
+    setSecFeedback(res.data);
     fetchSecAgendas();
     fetchDisponibilidad();
   }
@@ -324,17 +346,18 @@ export default function App() {
     const tipo = esFeriadoGlobal ? 'feriado' : 'ausencia';
     if (!window.confirm(`Vas a registrar un ${tipo} para ${alcance} el ${secFecha}. Se bloquearán los horarios disponibles de esa jornada. ¿Continuar?`)) return;
     setSecFeedback(null);
-    const res = await fetch('/api/agendas/bloquear', {
+    const res = await requestApi('/api/agendas/bloquear', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secretaryToken}` },
-      body: JSON.stringify({
+      token: secretaryToken,
+      onUnauthorized: handleSecretaryUnauthorized,
+      body: {
         medico_id: Number(secMedicoId),
         fecha: secFecha,
         es_feriado_global: esFeriadoGlobal,
         motivo: esFeriadoGlobal ? `Día Festivo Global: ${secMotivoBloqueo}` : secMotivoBloqueo,
-      }),
+      },
     });
-    const data = await res.json();
+    const data = res.data;
     setSecFeedback(data);
     fetchSecAgendas();
     fetchDisponibilidad();
@@ -342,14 +365,16 @@ export default function App() {
 
   async function handleToggleBloque(bloque) {
     const endpoint = bloque.estado === 'BLOQUEADO' ? '/api/agendas/desbloquear' : '/api/agendas/bloquear';
-    await fetch(endpoint, {
+    const result = await requestApi(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secretaryToken}` },
-      body: JSON.stringify({
+      token: secretaryToken,
+      onUnauthorized: handleSecretaryUnauthorized,
+      body: {
         agenda_id: bloque.agenda_id,
         motivo: secMotivoBloqueo || 'Bloqueo manual por secretaría (MED-10)',
-      }),
+      },
     });
+    if (!result.ok) setSecFeedback(result.data);
     fetchSecAgendas();
     fetchDisponibilidad();
   }
@@ -470,6 +495,7 @@ export default function App() {
                     id="patient-specialty"
                     value={selectedEsp}
                     onChange={(e) => {
+                      patientRequestRef.current = null;
                       setSelectedEsp(e.target.value);
                       setSelectedMedico('');
                       setSelectedBloque(null);
@@ -493,7 +519,7 @@ export default function App() {
                   <select
                     id="patient-doctor"
                     value={selectedMedico}
-                    onChange={(e) => { setSelectedMedico(e.target.value); setSelectedBloque(null); setReservaResult(null); }}
+                    onChange={(e) => { patientRequestRef.current = null; setSelectedMedico(e.target.value); setSelectedBloque(null); setReservaResult(null); }}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
                   >
                     <option value="">Cualquiera</option>
@@ -513,7 +539,7 @@ export default function App() {
                     id="patient-date"
                     type="date"
                     value={selectedFecha}
-                    onChange={(e) => { setSelectedFecha(e.target.value); setSelectedBloque(null); setReservaResult(null); }}
+                    onChange={(e) => { patientRequestRef.current = null; setSelectedFecha(e.target.value); setSelectedBloque(null); setReservaResult(null); }}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
                   />
                 </div>
@@ -576,6 +602,7 @@ export default function App() {
                           key={b.agenda_id}
                           type="button"
                           onClick={() => {
+                            patientRequestRef.current = null;
                             setSelectedBloque(b);
                             setReservaResult(null);
                             setBookingStep('datos');
@@ -723,6 +750,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => {
+                          patientRequestRef.current = null;
                           setSelectedBloque(null);
                           setReservaResult(null);
                           setBookingStep('datos');
@@ -762,7 +790,7 @@ export default function App() {
                             <div><dt className="font-semibold">Lugar</dt><dd>{reservaResult.data.reserva.box_atencion}</dd></div>
                           </dl>
                           <p className="mt-4 text-sm">El comprobante quedó en cola para enviarse a <strong>{pacienteEmail}</strong>.</p>
-                          <button type="button" onClick={() => { setSelectedBloque(null); setReservaResult(null); setBookingStep('datos'); setPacienteRut(''); setPacienteNombre(''); setPacienteEmail(''); setPacienteTelefono('+569'); }}
+                          <button type="button" onClick={() => { patientRequestRef.current = null; setSelectedBloque(null); setReservaResult(null); setBookingStep('datos'); setPacienteRut(''); setPacienteNombre(''); setPacienteEmail(''); setPacienteTelefono('+569'); }}
                             className="mt-4 min-h-11 rounded-lg bg-teal-700 px-4 py-2 text-white font-semibold">Reservar otra hora</button>
                         </div>
                       ) : (
@@ -975,7 +1003,7 @@ export default function App() {
                   <button type="button" onClick={() => setSecFecha(todayStr)} className="min-h-11 px-3 rounded-lg border border-slate-300 text-sm font-semibold">Hoy</button>
                   <button type="button" onClick={() => moveSecretaryDate(1)} className="min-h-11 px-3 rounded-lg border border-slate-300 text-sm font-semibold">Siguiente</button>
                 </div>
-                <button type="button" onClick={() => { const first = secAgendas.find((b) => b.estado === 'DISPONIBLE'); if (first) setReceptionBlock(first); }} disabled={!secAgendas.some((b) => b.estado === 'DISPONIBLE')} className="min-h-11 lg:self-end px-4 rounded-lg bg-teal-700 text-white text-sm font-semibold disabled:opacity-50">Nueva reserva</button>
+                <button type="button" onClick={() => { const first = secAgendas.find((b) => b.estado === 'DISPONIBLE'); if (first) openReceptionBooking(first); }} disabled={!secAgendas.some((b) => b.estado === 'DISPONIBLE')} className="min-h-11 lg:self-end px-4 rounded-lg bg-teal-700 text-white text-sm font-semibold disabled:opacity-50">Nueva reserva</button>
               </div>
 
               {secError && <div role="alert" className="mb-4 rounded-lg bg-rose-50 border border-rose-200 p-3 text-sm text-rose-800">{secError}<button onClick={fetchSecAgendas} className="ml-3 underline font-semibold">Reintentar</button></div>}
@@ -992,7 +1020,7 @@ export default function App() {
                   </div>
                   <p className="mt-2 text-sm text-slate-700">{b.estado === 'RESERVADO' ? `${b.paciente_nombre} (${b.paciente_rut})` : b.estado === 'BLOQUEADO' ? b.motivo_bloqueo : 'Listo para reservar'}</p>
                   <div className="flex flex-wrap gap-2 mt-3">
-                    {b.estado === 'DISPONIBLE' && <button type="button" onClick={() => setReceptionBlock(b)} className="min-h-11 rounded-lg bg-teal-700 px-4 text-sm font-semibold text-white">Reservar recepción</button>}
+                    {b.estado === 'DISPONIBLE' && <button type="button" onClick={() => openReceptionBooking(b)} className="min-h-11 rounded-lg bg-teal-700 px-4 text-sm font-semibold text-white">Reservar recepción</button>}
                     {b.estado !== 'RESERVADO' && <button type="button" onClick={() => handleToggleBloque(b)} className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold">{b.estado === 'BLOQUEADO' ? 'Habilitar' : 'Bloquear'}</button>}
                   </div>
                 </article>)}
@@ -1038,7 +1066,7 @@ export default function App() {
                         </td>
                         <td className="py-2.5 px-3 text-right">
                           {b.estado === 'DISPONIBLE' && (
-                            <button type="button" onClick={() => setReceptionBlock(b)}
+                            <button type="button" onClick={() => openReceptionBooking(b)}
                               className="px-2.5 py-1 rounded font-semibold bg-teal-700 text-white hover:bg-teal-800 mr-2">
                               Reservar recepción
                             </button>
@@ -1063,11 +1091,11 @@ export default function App() {
                 </table>
               </div>
               {receptionBlock && (
-                <div className="fixed inset-0 z-40 flex justify-end bg-slate-950/40" onKeyDown={(event) => { if (event.key === 'Escape') setReceptionBlock(null); }} onMouseDown={(event) => { if (event.target === event.currentTarget) setReceptionBlock(null); }}>
+                <div className="fixed inset-0 z-40 flex justify-end bg-slate-950/40" onKeyDown={(event) => { if (event.key === 'Escape') closeReceptionBooking(); }} onMouseDown={(event) => { if (event.target === event.currentTarget) closeReceptionBooking(); }}>
                 <form role="dialog" aria-modal="true" aria-labelledby="quick-booking-title" onSubmit={submitReceptionBooking} className="flex h-full w-full max-w-md min-w-0 flex-col gap-3 overflow-y-auto bg-white p-5 shadow-xl">
                   <div className="flex min-w-0 items-center justify-between gap-3">
                     <div className="min-w-0"><h3 id="quick-booking-title" className="font-semibold text-lg">Nueva reserva</h3><p className="mt-1 text-sm text-slate-600">{receptionBlock.fecha} · {receptionBlock.hora_inicio}–{receptionBlock.hora_fin} · {receptionBlock.medico_nombre}</p></div>
-                    <button type="button" onClick={() => setReceptionBlock(null)} className="min-h-11 px-3 text-sm underline">Cerrar</button>
+                    <button type="button" onClick={closeReceptionBooking} className="min-h-11 px-3 text-sm underline">Cerrar</button>
                   </div>
                   <label className="block w-full min-w-0 text-sm font-semibold">Origen de la reserva
                   <select autoFocus value={receptionData.origen} onChange={(e) => setReceptionData({ ...receptionData, origen: e.target.value })}

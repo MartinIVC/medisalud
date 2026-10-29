@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { sendError } = require('./errors');
 
 function sign(payload) {
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
@@ -19,7 +20,7 @@ function verify(token) {
 
 function requireSecretary(req, res, next) {
   const token = (req.get('Authorization') || '').replace(/^Bearer\s+/i, '');
-  if (!verify(token)) return res.status(401).json({ ok: false, error: 'Se requiere una sesión de secretaría vigente.' });
+  if (!verify(token)) return sendError(res, 401, 'UNAUTHORIZED', 'Se requiere una sesión de secretaría vigente.');
   next();
 }
 
