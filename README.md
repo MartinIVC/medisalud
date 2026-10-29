@@ -32,6 +32,10 @@ Aplicación web académica para consultar disponibilidad y reservar horas médic
 
 El proveedor puede aceptar un mensaje sin confirmar su entrega final. El proyecto todavía no procesa callbacks de entrega. El panel actualiza su calendario cada dos segundos.
 
+### Registro de médicos (Sprint 3)
+
+Secretaría puede crear médicos activos desde el panel. Cada registro valida el RUT chileno y su unicidad independientemente de puntos y guion. El alta no crea horarios: estos se configuran después desde «Configurar horarios». La cantidad de 15 médicos corresponde a los datos semilla de demostración, no a un límite del sistema.
+
 ---
 
 ## Requisitos
@@ -153,6 +157,19 @@ docker compose exec -T db psql -U medisalud -d medisalud_db < database/migration
 
 Si cambiaste POSTGRES_USER o POSTGRES_DB en .env, reemplaza los valores del comando. No ejecutes la migración contra producción sin revisar y respaldar la base.
 
+La migración de RUT normalizado protege también las instalaciones con volumen existente. Antes de aplicarla, revisa y respalda la base. Si detecta dos registros que representan el mismo RUT, se detiene e informa los IDs para resolver la colisión manualmente; no modifica esos registros. En PowerShell:
+
+```powershell
+Get-Content -Raw .\database\migrations\20261028_medicos_rut_normalizado.sql |
+  docker compose exec -T db psql -U medisalud -d medisalud_db
+```
+
+En Linux/macOS:
+
+```bash
+docker compose exec -T db psql -U medisalud -d medisalud_db < database/migrations/20261028_medicos_rut_normalizado.sql
+```
+
 ## Prueba automatizada
 
 La suite del Sprint 1 modifica la base local y lanza solicitudes concurrentes. No la ejecutes contra datos reales. Requiere SECRETARY_PASSWORD y SECRETARY_TOKEN_SECRET en .env:
@@ -162,3 +179,9 @@ docker compose exec backend npm run test:sprint1
 ```
 
 La suite puede reservar el bloque de prueba; recrea la base local antes de repetirla si necesitas los datos semilla originales.
+
+La suite de Sprint 3 crea médicos de prueba con RUT aleatorios y los elimina al terminar si no tienen agendas ni citas vinculadas. Ejecútala solo contra una base de desarrollo, con el backend y PostgreSQL activos:
+
+```bash
+docker compose exec backend npm run test:sprint3
+```

@@ -1,6 +1,8 @@
 # Dependencias y compilados
 node_modules/
-docs/
+docs/**
+!docs/manual-secretaria.md
+!docs/protocolo-marcha-blanca.md
 dist/
 build/
 .env
