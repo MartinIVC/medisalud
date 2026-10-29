@@ -12,7 +12,7 @@ export default function App() {
   const [secretaryError, setSecretaryError] = useState('');
   const [receptionBlock, setReceptionBlock] = useState(null);
   const [receptionData, setReceptionData] = useState({ nombre: '', rut: '', email: '', telefono: '+569', origen: 'PRESENCIAL' });
-  const [health, setHealth] = useState(null);
+  const [receptionError, setReceptionError] = useState('');
   const [especialidades, setEspecialidades] = useState([]);
   const [medicos, setMedicos] = useState([]);
 
@@ -44,16 +44,7 @@ export default function App() {
   const [secMotivoBloqueo, setSecMotivoBloqueo] = useState('Licencia médica profesional');
   const [secAgendas, setSecAgendas] = useState([]);
   const [secFeedback, setSecFeedback] = useState(null);
-
-  const fetchHealth = useCallback(async () => {
-    try {
-      const res = await fetch('/api/health');
-      const data = await res.json();
-      setHealth(data);
-    } catch {
-      setHealth({ ok: false });
-    }
-  }, []);
+  const [secError, setSecError] = useState('');
 
   const fetchCatalogos = useCallback(async () => {
     const [espRes, medRes] = await Promise.all([
@@ -92,15 +83,26 @@ export default function App() {
     const params = new URLSearchParams();
     if (secMedicoId) params.set('medico_id', secMedicoId);
     if (secFecha) params.set('fecha', secFecha);
-    const res = await fetch(`/api/agendas?${params.toString()}`, { headers: { Authorization: `Bearer ${secretaryToken}` } });
-    const data = await res.json();
-    if (data.ok) setSecAgendas(data.bloques);
+    try {
+      const res = await fetch(`/api/agendas?${params.toString()}`, { headers: { Authorization: `Bearer ${secretaryToken}` } });
+      if (res.status === 401) {
+        sessionStorage.removeItem('medisalud-secretaria-token');
+        setSecretaryToken('');
+        setSecretaryError('Tu sesión terminó. Inicia sesión nuevamente para continuar.');
+        setSecAgendas([]);
+        return;
+      }
+      const data = await res.json();
+      if (data.ok) { setSecAgendas(data.bloques); setSecError(''); }
+      else setSecError(data.error || 'No pudimos cargar la agenda. Intenta nuevamente.');
+    } catch {
+      setSecError('No pudimos cargar la agenda. Revisa tu conexión e intenta nuevamente.');
+    }
   }, [secMedicoId, secFecha, secretaryToken]);
 
   useEffect(() => {
-    fetchHealth();
     fetchCatalogos();
-  }, [fetchHealth, fetchCatalogos]);
+  }, [fetchCatalogos]);
 
   useEffect(() => {
     fetchDisponibilidad();
@@ -121,20 +123,26 @@ export default function App() {
   async function loginSecretary(event) {
     event.preventDefault();
     setSecretaryError('');
-    const response = await fetch('/api/auth/secretaria', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: secretaryPassword }),
-    });
-    const data = await response.json();
-    if (!response.ok) { setSecretaryError(data.error || 'No fue posible iniciar sesión.'); return; }
-    sessionStorage.setItem('medisalud-secretaria-token', data.token);
-    setSecretaryToken(data.token);
-    setSecretaryPassword('');
+    try {
+      const response = await fetch('/api/auth/secretaria', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: secretaryPassword }),
+      });
+      const data = await response.json();
+      if (!response.ok) { setSecretaryError(data.error || 'No fue posible iniciar sesión.'); return; }
+      sessionStorage.setItem('medisalud-secretaria-token', data.token);
+      setSecretaryToken(data.token);
+      setSecretaryPassword('');
+    } catch {
+      setSecretaryError('No pudimos iniciar sesión. Revisa tu conexión e intenta nuevamente.');
+    }
   }
 
   async function submitReceptionBooking(event) {
     event.preventDefault();
     if (!receptionBlock) return;
+    setReceptionError('');
+    try {
     const response = await fetch('/api/reservas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secretaryToken}`, 'Idempotency-Key': crypto.randomUUID() },
@@ -145,11 +153,13 @@ export default function App() {
       }),
     });
     const data = await response.json();
-    setSecFeedback(data);
     if (response.ok) {
       setReceptionBlock(null);
       setReceptionData({ nombre: '', rut: '', email: '', telefono: '+569', origen: 'PRESENCIAL' });
-      fetchSecAgendas(); fetchDisponibilidad(); fetchHealth();
+      fetchSecAgendas(); fetchDisponibilidad();
+    } else setReceptionError(data.error || data.mensaje || 'No se pudo registrar la reserva. Revisa los datos e intenta nuevamente.');
+    } catch {
+      setReceptionError('No pudimos conectar con el sistema. Los datos siguen en el formulario; inténtalo nuevamente.');
     }
   }
 
@@ -206,7 +216,6 @@ export default function App() {
         setReservaResult({ type: 'success', data });
         setBookingStep('confirmacion');
         fetchDisponibilidad();
-        fetchHealth();
       } else {
         setReservaResult({ type: 'error', data: res.status >= 500
           ? { ...data, mensaje: 'No pudimos completar la reserva. Tus datos siguen guardados; inténtalo nuevamente.' }
@@ -243,10 +252,13 @@ export default function App() {
     setSecFeedback(data);
     fetchSecAgendas();
     fetchDisponibilidad();
-    fetchHealth();
   }
 
   async function handleBloquearDia(esFeriadoGlobal = false) {
+    const medico = medicos.find((item) => String(item.id) === String(secMedicoId));
+    const alcance = esFeriadoGlobal ? 'todos los profesionales' : medico?.nombre || 'el profesional seleccionado';
+    const tipo = esFeriadoGlobal ? 'feriado' : 'ausencia';
+    if (!window.confirm(`Vas a registrar un ${tipo} para ${alcance} el ${secFecha}. Se bloquearán los horarios disponibles de esa jornada. ¿Continuar?`)) return;
     setSecFeedback(null);
     const res = await fetch('/api/agendas/bloquear', {
       method: 'POST',
@@ -262,7 +274,6 @@ export default function App() {
     setSecFeedback(data);
     fetchSecAgendas();
     fetchDisponibilidad();
-    fetchHealth();
   }
 
   async function handleToggleBloque(bloque) {
@@ -277,7 +288,22 @@ export default function App() {
     });
     fetchSecAgendas();
     fetchDisponibilidad();
-    fetchHealth();
+  }
+
+  function moveSecretaryDate(days) {
+    setSecFecha((current) => {
+      const date = new Date(`${current}T12:00:00Z`);
+      date.setUTCDate(date.getUTCDate() + days);
+      return date.toISOString().slice(0, 10);
+    });
+  }
+
+  function logoutSecretary() {
+    sessionStorage.removeItem('medisalud-secretaria-token');
+    setSecretaryToken('');
+    setSecAgendas([]);
+    setSecFeedback(null);
+    setSecretaryError('');
   }
 
   if (appointmentToken) {
@@ -674,33 +700,35 @@ export default function App() {
               )}
             </section>
           </div>
+          </div>
         ) : (
           /* Panel Administrativo de Secretaría (MED-10) */
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-5 h-fit">
+            <section className="order-2 lg:col-span-3 bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-5 h-fit">
+              <details>
+              <summary className="cursor-pointer min-h-11 flex items-center font-semibold text-teal-900">Configurar horarios y registrar ausencias</summary>
+              <div className="pt-4 space-y-5">
               <div>
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-bold text-slate-800">
-                    Parametrización de Agenda
+                    Configurar horarios
                   </h2>
-                  <span className="text-xs font-mono bg-teal-50 text-teal-700 px-2 py-0.5 rounded border border-teal-200">
-                    MED-10 / RF-03
-                  </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-1">
-                  Configure bloques de 15, 20 o 30 minutos para los 15 especialistas o registre bloqueos por días festivos y licencias médicas.
+                  Define los bloques de atención o registra un feriado o una ausencia.
                 </p>
               </div>
 
               <form onSubmit={handleConfigurarAgenda} className="space-y-3">
                 <div>
-                  <label className="block text-xs font-semibold uppercase text-slate-600 mb-1">
-                    Profesional Médico (15 Especialistas)
+                  <label htmlFor="schedule-doctor" className="block text-sm font-semibold text-slate-700 mb-1">
+                    Profesional
                   </label>
                   <select
+                    id="schedule-doctor"
                     value={secMedicoId}
                     onChange={(e) => setSecMedicoId(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    className="w-full min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-sm"
                   >
                     {medicos.map((m) => (
                       <option key={m.id} value={m.id}>
@@ -711,50 +739,54 @@ export default function App() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold uppercase text-slate-600 mb-1">
-                    Fecha a Configurar / Consultar
+                  <label htmlFor="schedule-date" className="block text-sm font-semibold text-slate-700 mb-1">
+                    Fecha
                   </label>
                   <input
+                    id="schedule-date"
                     type="date"
                     value={secFecha}
                     onChange={(e) => setSecFecha(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    className="w-full min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-sm"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-xs font-semibold uppercase text-slate-600 mb-1">
+                    <label htmlFor="schedule-start" className="block text-sm font-semibold text-slate-700 mb-1">
                       Hora Inicio
                     </label>
                     <input
-                      type="time"
-                      value={secHoraInicio}
-                      onChange={(e) => setSecHoraInicio(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    id="schedule-start"
+                    type="time"
+                    value={secHoraInicio}
+                    onChange={(e) => setSecHoraInicio(e.target.value)}
+                    className="w-full min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold uppercase text-slate-600 mb-1">
+                    <label htmlFor="schedule-end" className="block text-sm font-semibold text-slate-700 mb-1">
                       Hora Fin
                     </label>
                     <input
+                      id="schedule-end"
                       type="time"
                       value={secHoraFin}
                       onChange={(e) => setSecHoraFin(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    className="w-full min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-sm"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold uppercase text-slate-600 mb-1">
-                    Duración de Bloque (CA-01: 15, 20 o 30 min)
+                  <label htmlFor="schedule-duration" className="block text-sm font-semibold text-slate-700 mb-1">
+                    Duración de cada horario
                   </label>
                   <select
+                    id="schedule-duration"
                     value={secDuracion}
                     onChange={(e) => setSecDuracion(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-teal-900"
+                    className="w-full min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-teal-900"
                   >
                     <option value="15">15 minutos por bloque</option>
                     <option value="20">20 minutos por bloque</option>
@@ -764,9 +796,9 @@ export default function App() {
 
                 <button
                   type="submit"
-                  className="w-full bg-teal-700 hover:bg-teal-800 text-white font-semibold py-2.5 rounded-lg text-sm transition"
+                  className="w-full min-h-11 bg-teal-700 hover:bg-teal-800 text-white font-semibold py-2.5 rounded-lg text-sm transition"
                 >
-                  Generar Bloques Horarios (CA-01)
+                  Guardar horarios
                 </button>
               </form>
 
@@ -775,54 +807,68 @@ export default function App() {
               {/* Bloqueo de feriados o licencias médicas (CA-02) */}
               <div className="space-y-3">
                 <h3 className="text-sm font-bold text-slate-800">
-                  Bloqueo de Licencias o Días Festivos (CA-02)
+                  Registrar ausencia o feriado
                 </h3>
+                <label htmlFor="absence-reason" className="block text-sm font-semibold text-slate-700">Motivo
                 <input
+                  id="absence-reason"
                   type="text"
                   value={secMotivoBloqueo}
                   onChange={(e) => setSecMotivoBloqueo(e.target.value)}
                   placeholder="Motivo del bloqueo..."
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                />
+                /></label>
                 <div className="grid grid-cols-1 gap-2">
                   <button
                     type="button"
                     onClick={() => handleBloquearDia(false)}
-                    className="w-full bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2 rounded-lg text-xs transition"
+                  className="w-full min-h-11 bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2 rounded-lg text-sm transition"
                   >
-                    Bloquear Jornada del Médico (Licencia Médica)
+                    Bloquear jornada del profesional
                   </button>
                   <button
                     type="button"
                     onClick={() => handleBloquearDia(true)}
-                    className="w-full bg-rose-700 hover:bg-rose-800 text-white font-semibold py-2 rounded-lg text-xs transition"
+                    className="w-full bg-amber-700 hover:bg-amber-800 text-white font-semibold py-2.5 rounded-lg text-sm transition"
                   >
-                    Bloquear Fecha como Feriado (Todos los Médicos)
+                    Bloquear fecha para todos los profesionales
                   </button>
                 </div>
               </div>
 
               {secFeedback && (
-                <div className="p-3 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-900">
-                  <strong>{secFeedback.jira}:</strong> {secFeedback.mensaje || secFeedback.error}
+                <div role={secFeedback.ok ? 'status' : 'alert'} className={`p-3 rounded-lg text-sm ${secFeedback.ok ? 'bg-emerald-50 border border-emerald-200 text-emerald-900' : 'bg-rose-50 border border-rose-200 text-rose-900'}`}>
+                  {secFeedback.mensaje || secFeedback.error}
                 </div>
               )}
+              </div>
+              </details>
             </section>
 
             {/* Tabla de estado de bloques del médico */}
-            <section className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-              <div className="flex items-center justify-between mb-4">
+            <section className="order-1 lg:col-span-3 bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+              <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 mb-5">
                 <div>
-                  <h2 className="text-lg font-bold text-slate-800">
-                    Estado Sincronizado de Bloques en PostgreSQL
-                  </h2>
-                  <p className="text-xs text-slate-500">
-                    Vista de secretaría con los estados DISPONIBLE, RESERVADO y BLOQUEADO en tiempo real.
-                  </p>
+                  <h2 className="text-xl font-bold text-slate-900">Agenda del día</h2>
+                  <p className="text-sm text-slate-600 mt-1">Revisa los horarios y registra una reserva desde recepción.</p>
                 </div>
-                <span className="text-xs font-mono px-2.5 py-1 bg-slate-100 rounded">
-                  Total bloques: {secAgendas.length}
-                </span>
+                <button type="button" onClick={logoutSecretary} className="min-h-11 self-start lg:self-auto px-4 rounded-lg border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cerrar sesión</button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-3 mb-5">
+                <label className="text-sm font-semibold text-slate-700">Profesional
+                  <select aria-label="Profesional de la agenda" value={secMedicoId} onChange={(e) => setSecMedicoId(e.target.value)} className="mt-1 w-full min-h-11 rounded-lg border border-slate-300 px-3 font-normal">
+                    {medicos.map((m) => <option key={m.id} value={m.id}>{m.nombre} · {m.especialidad_nombre}</option>)}
+                  </select>
+                </label>
+                <label className="text-sm font-semibold text-slate-700">Fecha
+                  <input aria-label="Fecha de la agenda" type="date" value={secFecha} onChange={(e) => setSecFecha(e.target.value)} className="mt-1 w-full min-h-11 rounded-lg border border-slate-300 px-3 font-normal" />
+                </label>
+                <div className="flex gap-2 items-end">
+                  <button type="button" onClick={() => moveSecretaryDate(-1)} className="min-h-11 px-3 rounded-lg border border-slate-300 text-sm font-semibold">Anterior</button>
+                  <button type="button" onClick={() => setSecFecha(todayStr)} className="min-h-11 px-3 rounded-lg border border-slate-300 text-sm font-semibold">Hoy</button>
+                  <button type="button" onClick={() => moveSecretaryDate(1)} className="min-h-11 px-3 rounded-lg border border-slate-300 text-sm font-semibold">Siguiente</button>
+                </div>
+                <button type="button" onClick={() => { const first = secAgendas.find((b) => b.estado === 'DISPONIBLE'); if (first) setReceptionBlock(first); }} disabled={!secAgendas.some((b) => b.estado === 'DISPONIBLE')} className="min-h-11 lg:self-end px-4 rounded-lg bg-teal-700 text-white text-sm font-semibold disabled:opacity-50">Nueva reserva</button>
               </div>
 
               <div className="overflow-x-auto">
@@ -844,7 +890,7 @@ export default function App() {
                         </td>
                         <td className="py-2.5 px-3">{b.duracion_min} min</td>
                         <td className="py-2.5 px-3">
-                          <span
+                          <span aria-label={`Estado: ${b.estado === 'DISPONIBLE' ? 'Disponible' : b.estado === 'RESERVADO' ? 'Reservado' : 'Bloqueado'}`}
                             className={`px-2 py-0.5 rounded-full font-bold text-[11px] ${
                               b.estado === 'DISPONIBLE'
                                 ? 'bg-emerald-100 text-emerald-800'
@@ -853,7 +899,7 @@ export default function App() {
                                 : 'bg-amber-100 text-amber-800'
                             }`}
                           >
-                            {b.estado}
+                            {b.estado === 'DISPONIBLE' ? '✓ Disponible' : b.estado === 'RESERVADO' ? '● Reservado' : '■ Bloqueado'}
                           </span>
                         </td>
                         <td className="py-2.5 px-3 text-slate-600">
@@ -861,7 +907,7 @@ export default function App() {
                             ? `${b.paciente_nombre} (${b.paciente_rut}) — Cód: ${b.codigo_reserva}`
                             : b.estado === 'BLOQUEADO'
                             ? b.motivo_bloqueo
-                            : 'Habilitado en Portal Web (A-02)'}
+                            : 'Disponible para reservar'}
                         </td>
                         <td className="py-2.5 px-3 text-right">
                           {b.estado === 'DISPONIBLE' && (
@@ -890,25 +936,29 @@ export default function App() {
                 </table>
               </div>
               {receptionBlock && (
-                <form onSubmit={submitReceptionBooking} className="mt-5 rounded-lg border border-teal-200 bg-teal-50 p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="fixed inset-0 z-40 flex justify-end bg-slate-950/40" onKeyDown={(event) => { if (event.key === 'Escape') setReceptionBlock(null); }} onMouseDown={(event) => { if (event.target === event.currentTarget) setReceptionBlock(null); }}>
+                <form role="dialog" aria-modal="true" aria-labelledby="quick-booking-title" onSubmit={submitReceptionBooking} className="h-full w-full max-w-md overflow-y-auto bg-white p-5 shadow-xl grid grid-cols-1 gap-3 content-start">
                   <div className="md:col-span-2 flex justify-between items-center">
-                    <h3 className="font-semibold text-sm">Reserva rápida · {receptionBlock.hora_inicio}–{receptionBlock.hora_fin}</h3>
-                    <button type="button" onClick={() => setReceptionBlock(null)} className="text-xs underline">Cerrar</button>
+                    <div><h3 id="quick-booking-title" className="font-semibold text-lg">Nueva reserva</h3><p className="mt-1 text-sm text-slate-600">{receptionBlock.fecha} · {receptionBlock.hora_inicio}–{receptionBlock.hora_fin} · {receptionBlock.medico_nombre}</p></div>
+                    <button type="button" onClick={() => setReceptionBlock(null)} className="min-h-11 px-3 text-sm underline">Cerrar</button>
                   </div>
-                  <select value={receptionData.origen} onChange={(e) => setReceptionData({ ...receptionData, origen: e.target.value })}
-                    className="rounded border border-slate-300 px-3 py-2 text-sm">
+                  <label className="text-sm font-semibold">Origen de la reserva
+                  <select autoFocus value={receptionData.origen} onChange={(e) => setReceptionData({ ...receptionData, origen: e.target.value })}
+                    className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal">
                     <option value="PRESENCIAL">Presencial</option><option value="TELEFONO">Telefónica</option>
-                  </select>
-                  <input required placeholder="RUT" value={receptionData.rut} onChange={(e) => setReceptionData({ ...receptionData, rut: e.target.value })}
-                    className="rounded border border-slate-300 px-3 py-2 text-sm" />
-                  <input required placeholder="Nombre completo" value={receptionData.nombre} onChange={(e) => setReceptionData({ ...receptionData, nombre: e.target.value })}
-                    className="rounded border border-slate-300 px-3 py-2 text-sm" />
-                  <input required type="email" placeholder="Correo" value={receptionData.email} onChange={(e) => setReceptionData({ ...receptionData, email: e.target.value })}
-                    className="rounded border border-slate-300 px-3 py-2 text-sm" />
-                  <input required type="tel" placeholder="Teléfono +569..." value={receptionData.telefono} onChange={(e) => setReceptionData({ ...receptionData, telefono: e.target.value })}
-                    className="rounded border border-slate-300 px-3 py-2 text-sm" />
-                  <button className="rounded bg-teal-700 text-white font-semibold px-3 py-2 text-sm">Confirmar reserva</button>
+                  </select></label>
+                  <label className="text-sm font-semibold">RUT<input required placeholder="12.345.678-5" value={receptionData.rut} onChange={(e) => setReceptionData({ ...receptionData, rut: formatRutInput(e.target.value) })}
+                    className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm font-normal" /></label>
+                  <label className="text-sm font-semibold">Nombre completo<input required placeholder="Nombre y apellidos" value={receptionData.nombre} onChange={(e) => setReceptionData({ ...receptionData, nombre: e.target.value })}
+                    className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm font-normal" /></label>
+                  <label className="text-sm font-semibold">Correo electrónico<input required type="email" placeholder="nombre@ejemplo.cl" value={receptionData.email} onChange={(e) => setReceptionData({ ...receptionData, email: e.target.value })}
+                    className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm font-normal" /></label>
+                  <label className="text-sm font-semibold">Teléfono<input required type="tel" placeholder="+56 9 1234 5678" value={receptionData.telefono} onChange={(e) => setReceptionData({ ...receptionData, telefono: e.target.value })}
+                    className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm font-normal" /></label>
+                  {receptionError && <p role="alert" className="text-sm text-rose-800">{receptionError}</p>}
+                  <button className="min-h-11 rounded-lg bg-teal-700 text-white font-semibold px-4 text-sm">Reservar</button>
                 </form>
+                </div>
               )}
             </section>
           </div>
