@@ -5,6 +5,10 @@ export default function App() {
   const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date());
   const appointmentToken = new URLSearchParams(window.location.search).get('cita_token');
   const [appointmentReply, setAppointmentReply] = useState('');
+  const [appointmentDetails, setAppointmentDetails] = useState(null);
+  const [appointmentLoading, setAppointmentLoading] = useState(Boolean(appointmentToken));
+  const [appointmentError, setAppointmentError] = useState('');
+  const [appointmentActionDone, setAppointmentActionDone] = useState(false);
 
   const [activeTab, setActiveTab] = useState('paciente'); // 'paciente' | 'secretaria'
   const [secretaryToken, setSecretaryToken] = useState(() => sessionStorage.getItem('medisalud-secretaria-token') || '');
@@ -109,6 +113,18 @@ export default function App() {
   }, [fetchDisponibilidad]);
 
   useEffect(() => {
+    if (!appointmentToken) return;
+    fetch(`/api/citas/responder?token=${encodeURIComponent(appointmentToken)}`)
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.error || 'No pudimos cargar el detalle de la cita.');
+        setAppointmentDetails(data.cita);
+      })
+      .catch((error) => setAppointmentError(error.message))
+      .finally(() => setAppointmentLoading(false));
+  }, [appointmentToken]);
+
+  useEffect(() => {
     if (activeTab === 'secretaria') {
       fetchSecAgendas();
     }
@@ -164,14 +180,23 @@ export default function App() {
   }
 
   async function replyToAppointment(action) {
+    setAppointmentReply('');
+    try {
     const response = await fetch('/api/citas/responder', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: appointmentToken, accion: action }),
     });
     const data = await response.json();
+    if (response.ok) {
+      setAppointmentActionDone(true);
+      setAppointmentDetails((current) => ({ ...current, estado: action === 'CANCELAR' ? 'CANCELADA' : 'CONFIRMADA' }));
+    }
     setAppointmentReply(response.ok
       ? action === 'CANCELAR' ? 'La cita fue cancelada y el cupo quedó liberado.' : 'Gracias. Registramos que asistirás.'
       : data.error || 'No fue posible actualizar la cita.');
+    } catch {
+      setAppointmentReply('No pudimos actualizar la cita. Revisa tu conexión e intenta nuevamente.');
+    }
   }
 
   const medicosFiltrados = selectedEsp
@@ -311,11 +336,22 @@ export default function App() {
       <main className="min-h-screen bg-slate-50 p-6 flex items-center justify-center">
         <section className="max-w-md w-full rounded-xl bg-white border border-slate-200 shadow-sm p-6 space-y-4">
           <h1 className="text-xl font-bold text-slate-800">Respuesta a tu cita</h1>
-          <p className="text-sm text-slate-600">Selecciona si asistirás o si necesitas liberar el horario reservado.</p>
-          <div className="flex gap-3">
-            <button onClick={() => replyToAppointment('CONFIRMAR')} className="flex-1 rounded bg-teal-700 text-white px-3 py-2 font-semibold">Asistiré</button>
-            <button onClick={() => replyToAppointment('CANCELAR')} className="flex-1 rounded bg-rose-700 text-white px-3 py-2 font-semibold">Cancelar cita</button>
-          </div>
+          {appointmentLoading && <p role="status" className="text-sm text-slate-600">Cargando detalle de la cita…</p>}
+          {appointmentError && <p role="alert" className="text-sm text-rose-800">{appointmentError}</p>}
+          {appointmentDetails && <>
+            <p className="text-sm text-slate-600">Revisa tu cita antes de confirmar asistencia o cancelar.</p>
+            <dl className="rounded-lg bg-slate-50 p-4 space-y-2 text-sm">
+              <div><dt className="font-semibold">Código</dt><dd>{appointmentDetails.codigo_reserva}</dd></div>
+              <div><dt className="font-semibold">Profesional</dt><dd>{appointmentDetails.medico_nombre}</dd></div>
+              <div><dt className="font-semibold">Especialidad</dt><dd>{appointmentDetails.especialidad_nombre}</dd></div>
+              <div><dt className="font-semibold">Fecha y hora</dt><dd>{appointmentDetails.fecha} · {appointmentDetails.hora_inicio}–{appointmentDetails.hora_fin}</dd></div>
+              <div><dt className="font-semibold">Lugar</dt><dd>{appointmentDetails.box_atencion}</dd></div>
+            </dl>
+            {appointmentDetails.estado === 'CANCELADA' ? <p className="text-sm font-semibold text-rose-800">Esta cita ya fue cancelada.</p> : appointmentActionDone ? <p role="status" className="text-sm font-semibold text-emerald-800">Tu respuesta quedó registrada.</p> : <div className="flex flex-col sm:flex-row gap-3">
+              <button onClick={() => replyToAppointment('CONFIRMAR')} className="min-h-11 flex-1 rounded-lg bg-teal-700 text-white px-3 py-2 font-semibold">Confirmar asistencia</button>
+              <button onClick={() => replyToAppointment('CANCELAR')} className="min-h-11 flex-1 rounded-lg border border-rose-300 text-rose-800 px-3 py-2 font-semibold">Cancelar cita</button>
+            </div>}
+          </>}
           {appointmentReply && <p role="status" className="text-sm text-slate-700">{appointmentReply}</p>}
         </section>
       </main>

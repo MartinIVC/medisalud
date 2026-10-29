@@ -54,6 +54,39 @@ router.get('/reservas', requireSecretary, async (_req, res) => {
   }
 });
 
+async function readAppointmentResponseDetails(token) {
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const result = await pool.query(
+    `SELECT c.codigo_reserva, c.estado,
+       TO_CHAR(a.fecha, 'YYYY-MM-DD') AS fecha,
+       TO_CHAR(a.hora_inicio, 'HH24:MI') AS hora_inicio,
+       TO_CHAR(a.hora_fin, 'HH24:MI') AS hora_fin,
+       m.nombre AS medico_nombre, e.nombre AS especialidad_nombre, m.box_atencion
+     FROM citas_medicas c
+     JOIN agendas a ON a.id=c.agenda_id
+     JOIN medicos m ON m.id=c.medico_id
+     JOIN especialidades e ON e.id=m.especialidad_id
+     WHERE c.token_respuesta_hash=$1 AND c.token_respuesta_expira > NOW()`,
+    [tokenHash]
+  );
+  return result.rows[0] || null;
+}
+
+router.get('/citas/responder', async (req, res) => {
+  const token = String(req.query?.token || '');
+  if (!/^[A-Za-z0-9_-]{40,50}$/.test(token)) {
+    return res.status(400).json({ ok: false, error: 'El enlace no es válido.' });
+  }
+  try {
+    const cita = await readAppointmentResponseDetails(token);
+    if (!cita) return res.status(404).json({ ok: false, error: 'El enlace expiró o ya no es válido.' });
+    res.set('Cache-Control', 'no-store');
+    return res.json({ ok: true, cita });
+  } catch {
+    return res.status(500).json({ ok: false, error: 'No pudimos cargar el detalle de la cita.' });
+  }
+});
+
 router.post('/citas/responder', async (req, res) => {
   const token = String(req.body?.token || '');
   const action = String(req.body?.accion || '').toUpperCase();
