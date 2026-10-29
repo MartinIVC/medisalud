@@ -40,11 +40,22 @@ Secretaría puede crear médicos activos desde el panel. Cada registro valida el
 
 ## Requisitos
 
-Se recomienda Docker Compose, así no hace falta instalar Node.js ni PostgreSQL en el equipo.
+Para levantar Medisalud en tu propio equipo, necesitas Docker instalado y en ejecución, junto con Docker Compose v2. Así no hace falta instalar Node.js ni PostgreSQL localmente. Cada integrante que ejecute el proyecto por separado necesita Docker en su computador. Si usarán una instancia compartida ya desplegada, basta con acceder a su URL y no necesitan Docker local.
 
 - **Windows 10/11:** Docker Desktop instalado y activo, con WSL 2 habilitado.
-- **Linux/macOS:** Docker Engine o Docker Desktop con el complemento Docker Compose.
+- **Linux:** Docker Engine y el complemento Docker Compose v2; el usuario debe tener permiso para acceder al daemon.
+- **macOS:** Docker Desktop instalado y activo.
 - Conexión a internet para descargar imágenes y dependencias durante la primera compilación.
+
+Comprueba que Docker y Compose estén disponibles:
+
+```bash
+docker --version
+docker compose version
+docker info
+```
+
+En Linux, si recibes `permission denied` al acceder a `/var/run/docker.sock`, vuelve a ejecutar los comandos de Docker con `sudo` o solicita al administrador permisos para usar Docker. En Windows y macOS, inicia Docker Desktop antes de ejecutar Compose.
 
 ## Configurar el entorno
 
@@ -135,6 +146,8 @@ docker compose up -d --build
 docker compose ps
 docker compose logs -f backend
 ```
+
+Si tu usuario de Linux no tiene acceso al daemon, antepón `sudo` a esos comandos; por ejemplo, `sudo docker compose up -d --build`.
 
 Usa las mismas direcciones locales indicadas arriba. Para detener los servicios sin borrar la base, ejecuta `docker compose down`.
 
