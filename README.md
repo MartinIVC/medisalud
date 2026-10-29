@@ -44,46 +44,45 @@ Se recomienda Docker Compose, así no hace falta instalar Node.js ni PostgreSQL 
 
 ## Configurar el entorno
 
-Desde la carpeta raíz del proyecto, copia la plantilla de variables y edítala.
+Docker Compose puede iniciar el proyecto sin un archivo de configuración: usa valores locales predeterminados para PostgreSQL y la URL del frontend. Para entrar al panel de secretaría necesitas configurar `SECRETARY_PASSWORD` y `SECRETARY_TOKEN_SECRET`; sin estas variables, esa función no está disponible. Para la demo local, crea un archivo `.env` en la carpeta raíz.
 
-**Windows PowerShell:**
-
-```powershell
-if (-not (Test-Path .env)) {
-  if (Test-Path .env.example) {
-    Copy-Item .env.example .env
-  } else {
-    git show HEAD:.env.example | Set-Content -Encoding ascii .env
-  }
-}
-notepad .env
-```
-
-**Linux/macOS:**
-
-```bash
-if [ ! -f .env ]; then
-  if [ -f .env.example ]; then cp .env.example .env; else git show HEAD:.env.example > .env; fi
-fi
-```
-
-Si la plantilla no existe en tu carpeta, puedes recuperarla desde el commit actual con `git show HEAD:.env.example > .env`.
-
-Define valores diferentes para POSTGRES_PASSWORD, SECRETARY_PASSWORD y SECRETARY_TOKEN_SECRET. En PowerShell, genera tres cadenas aleatorias de 32 bytes y copia cada resultado en la variable indicada dentro de .env:
+**Windows PowerShell:** este comando genera un secreto aleatorio de 32 bytes y crea el archivo con credenciales de desarrollo local:
 
 ```powershell
 $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-foreach ($name in 'POSTGRES_PASSWORD', 'SECRETARY_PASSWORD', 'SECRETARY_TOKEN_SECRET') {
-  $bytes = New-Object byte[] 32
-  $rng.GetBytes($bytes)
-  "{0}={1}" -f $name, [Convert]::ToBase64String($bytes)
-}
+$bytes = New-Object byte[] 32
+$rng.GetBytes($bytes)
+$tokenSecret = [Convert]::ToBase64String($bytes)
 $rng.Dispose()
+
+@(
+  'POSTGRES_USER=medisalud',
+  'POSTGRES_PASSWORD=medisalud_secret_2026',
+  'POSTGRES_DB=medisalud_db',
+  'SECRETARY_PASSWORD=MedisaludLocal2026!',
+  "SECRETARY_TOKEN_SECRET=$tokenSecret",
+  'PUBLIC_WEB_URL=http://localhost:5173'
+) | Set-Content -Encoding ascii .env
 ```
 
-En Linux/macOS, ejecuta `openssl rand -base64 32` tres veces. El secreto SECRETARY_TOKEN_SECRET debe tener al menos 32 bytes. No reutilices una clave entre variables.
+**Linux/macOS:** crea el mismo archivo desde la raíz; reemplaza el valor de `SECRETARY_TOKEN_SECRET` por la salida de `openssl rand -base64 32`.
 
-Completa las credenciales de SendGrid o SMTP para email, y de Twilio para WhatsApp. Sin ellas, las notificaciones quedan pendientes o fallidas; no se muestran como entregadas. En despliegues públicos, configura PUBLIC_WEB_URL con la dirección HTTPS del frontend. No compartas ni subas .env a Git.
+```bash
+TOKEN_SECRET="$(openssl rand -base64 32)"
+cat > .env <<EOF
+POSTGRES_USER=medisalud
+POSTGRES_PASSWORD=medisalud_secret_2026
+POSTGRES_DB=medisalud_db
+SECRETARY_PASSWORD=MedisaludLocal2026!
+SECRETARY_TOKEN_SECRET=$TOKEN_SECRET
+PUBLIC_WEB_URL=http://localhost:5173
+EOF
+unset TOKEN_SECRET
+```
+
+La contraseña indicada es solo para la demo local: usa credenciales propias fuera de tu equipo. El archivo `.env` está excluido de Git; no lo compartas ni lo subas al repositorio.
+
+Las credenciales de SendGrid o SMTP (email) y Twilio (WhatsApp) son opcionales para ejecutar la aplicación. Sin ellas, el sistema no podrá enviar notificaciones reales. Para despliegues públicos, configura `PUBLIC_WEB_URL` con la dirección HTTPS del frontend.
 
 ## Ejecutar en Windows
 
