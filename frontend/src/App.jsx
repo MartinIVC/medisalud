@@ -31,6 +31,9 @@ export default function App() {
   const [pacienteTelefono, setPacienteTelefono] = useState('+569');
   const [reservaResult, setReservaResult] = useState(null); // { type: 'success' | 'error', data }
   const [submittingReserva, setSubmittingReserva] = useState(false);
+  const [bookingStep, setBookingStep] = useState('datos');
+  const [fieldTouched, setFieldTouched] = useState({});
+  const [availabilityError, setAvailabilityError] = useState('');
 
   // Estado Panel Secretaría (MED-10)
   const [secMedicoId, setSecMedicoId] = useState('1');
@@ -63,6 +66,7 @@ export default function App() {
 
   const fetchDisponibilidad = useCallback(async () => {
     setLoadingDisp(true);
+    setAvailabilityError('');
     try {
       const params = new URLSearchParams();
       if (selectedEsp) params.set('especialidad_id', selectedEsp);
@@ -73,7 +77,11 @@ export default function App() {
       const data = await res.json();
       if (data.ok) {
         setDisponibilidad(data);
+      } else {
+        setAvailabilityError('No pudimos cargar los horarios. Intenta nuevamente.');
       }
+    } catch {
+      setAvailabilityError('No pudimos cargar los horarios. Revisa tu conexión e intenta nuevamente.');
     } finally {
       setLoadingDisp(false);
     }
@@ -161,10 +169,22 @@ export default function App() {
     : medicos;
 
   const rutCheck = pacienteRut ? validateRutClient(pacienteRut) : null;
+  const selectedDaypart = (time) => Number(time.slice(0, 2)) < 12 ? 'Mañana' : 'Tarde';
+  const groupedBlocks = (disponibilidad.bloques || []).reduce((groups, block) => {
+    const key = `${block.medico_nombre} · ${selectedDaypart(block.hora_inicio)}`;
+    (groups[key] ||= []).push(block);
+    return groups;
+  }, {});
 
   async function handleReservarSubmit(e) {
     e.preventDefault();
     if (!selectedBloque) return;
+    if (bookingStep === 'datos') {
+      setFieldTouched({ rut: true });
+      if (rutCheck && !rutCheck.valid) return;
+      setBookingStep('revision');
+      return;
+    }
     setSubmittingReserva(true);
     setReservaResult(null);
 
@@ -184,10 +204,13 @@ export default function App() {
       const data = await res.json();
       if (res.ok && data.ok) {
         setReservaResult({ type: 'success', data });
+        setBookingStep('confirmacion');
         fetchDisponibilidad();
         fetchHealth();
       } else {
-        setReservaResult({ type: 'error', data });
+        setReservaResult({ type: 'error', data: res.status >= 500
+          ? { ...data, mensaje: 'No pudimos completar la reserva. Tus datos siguen guardados; inténtalo nuevamente.' }
+          : data });
         if (res.status === 409) {
           fetchDisponibilidad();
         }
@@ -195,7 +218,7 @@ export default function App() {
     } catch (err) {
       setReservaResult({
         type: 'error',
-        data: { mensaje: `Error de conexión: ${err.message}` },
+        data: { mensaje: 'No pudimos conectar con el sistema. Tus datos siguen guardados; inténtalo nuevamente.' },
       });
     } finally {
       setSubmittingReserva(false);
@@ -275,79 +298,20 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Barra superior institucional */}
-      <header className="bg-teal-800 text-white shadow-md">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider bg-teal-600 rounded-full">
-                Sprint 1 — MVP Operativo
-              </span>
-              <span className="text-xs text-teal-200">
-                MED-15 · MED-9 · MED-10 · MED-16 · MED-11
-              </span>
-            </div>
-            <h1 className="text-2xl font-bold mt-1">
-              Centro Médico Medisalud — Sistema de Reserva de Citas en Línea
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setActiveTab('paciente')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
-                activeTab === 'paciente'
-                  ? 'bg-white text-teal-900 shadow'
-                  : 'bg-teal-700 text-teal-100 hover:bg-teal-600'
-              }`}
-            >
-              Portal Paciente (CU-01 / CU-02)
+      <header className="bg-white border-b border-slate-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <a href="/" className="text-xl font-bold tracking-tight text-teal-900">Medisalud</a>
+          <nav aria-label="Navegación principal" className="flex w-full sm:w-auto items-center gap-2">
+            <button onClick={() => setActiveTab('paciente')} aria-current={activeTab === 'paciente' ? 'page' : undefined}
+              className={`min-h-11 flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-semibold ${activeTab === 'paciente' ? 'bg-teal-50 text-teal-900' : 'text-slate-600 hover:bg-slate-100'}`}>
+              Reserva tu hora
             </button>
-            <button
-              onClick={() => setActiveTab('secretaria')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
-                activeTab === 'secretaria'
-                  ? 'bg-white text-teal-900 shadow'
-                  : 'bg-teal-700 text-teal-100 hover:bg-teal-600'
-              }`}
-            >
-              Panel Secretaría (MED-10)
+            <button onClick={() => setActiveTab('secretaria')} aria-current={activeTab === 'secretaria' ? 'page' : undefined}
+              className={`min-h-11 flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-semibold ${activeTab === 'secretaria' ? 'bg-teal-50 text-teal-900' : 'text-slate-600 hover:bg-slate-100'}`}>
+              Secretaría
             </button>
-          </div>
+          </nav>
         </div>
-
-        {/* Estado en vivo de MED-15 y MED-9 */}
-        {health?.ok && (
-          <div className="bg-teal-950/70 border-t border-teal-700 text-xs text-teal-100">
-            <div className="max-w-7xl mx-auto px-4 py-2 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-4">
-                <span>
-                  <strong className="text-emerald-400">● PostgreSQL (MED-15):</strong> CONECTADO ({health.ping_ms} ms)
-                </span>
-                <span>
-                  <strong>Especialidades:</strong> {health.resumen.especialidades}
-                </span>
-                <span>
-                  <strong>Médicos Activos:</strong> {health.resumen.medicos_activos}
-                </span>
-                <span>
-                  <strong>Cupos Libres:</strong> {health.resumen.bloques_disponibles}
-                </span>
-                <span>
-                  <strong>Reservas Confirmadas:</strong> {health.resumen.citas_confirmadas}
-                </span>
-                <span>
-                  <strong>Bloqueados (MED-10):</strong> {health.resumen.bloques_bloqueados}
-                </span>
-              </div>
-              <div>
-                <span className="px-2 py-0.5 rounded bg-emerald-900/80 text-emerald-300 font-mono">
-                  Latencia Consulta MED-9: {disponibilidad.latencia_ms} ms (&lt; 2000 ms)
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
       </header>
 
       {/* Contenido Principal */}
@@ -365,35 +329,51 @@ export default function App() {
             </form>
           </section>
         ) : activeTab === 'paciente' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="space-y-5">
+            <section className="rounded-2xl bg-teal-900 text-white p-6 md:p-8">
+              <p className="text-sm font-semibold text-teal-200">Atención médica, más simple</p>
+              <h1 className="text-2xl md:text-3xl font-bold mt-1">Reserva tu hora</h1>
+              <p className="mt-2 text-sm text-teal-100">Elige un horario, completa tus datos y confirma tu reserva.</p>
+              <ol aria-label="Pasos de la reserva" className="flex flex-wrap gap-2 mt-5 text-sm">
+                {['Elegir hora', 'Tus datos', 'Revisar y reservar'].map((step, index) => (
+                  <li key={step} className={`px-3 py-1.5 rounded-full ${index === (selectedBloque ? bookingStep === 'datos' ? 1 : 2 : 0) ? 'bg-white text-teal-900 font-semibold' : 'bg-teal-800 text-teal-100'}`}>
+                    {index + 1}. {step}
+                  </li>
+                ))}
+              </ol>
+            </section>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Columna Izquierda: Filtros A-01 (MED-9) */}
             <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 h-fit">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-lg font-bold text-slate-800">
-                  1. Consultar Disponibilidad (A-01)
+                  Elige una hora
                 </h2>
                 <span className="text-xs font-mono bg-teal-50 text-teal-700 px-2 py-0.5 rounded border border-teal-200">
-                  MED-9 / CU-01
+                  Disponibilidad
                 </span>
               </div>
               <p className="text-xs text-slate-500 mb-4">
-                Seleccione especialidad médica, profesional y fecha para consultar en tiempo real los bloques libres en PostgreSQL.
+                Filtra por especialidad, profesional o fecha. También puedes dejar el profesional en “Cualquiera”.
               </p>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold uppercase text-slate-600 mb-1">
+                  <label htmlFor="patient-specialty" className="block text-sm font-semibold text-slate-700 mb-1">
                     Especialidad Médica
                   </label>
                   <select
+                    id="patient-specialty"
                     value={selectedEsp}
                     onChange={(e) => {
                       setSelectedEsp(e.target.value);
                       setSelectedMedico('');
+                      setSelectedBloque(null);
+                      setReservaResult(null);
                     }}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
                   >
-                    <option value="">Todas las especialidades (4 áreas)</option>
+                    <option value="">Todas las especialidades</option>
                     {especialidades.map((esp) => (
                       <option key={esp.id} value={esp.id}>
                         {esp.nombre} ({esp.total_medicos} especialistas)
@@ -403,15 +383,16 @@ export default function App() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold uppercase text-slate-600 mb-1">
-                    Profesional Médico ({medicosFiltrados.length} disponibles)
+                  <label htmlFor="patient-doctor" className="block text-sm font-semibold text-slate-700 mb-1">
+                    Profesional ({medicosFiltrados.length} disponibles)
                   </label>
                   <select
+                    id="patient-doctor"
                     value={selectedMedico}
-                    onChange={(e) => setSelectedMedico(e.target.value)}
+                    onChange={(e) => { setSelectedMedico(e.target.value); setSelectedBloque(null); setReservaResult(null); }}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
                   >
-                    <option value="">Todos los profesionales</option>
+                    <option value="">Cualquiera</option>
                     {medicosFiltrados.map((med) => (
                       <option key={med.id} value={med.id}>
                         {med.nombre} — {med.especialidad_nombre} ({med.box_atencion})
@@ -421,13 +402,14 @@ export default function App() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold uppercase text-slate-600 mb-1">
-                    Fecha de Atención
+                  <label htmlFor="patient-date" className="block text-sm font-semibold text-slate-700 mb-1">
+                    Fecha
                   </label>
                   <input
+                    id="patient-date"
                     type="date"
                     value={selectedFecha}
-                    onChange={(e) => setSelectedFecha(e.target.value)}
+                    onChange={(e) => { setSelectedFecha(e.target.value); setSelectedBloque(null); setReservaResult(null); }}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
                   />
                 </div>
@@ -437,7 +419,7 @@ export default function App() {
                   onClick={fetchDisponibilidad}
                   className="w-full bg-teal-700 hover:bg-teal-800 text-white font-semibold py-2.5 rounded-lg text-sm transition"
                 >
-                  Actualizar Horarios Disponibles
+                  Buscar horarios
                 </button>
               </div>
             </section>
@@ -448,33 +430,42 @@ export default function App() {
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                   <div>
                     <h2 className="text-lg font-bold text-slate-800">
-                      2. Bloques Horarios Disponibles (A-02)
+                      Horarios disponibles
                     </h2>
                     <p className="text-xs text-slate-500">
-                      Se muestran exclusivamente los cupos con estado DISPONIBLE (excluyendo bloques reservados o bloqueados por secretaría — CA-02).
+                      Selecciona el horario que te acomode. Los resultados se agrupan por profesional y jornada.
                     </p>
                   </div>
-                  <div className="text-xs font-mono px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                    {disponibilidad.total_cupos_libres || 0} cupos libres · {disponibilidad.latencia_ms} ms
+                  <div className="text-sm px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    {disponibilidad.total_cupos_libres || 0} horarios
                   </div>
                 </div>
 
                 {loadingDisp ? (
-                  <div className="py-12 text-center text-sm text-slate-500">
-                    Consultando agenda en PostgreSQL...
+                  <div role="status" aria-live="polite" className="py-12 text-center text-sm text-slate-500">
+                    Buscando horarios…
+                  </div>
+                ) : availabilityError ? (
+                  <div role="alert" className="py-8 text-center bg-rose-50 border border-rose-200 rounded-lg p-4">
+                    <p className="font-semibold text-rose-900">No pudimos cargar la información</p>
+                    <p className="text-sm text-rose-800 mt-1">{availabilityError}</p>
+                    <button type="button" onClick={fetchDisponibilidad} className="mt-3 min-h-11 px-4 rounded-lg bg-teal-700 text-white font-semibold">Reintentar</button>
                   </div>
                 ) : disponibilidad.bloques?.length === 0 ? (
-                  <div className="py-10 text-center bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <div className="py-8 text-center bg-amber-50 border border-amber-200 rounded-lg p-4">
                     <p className="font-semibold text-amber-900">
-                      No hay bloques disponibles para los filtros seleccionados (CA-02).
+                      {medicosFiltrados.length === 0 ? 'No hay profesionales disponibles' : 'No hay horas para esta fecha'}
                     </p>
-                    <p className="text-xs text-amber-700 mt-1">
-                      Los horarios pueden haber sido reservados o bloqueados por secretaría. Pruebe seleccionando otra fecha o profesional.
+                    <p className="text-sm text-amber-800 mt-1">
+                      {medicosFiltrados.length === 0 ? 'Prueba otra especialidad.' : 'Prueba otra fecha o quita el filtro de profesional.'}
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 max-h-96 overflow-y-auto pr-1">
-                    {disponibilidad.bloques.map((b) => {
+                  <div className="space-y-5">
+                    {Object.entries(groupedBlocks).map(([group, blocks]) => <section key={group} aria-label={`Horarios de ${group}`}>
+                      <h3 className="font-semibold text-slate-700 mb-2">{group}</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                    {blocks.map((b) => {
                       const isSelected = selectedBloque?.agenda_id === b.agenda_id;
                       return (
                         <button
@@ -483,6 +474,7 @@ export default function App() {
                           onClick={() => {
                             setSelectedBloque(b);
                             setReservaResult(null);
+                            setBookingStep('datos');
                           }}
                           className={`text-left p-3.5 rounded-xl border transition ${
                             isSelected
@@ -502,11 +494,13 @@ export default function App() {
                             {b.medico_nombre}
                           </p>
                           <p className="text-[11px] text-slate-500">
-                            {b.especialidad_nombre} · {b.box_atencion}
+                            {b.especialidad_nombre}
                           </p>
                         </button>
                       );
                     })}
+                      </div>
+                    </section>)}
                   </div>
                 )}
               </div>
@@ -517,65 +511,41 @@ export default function App() {
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                     <div>
                       <h3 className="text-lg font-bold text-slate-800">
-                        3. Solicitar Reserva e Ingresar RUT (A-03 / CU-02)
+                        {bookingStep === 'revision' ? 'Revisa tu reserva' : bookingStep === 'confirmacion' ? 'Reserva confirmada' : 'Tus datos'}
                       </h3>
-                      <p className="text-xs text-slate-600">
-                        Horario seleccionado: <strong>{selectedBloque.fecha}</strong> de{' '}
+                      <p className="text-sm text-slate-600">
+                        {new Date(`${selectedBloque.fecha}T12:00:00`).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} ·{' '}
                         <strong>
                           {selectedBloque.hora_inicio} a {selectedBloque.hora_fin}
                         </strong>{' '}
                         con <strong>{selectedBloque.medico_nombre}</strong> ({selectedBloque.especialidad_nombre})
                       </p>
                     </div>
-                    <span className="text-xs font-mono bg-teal-50 text-teal-800 px-2.5 py-1 rounded border border-teal-200">
-                      MED-11 &amp; MED-16 (SELECT FOR UPDATE)
-                    </span>
                   </div>
 
-                  {/* Botones de autocompletado rápido para demostrar CA-01 y CA-02 en vivo */}
-                  <div className="mb-4 p-3 rounded-lg bg-slate-100 border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <span className="font-semibold text-slate-700">
-                      Datos rápidos de prueba (Evaluación Criterios de Aceptación):
-                    </span>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPacienteRut('12.345.678-5');
-                          setPacienteNombre('Martín Verdugo Contreras');
-                          setPacienteEmail('martin.paciente@medisalud.cl');
-                          setPacienteTelefono('+56987654321');
-                        }}
-                        className="px-2.5 py-1 rounded bg-emerald-700 text-white hover:bg-emerald-800 font-medium"
-                      >
-                        Cargar RUT Válido (CA-02 / A-05)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPacienteRut('12.345.678-9');
-                          setPacienteNombre('Paciente Prueba Rechazo');
-                          setPacienteEmail('rechazo@medisalud.cl');
-                          setPacienteTelefono('+56911223344');
-                        }}
-                        className="px-2.5 py-1 rounded bg-rose-700 text-white hover:bg-rose-800 font-medium"
-                      >
-                        Cargar RUT Inválido (CA-01 / A-06)
-                      </button>
-                    </div>
-                  </div>
+                  {bookingStep === 'revision' && <div className="mb-4 rounded-lg bg-teal-50 border border-teal-200 p-4 text-sm text-teal-950">
+                    <p className="font-semibold">Comprueba tus datos antes de reservar</p>
+                    <p className="mt-2">{pacienteNombre} · RUT {pacienteRut}</p>
+                    <p>{pacienteEmail} · {pacienteTelefono}</p>
+                    <button type="button" onClick={() => setBookingStep('datos')} className="mt-2 min-h-11 underline font-semibold">Editar mis datos</button>
+                  </div>}
 
-                  <form onSubmit={handleReservarSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {bookingStep !== 'confirmacion' && <form onSubmit={handleReservarSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-semibold uppercase text-slate-700 mb-1">
-                        RUT del Paciente (Validación Módulo 11) *
+                      <label htmlFor="patient-rut" className="block text-sm font-semibold text-slate-700 mb-1">
+                        RUT *
                       </label>
                       <input
+                        id="patient-rut"
                         type="text"
                         required
+                        autoComplete="off"
+                        aria-invalid={Boolean(fieldTouched.rut && rutCheck && !rutCheck.valid)}
                         placeholder="Ej: 12.345.678-5"
                         value={pacienteRut}
-                        onChange={(e) => setPacienteRut(formatRutInput(e.target.value))}
+                        readOnly={bookingStep === 'revision'}
+                        onBlur={() => setFieldTouched({ ...fieldTouched, rut: true })}
+                        onChange={(e) => { setPacienteRut(formatRutInput(e.target.value)); setFieldTouched({ ...fieldTouched, rut: true }); }}
                         className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
                           rutCheck
                             ? rutCheck.valid
@@ -584,7 +554,7 @@ export default function App() {
                             : 'border-slate-300 focus:ring-teal-600'
                         }`}
                       />
-                      {rutCheck && (
+                      {rutCheck && fieldTouched.rut && (
                         <p
                           className={`text-[11px] mt-1 font-medium ${
                             rutCheck.valid ? 'text-emerald-700' : 'text-rose-700'
@@ -596,42 +566,50 @@ export default function App() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold uppercase text-slate-700 mb-1">
-                        Nombre Completo *
+                      <label htmlFor="patient-name" className="block text-sm font-semibold text-slate-700 mb-1">
+                        Nombre completo *
                       </label>
                       <input
+                        id="patient-name"
                         type="text"
                         required
                         placeholder="Nombre y Apellidos"
                         value={pacienteNombre}
+                        readOnly={bookingStep === 'revision'}
                         onChange={(e) => setPacienteNombre(e.target.value)}
                         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold uppercase text-slate-700 mb-1">
-                        Correo Electrónico (Para comprobante A-05) *
+                      <label htmlFor="patient-email" className="block text-sm font-semibold text-slate-700 mb-1">
+                        Correo electrónico *
                       </label>
                       <input
+                        id="patient-email"
                         type="email"
                         required
-                        placeholder="paciente@ejemplo.cl"
+                        autoComplete="email"
+                        placeholder="nombre@ejemplo.cl"
                         value={pacienteEmail}
+                        readOnly={bookingStep === 'revision'}
                         onChange={(e) => setPacienteEmail(e.target.value)}
                         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold uppercase text-slate-700 mb-1">
-                        Teléfono Móvil *
+                      <label htmlFor="patient-phone" className="block text-sm font-semibold text-slate-700 mb-1">
+                        Teléfono móvil *
                       </label>
                       <input
-                        type="text"
+                        id="patient-phone"
+                        type="tel"
                         required
-                        placeholder="+56912345678"
+                        autoComplete="tel"
+                        placeholder="+56 9 1234 5678"
                         value={pacienteTelefono}
+                        readOnly={bookingStep === 'revision'}
                         onChange={(e) => setPacienteTelefono(e.target.value)}
                         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
                       />
@@ -643,22 +621,22 @@ export default function App() {
                         onClick={() => {
                           setSelectedBloque(null);
                           setReservaResult(null);
+                          setBookingStep('datos');
                         }}
-                        className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm hover:bg-slate-100"
+                        className="min-h-11 px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm hover:bg-slate-100"
                       >
-                        Cancelar
+                        Cambiar hora
                       </button>
                       <button
                         type="submit"
                         disabled={submittingReserva}
-                        className="px-6 py-2.5 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-semibold text-sm shadow transition disabled:opacity-50"
+                        className="min-h-11 px-6 py-2.5 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-semibold text-sm shadow transition disabled:opacity-50"
                       >
-                        {submittingReserva
-                          ? 'Validando RUT y Bloqueando Cupo en BD...'
-                          : 'Confirmar Reserva Médica (A-03)'}
+                        {submittingReserva ? 'Procesando reserva…' : bookingStep === 'revision' ? 'Reservar' : 'Continuar'}
                       </button>
                     </div>
                   </form>
+                  }
 
                   {/* Resultado A-05 (Éxito) o A-06 (Rechazo) */}
                   {reservaResult && (
@@ -671,36 +649,23 @@ export default function App() {
                     >
                       {reservaResult.type === 'success' ? (
                         <div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-200 text-emerald-900">
-                              {reservaResult.data.actividad_bpmn}
-                            </span>
-                            <span className="text-xs font-mono">
-                              Transacción PostgreSQL: {reservaResult.data.latencia_ms} ms
-                            </span>
-                          </div>
-                          <h4 className="text-base font-bold mt-2">
-                            ✅ ¡Reserva Confirmada! Código Único:{' '}
-                            <span className="font-mono underline">
-                              {reservaResult.data.reserva.codigo_reserva}
-                            </span>
-                          </h4>
-                          <p className="text-xs mt-1">{reservaResult.data.mensaje}</p>
-                          {reservaResult.data.comprobante_correo && (
-                            <pre className="mt-3 p-3 rounded bg-white border border-emerald-200 text-[11px] font-mono overflow-x-auto whitespace-pre-wrap">
-                              {reservaResult.data.comprobante_correo.body}
-                            </pre>
-                          )}
+                          <h4 className="text-xl font-bold">Tu hora está reservada</h4>
+                          <p className="mt-1 text-sm">Código de reserva: <strong className="font-mono">{reservaResult.data.reserva.codigo_reserva}</strong></p>
+                          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4 text-sm">
+                            <div><dt className="font-semibold">Profesional</dt><dd>{reservaResult.data.reserva.medico_nombre}</dd></div>
+                            <div><dt className="font-semibold">Especialidad</dt><dd>{reservaResult.data.reserva.especialidad_nombre}</dd></div>
+                            <div><dt className="font-semibold">Fecha y hora</dt><dd>{reservaResult.data.reserva.fecha} · {reservaResult.data.reserva.hora_inicio}–{reservaResult.data.reserva.hora_fin}</dd></div>
+                            <div><dt className="font-semibold">Lugar</dt><dd>{reservaResult.data.reserva.box_atencion}</dd></div>
+                          </dl>
+                          <p className="mt-4 text-sm">El comprobante quedó en cola para enviarse a <strong>{pacienteEmail}</strong>.</p>
+                          <button type="button" onClick={() => { setSelectedBloque(null); setReservaResult(null); setBookingStep('datos'); setPacienteRut(''); setPacienteNombre(''); setPacienteEmail(''); setPacienteTelefono('+569'); }}
+                            className="mt-4 min-h-11 rounded-lg bg-teal-700 px-4 py-2 text-white font-semibold">Reservar otra hora</button>
                         </div>
                       ) : (
                         <div>
-                          <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-rose-200 text-rose-900">
-                            {reservaResult.data.actividad_bpmn || 'A-06 Informar rechazo'}
-                          </span>
-                          <h4 className="text-sm font-bold mt-2">
-                            ❌ Solicitud Rechazada ({reservaResult.data.codigo_error})
-                          </h4>
-                          <p className="text-xs mt-1">{reservaResult.data.mensaje}</p>
+                          <h4 className="text-sm font-bold mt-2">No se pudo completar la reserva</h4>
+                          <p role="alert" className="text-sm mt-1">{reservaResult.data.mensaje || 'Revisa la información e intenta nuevamente.'}</p>
+                          {reservaResult.data.codigo_error === 'COLISION_TRANSACCIONAL' && <button type="button" onClick={() => { setReservaResult(null); setBookingStep('datos'); fetchDisponibilidad(); }} className="mt-3 min-h-11 rounded-lg border border-rose-300 px-4 py-2 font-semibold">Elegir otra hora</button>}
                         </div>
                       )}
                     </div>
