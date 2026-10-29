@@ -2,7 +2,12 @@ const express = require('express');
 const { pool } = require('../db');
 const { requireSecretary } = require('../middleware/auth');
 const { asyncHandler, sendError } = require('../middleware/errors');
-const { isValidDate, positiveInteger, parseAgendaConfiguration, parseAgendaBlockAction } = require('../schemas/inputs');
+const {
+  isValidDate,
+  positiveInteger,
+  parseAgendaConfiguration,
+  parseAgendaBlockAction,
+} = require('../schemas/inputs');
 const { configureAgenda, blockAgenda, unblockAgenda } = require('../services/agenda');
 
 const router = express.Router();
@@ -12,13 +17,20 @@ const router = express.Router();
  * Consulta administrativa para secretarias (MED-10): muestra TODOS los bloques
  * (DISPONIBLE, RESERVADO y BLOQUEADO) para un médico y fecha.
  */
-router.get('/agendas', requireSecretary, asyncHandler(async (req, res) => {
-  const { medico_id, fecha } = req.query;
-  const fields = {};
-  if (medico_id !== undefined && !/^\d+$/.test(medico_id)) fields.medico_id = 'Indica un médico válido.';
-  if (medico_id !== undefined && (!positiveInteger(Number(medico_id)))) fields.medico_id = 'Indica un médico válido.';
-  if (fecha !== undefined && !isValidDate(fecha)) fields.fecha = 'Indica una fecha real con formato AAAA-MM-DD.';
-  if (Object.keys(fields).length) return sendError(res, 400, 'VALIDATION_ERROR', 'Revisa los filtros de agenda.', fields);
+router.get(
+  '/agendas',
+  requireSecretary,
+  asyncHandler(async (req, res) => {
+    const { medico_id, fecha } = req.query;
+    const fields = {};
+    if (medico_id !== undefined && !/^\d+$/.test(medico_id))
+      fields.medico_id = 'Indica un médico válido.';
+    if (medico_id !== undefined && !positiveInteger(Number(medico_id)))
+      fields.medico_id = 'Indica un médico válido.';
+    if (fecha !== undefined && !isValidDate(fecha))
+      fields.fecha = 'Indica una fecha real con formato AAAA-MM-DD.';
+    if (Object.keys(fields).length)
+      return sendError(res, 400, 'VALIDATION_ERROR', 'Revisa los filtros de agenda.', fields);
     const params = [];
     const conditions = [];
 
@@ -59,7 +71,7 @@ router.get('/agendas', requireSecretary, asyncHandler(async (req, res) => {
       ORDER BY a.fecha ASC, a.hora_inicio ASC, m.id ASC
       LIMIT 300
       `,
-      params
+      params,
     );
 
     res.json({
@@ -68,90 +80,138 @@ router.get('/agendas', requireSecretary, asyncHandler(async (req, res) => {
       total: result.rows.length,
       bloques: result.rows,
     });
-}));
+  }),
+);
 
 /**
  * POST /api/agendas/configurar
  * MED-10 (RF-03 / HU02 - CA-01): Parametrizar bloques horarios de 15, 20 o 30 minutos
  * para un médico activo registrado en el sistema.
  */
-router.post('/agendas/configurar', requireSecretary, asyncHandler(async (req, res) => {
-  const parsed = parseAgendaConfiguration(req.body);
-  if (Object.keys(parsed.errors).length) {
-    return sendError(res, 400, 'VALIDATION_ERROR', 'Revisa los datos de configuración de agenda.', parsed.errors);
-  }
-  const { duracion } = parsed.value;
-  const result = await configureAgenda(pool, parsed.value);
-  return res.status(201).json({
-    ok: true,
-    jira: 'MED-10',
-    criterio: 'CA-01 Parametrización de bloques (15, 20 o 30 min)',
-    mensaje: `Se generaron ${result.blocks.length} bloques de ${duracion} minutos exitosamente. Se conservaron ${result.historyCount} bloques con historial de citas.`,
-    bloques_creados: result.blocks,
-    bloques_con_historial_conservados: result.historyCount,
-    bloques_reemplazados: result.deletedCount,
-  });
-}));
+router.post(
+  '/agendas/configurar',
+  requireSecretary,
+  asyncHandler(async (req, res) => {
+    const parsed = parseAgendaConfiguration(req.body);
+    if (Object.keys(parsed.errors).length) {
+      return sendError(
+        res,
+        400,
+        'VALIDATION_ERROR',
+        'Revisa los datos de configuración de agenda.',
+        parsed.errors,
+      );
+    }
+    const { duracion } = parsed.value;
+    const result = await configureAgenda(pool, parsed.value);
+    return res.status(201).json({
+      ok: true,
+      jira: 'MED-10',
+      criterio: 'CA-01 Parametrización de bloques (15, 20 o 30 min)',
+      mensaje: `Se generaron ${result.blocks.length} bloques de ${duracion} minutos exitosamente. Se conservaron ${result.historyCount} bloques con historial de citas.`,
+      bloques_creados: result.blocks,
+      bloques_con_historial_conservados: result.historyCount,
+      bloques_reemplazados: result.deletedCount,
+    });
+  }),
+);
 
 /**
  * POST /api/agendas/bloquear
  * MED-10 (RF-03 / HU02 - CA-02): Bloquear días festivos, licencias médicas o bloques específicos
  */
-router.post('/agendas/bloquear', requireSecretary, asyncHandler(async (req, res) => {
-  const parsed = parseAgendaBlockAction(req.body);
-  const {
-    medico_id,
-    fecha,
-    agenda_id,
-    es_feriado_global = false,
-    motivo = 'Licencia médica / Día festivo (MED-10)',
-  } = parsed.value;
-  const fields = parsed.errors;
-  const bodyIsValid = Object.keys(fields).length === 0;
-  const hasAgenda = parsed.value.agenda_id !== undefined;
-  const hasGlobalDate = parsed.value.es_feriado_global === true && parsed.value.fecha !== undefined;
-  const hasDoctorDate = parsed.value.es_feriado_global !== true && parsed.value.medico_id !== undefined && parsed.value.fecha !== undefined;
-  if (!bodyIsValid || [hasAgenda, hasGlobalDate, hasDoctorDate].filter(Boolean).length !== 1 ||
-      (parsed.value.es_feriado_global !== undefined && typeof parsed.value.es_feriado_global !== 'boolean')) {
-    return sendError(res, 400, 'VALIDATION_ERROR', 'Indica un bloque, un médico y fecha, o un feriado global y fecha.', fields);
-  }
-  const result = await blockAgenda(pool, {
-    agendaId: agenda_id,
-    medicoId: medico_id,
-    fecha,
-    global: es_feriado_global,
-    motivo: motivo.trim(),
-  });
-  return res.json({
-    ok: true,
-    jira: 'MED-10',
-    criterio: 'CA-02 Bloqueo de feriados/licencias',
-    bloques_afectados: result.affected,
-    mensaje: `Se bloquearon ${result.affected} bloques horarios (${motivo.trim()}). Ya no aparecerán disponibles en el Portal Web.`,
-  });
-}));
+router.post(
+  '/agendas/bloquear',
+  requireSecretary,
+  asyncHandler(async (req, res) => {
+    const parsed = parseAgendaBlockAction(req.body);
+    const {
+      medico_id,
+      fecha,
+      agenda_id,
+      es_feriado_global = false,
+      motivo = 'Licencia médica / Día festivo (MED-10)',
+    } = parsed.value;
+    const fields = parsed.errors;
+    const bodyIsValid = Object.keys(fields).length === 0;
+    const hasAgenda = parsed.value.agenda_id !== undefined;
+    const hasGlobalDate =
+      parsed.value.es_feriado_global === true && parsed.value.fecha !== undefined;
+    const hasDoctorDate =
+      parsed.value.es_feriado_global !== true &&
+      parsed.value.medico_id !== undefined &&
+      parsed.value.fecha !== undefined;
+    if (
+      !bodyIsValid ||
+      [hasAgenda, hasGlobalDate, hasDoctorDate].filter(Boolean).length !== 1 ||
+      (parsed.value.es_feriado_global !== undefined &&
+        typeof parsed.value.es_feriado_global !== 'boolean')
+    ) {
+      return sendError(
+        res,
+        400,
+        'VALIDATION_ERROR',
+        'Indica un bloque, un médico y fecha, o un feriado global y fecha.',
+        fields,
+      );
+    }
+    const result = await blockAgenda(pool, {
+      agendaId: agenda_id,
+      medicoId: medico_id,
+      fecha,
+      global: es_feriado_global,
+      motivo: motivo.trim(),
+    });
+    return res.json({
+      ok: true,
+      jira: 'MED-10',
+      criterio: 'CA-02 Bloqueo de feriados/licencias',
+      bloques_afectados: result.affected,
+      mensaje: `Se bloquearon ${result.affected} bloques horarios (${motivo.trim()}). Ya no aparecerán disponibles en el Portal Web.`,
+    });
+  }),
+);
 
 /**
  * POST /api/agendas/desbloquear
  * Permite a la secretaria rehabilitar un bloque bloqueado a estado DISPONIBLE
  */
-router.post('/agendas/desbloquear', requireSecretary, asyncHandler(async (req, res) => {
-  const parsed = parseAgendaBlockAction(req.body);
-  const { agenda_id, medico_id, fecha, es_feriado_global } = parsed.value;
-  const hasAgenda = agenda_id !== undefined;
-  const hasGlobalDate = es_feriado_global === true && fecha !== undefined;
-  const hasDoctorDate = es_feriado_global !== true && medico_id !== undefined && fecha !== undefined;
-  if (Object.keys(parsed.errors).length || [hasAgenda, hasGlobalDate, hasDoctorDate].filter(Boolean).length !== 1 ||
-      (es_feriado_global !== undefined && typeof es_feriado_global !== 'boolean')) {
-    return sendError(res, 400, 'VALIDATION_ERROR', 'Indica un bloque o un médico y fecha válidos.', parsed.errors);
-  }
-  const result = await unblockAgenda(pool, { agendaId: agenda_id, medicoId: medico_id, fecha, global: es_feriado_global });
-  return res.json({
-    ok: true,
-    jira: 'MED-10',
-    bloques_habilitados: result.affected,
-    mensaje: `${result.affected} bloque(s) habilitados después de reevaluar los bloqueos de fecha.`,
-  });
-}));
+router.post(
+  '/agendas/desbloquear',
+  requireSecretary,
+  asyncHandler(async (req, res) => {
+    const parsed = parseAgendaBlockAction(req.body);
+    const { agenda_id, medico_id, fecha, es_feriado_global } = parsed.value;
+    const hasAgenda = agenda_id !== undefined;
+    const hasGlobalDate = es_feriado_global === true && fecha !== undefined;
+    const hasDoctorDate =
+      es_feriado_global !== true && medico_id !== undefined && fecha !== undefined;
+    if (
+      Object.keys(parsed.errors).length ||
+      [hasAgenda, hasGlobalDate, hasDoctorDate].filter(Boolean).length !== 1 ||
+      (es_feriado_global !== undefined && typeof es_feriado_global !== 'boolean')
+    ) {
+      return sendError(
+        res,
+        400,
+        'VALIDATION_ERROR',
+        'Indica un bloque o un médico y fecha válidos.',
+        parsed.errors,
+      );
+    }
+    const result = await unblockAgenda(pool, {
+      agendaId: agenda_id,
+      medicoId: medico_id,
+      fecha,
+      global: es_feriado_global,
+    });
+    return res.json({
+      ok: true,
+      jira: 'MED-10',
+      bloques_habilitados: result.affected,
+      mensaje: `${result.affected} bloque(s) habilitados después de reevaluar los bloqueos de fecha.`,
+    });
+  }),
+);
 
 module.exports = router;

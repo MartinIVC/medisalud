@@ -14,7 +14,11 @@ test('requestApi serializa JSON, agrega autenticación y normaliza la respuesta'
   };
 
   try {
-    const result = await requestApi('/api/test', { method: 'POST', token: 'secret', body: { value: 1 } });
+    const result = await requestApi('/api/test', {
+      method: 'POST',
+      token: 'secret',
+      body: { value: 1 },
+    });
     assert.equal(result.status, 201);
     assert.equal(result.data.value, 1);
     assert.equal(request.options.headers.get('Authorization'), 'Bearer secret');
@@ -28,12 +32,17 @@ test('requestApi serializa JSON, agrega autenticación y normaliza la respuesta'
 test('requestApi comunica 401 al flujo de sesión y mantiene detalles de campos', async () => {
   const originalFetch = globalThis.fetch;
   let expired = false;
-  globalThis.fetch = async () => new Response(JSON.stringify({ error: 'Sesión vencida.', fields: { rut: 'Inválido.' } }), {
-    status: 401,
-    headers: { 'Content-Type': 'application/json' },
-  });
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify({ error: 'Sesión vencida.', fields: { rut: 'Inválido.' } }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
   try {
-    const result = await requestApi('/api/secretary', { onUnauthorized: () => { expired = true; } });
+    const result = await requestApi('/api/secretary', {
+      onUnauthorized: () => {
+        expired = true;
+      },
+    });
     assert.equal(result.status, 401);
     assert.equal(expired, true);
     assert.equal(result.data.fields.rut, 'Inválido.');

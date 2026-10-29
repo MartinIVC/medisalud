@@ -6,8 +6,14 @@ function response() {
   return {
     statusCode: null,
     body: null,
-    status(value) { this.statusCode = value; return this; },
-    json(value) { this.body = value; return this; },
+    status(value) {
+      this.statusCode = value;
+      return this;
+    },
+    json(value) {
+      this.body = value;
+      return this;
+    },
   };
 }
 

@@ -25,27 +25,32 @@ export default function usePatientPortal({ medicos, especialidades }) {
   const availabilityRequestRef = useRef(0);
   const patientRequestRef = useRef(null);
 
-  const fetchDisponibilidad = useCallback(async ({ signal } = {}) => {
-    const requestId = ++availabilityRequestRef.current;
-    setLoadingDisp(true);
-    setAvailabilityError('');
-    try {
-      const params = new URLSearchParams();
-      if (selectedEsp) params.set('especialidad_id', selectedEsp);
-      if (selectedMedico) params.set('medico_id', selectedMedico);
-      if (selectedFecha) params.set('fecha', selectedFecha);
-      const response = await requestApi(`/api/disponibilidad?${params.toString()}`, { signal });
-      if (signal?.aborted || requestId !== availabilityRequestRef.current) return;
-      if (response.ok && response.data.ok) setDisponibilidad(response.data);
-      else setAvailabilityError('No pudimos cargar los horarios. Intenta nuevamente.');
-    } catch {
-      if (!signal?.aborted && requestId === availabilityRequestRef.current) {
-        setAvailabilityError('No pudimos cargar los horarios. Revisa tu conexión e intenta nuevamente.');
+  const fetchDisponibilidad = useCallback(
+    async ({ signal } = {}) => {
+      const requestId = ++availabilityRequestRef.current;
+      setLoadingDisp(true);
+      setAvailabilityError('');
+      try {
+        const params = new URLSearchParams();
+        if (selectedEsp) params.set('especialidad_id', selectedEsp);
+        if (selectedMedico) params.set('medico_id', selectedMedico);
+        if (selectedFecha) params.set('fecha', selectedFecha);
+        const response = await requestApi(`/api/disponibilidad?${params.toString()}`, { signal });
+        if (signal?.aborted || requestId !== availabilityRequestRef.current) return;
+        if (response.ok && response.data.ok) setDisponibilidad(response.data);
+        else setAvailabilityError('No pudimos cargar los horarios. Intenta nuevamente.');
+      } catch {
+        if (!signal?.aborted && requestId === availabilityRequestRef.current) {
+          setAvailabilityError(
+            'No pudimos cargar los horarios. Revisa tu conexión e intenta nuevamente.',
+          );
+        }
+      } finally {
+        if (requestId === availabilityRequestRef.current) setLoadingDisp(false);
       }
-    } finally {
-      if (requestId === availabilityRequestRef.current) setLoadingDisp(false);
-    }
-  }, [selectedEsp, selectedMedico, selectedFecha]);
+    },
+    [selectedEsp, selectedMedico, selectedFecha],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -53,16 +58,25 @@ export default function usePatientPortal({ medicos, especialidades }) {
     return () => controller.abort();
   }, [fetchDisponibilidad]);
 
-  const medicosFiltrados = useMemo(() => selectedEsp
-    ? medicos.filter((medico) => String(medico.especialidad_id) === String(selectedEsp))
-    : medicos, [medicos, selectedEsp]);
+  const medicosFiltrados = useMemo(
+    () =>
+      selectedEsp
+        ? medicos.filter((medico) => String(medico.especialidad_id) === String(selectedEsp))
+        : medicos,
+    [medicos, selectedEsp],
+  );
   const rutCheck = pacienteRut ? validateRutClient(pacienteRut) : null;
-  const reservationFieldErrors = reservaResult?.type === 'error' ? reservaResult.data.fields || {} : {};
-  const groupedBlocks = useMemo(() => (disponibilidad.bloques || []).reduce((groups, block) => {
-    const key = `${block.medico_nombre} · ${Number(block.hora_inicio.slice(0, 2)) < 12 ? 'Mañana' : 'Tarde'}`;
-    (groups[key] ||= []).push(block);
-    return groups;
-  }, {}), [disponibilidad.bloques]);
+  const reservationFieldErrors =
+    reservaResult?.type === 'error' ? reservaResult.data.fields || {} : {};
+  const groupedBlocks = useMemo(
+    () =>
+      (disponibilidad.bloques || []).reduce((groups, block) => {
+        const key = `${block.medico_nombre} · ${Number(block.hora_inicio.slice(0, 2)) < 12 ? 'Mañana' : 'Tarde'}`;
+        (groups[key] ||= []).push(block);
+        return groups;
+      }, {}),
+    [disponibilidad.bloques],
+  );
 
   function resetRequestKey() {
     patientRequestRef.current = null;
@@ -100,15 +114,27 @@ export default function usePatientPortal({ medicos, especialidades }) {
         setBookingStep('confirmacion');
         fetchDisponibilidad();
       } else {
-        setReservaResult({ type: 'error', status: response.status, data: response.status >= 500
-          ? { ...data, mensaje: 'No pudimos completar la reserva. Tus datos siguen guardados; inténtalo nuevamente.' }
-          : data });
+        setReservaResult({
+          type: 'error',
+          status: response.status,
+          data:
+            response.status >= 500
+              ? {
+                  ...data,
+                  mensaje:
+                    'No pudimos completar la reserva. Tus datos siguen guardados; inténtalo nuevamente.',
+                }
+              : data,
+        });
         if (response.status === 409) fetchDisponibilidad();
       }
     } catch {
       setReservaResult({
         type: 'error',
-        data: { mensaje: 'No pudimos conectar con el sistema. Tus datos siguen guardados; inténtalo nuevamente.' },
+        data: {
+          mensaje:
+            'No pudimos conectar con el sistema. Tus datos siguen guardados; inténtalo nuevamente.',
+        },
       });
     } finally {
       setSubmittingReserva(false);
@@ -116,17 +142,42 @@ export default function usePatientPortal({ medicos, especialidades }) {
   }
 
   const state = {
-    availabilityError, bookingStep, disponibilidad, fieldTouched, groupedBlocks,
-    loadingDisp, medicosFiltrados, pacienteEmail, pacienteNombre, pacienteRut,
-    pacienteTelefono, reservaResult, rutCheck, selectedBloque, selectedEsp,
-    selectedFecha, selectedMedico, especialidades, submittingReserva,
+    availabilityError,
+    bookingStep,
+    disponibilidad,
+    fieldTouched,
+    groupedBlocks,
+    loadingDisp,
+    medicosFiltrados,
+    pacienteEmail,
+    pacienteNombre,
+    pacienteRut,
+    pacienteTelefono,
+    reservaResult,
+    rutCheck,
+    selectedBloque,
+    selectedEsp,
+    selectedFecha,
+    selectedMedico,
+    especialidades,
+    submittingReserva,
     reservationFieldErrors,
   };
   const actions = {
-    fetchDisponibilidad, handleReservarSubmit, resetRequestKey, setBookingStep,
-    setFieldTouched, setPacienteEmail, setPacienteNombre, setPacienteRut,
-    setPacienteTelefono, setReservaResult, setSelectedBloque, setSelectedEsp,
-    setSelectedFecha, setSelectedMedico,
+    fetchDisponibilidad,
+    handleReservarSubmit,
+    resetRequestKey,
+    setBookingStep,
+    setFieldTouched,
+    setPacienteEmail,
+    setPacienteNombre,
+    setPacienteRut,
+    setPacienteTelefono,
+    setReservaResult,
+    setSelectedBloque,
+    setSelectedEsp,
+    setSelectedFecha,
+    setSelectedMedico,
   };
   return { state, actions };
 }

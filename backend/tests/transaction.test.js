@@ -10,9 +10,16 @@ function fakePool({ failRollback = false } = {}) {
       if (failRollback && sql === 'ROLLBACK') throw new Error('rollback failed');
       return { rows: [] };
     },
-    release() { events.push('RELEASE'); },
+    release() {
+      events.push('RELEASE');
+    },
   };
-  return { events, async connect() { return client; } };
+  return {
+    events,
+    async connect() {
+      return client;
+    },
+  };
 }
 
 test('withTransaction confirma y libera en éxito', async () => {
@@ -25,12 +32,21 @@ test('withTransaction confirma y libera en éxito', async () => {
 test('withTransaction conserva el error original si falla el rollback', async () => {
   const pool = fakePool({ failRollback: true });
   const original = new Error('operation failed');
-  await assert.rejects(() => withTransaction(pool, async () => { throw original; }), (error) => error === original);
+  await assert.rejects(
+    () =>
+      withTransaction(pool, async () => {
+        throw original;
+      }),
+    (error) => error === original,
+  );
   assert.deepEqual(pool.events, ['BEGIN ISOLATION LEVEL READ COMMITTED', 'ROLLBACK', 'RELEASE']);
 });
 
 test('withTransaction rechaza niveles de aislamiento no permitidos', async () => {
   const pool = fakePool();
-  await assert.rejects(() => withTransaction(pool, async () => null, { isolation: 'READ UNCOMMITTED' }), TypeError);
+  await assert.rejects(
+    () => withTransaction(pool, async () => null, { isolation: 'READ UNCOMMITTED' }),
+    TypeError,
+  );
   assert.deepEqual(pool.events, []);
 });

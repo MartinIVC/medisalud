@@ -17,7 +17,7 @@ async function enqueueConfirmationEmail({ client, ...details }) {
      SELECT id, 'EMAIL', 'CONFIRMACION', $1, $2, $3, 'PENDIENTE'
      FROM citas_medicas WHERE codigo_reserva = $4
      RETURNING id`,
-    [message.to, message.subject, message.text, message.codigoReserva]
+    [message.to, message.subject, message.text, message.codigoReserva],
   );
   return { id: result.rows[0]?.id, status: 'PENDIENTE', provider: 'configured-at-delivery' };
 }
@@ -42,7 +42,7 @@ async function claimBatch(pool, claimToken, { batchSize = BATCH_SIZE, leaseMs = 
        SET estado='ENVIANDO', claim_token=$1, claimed_at=NOW(), lease_until=NOW() + ($2 * INTERVAL '1 millisecond')
        FROM lote WHERE n.id=lote.id
        RETURNING n.id, n.cita_id, n.canal, n.tipo, n.destinatario, n.asunto, n.contenido, n.claim_token`,
-      [claimToken, leaseMs, MAX_ATTEMPTS, batchSize]
+      [claimToken, leaseMs, MAX_ATTEMPTS, batchSize],
     );
     return result.rows;
   });
@@ -56,33 +56,47 @@ async function markAccepted(pool, notification, result) {
            error=NULL, claim_token=NULL, claimed_at=NULL, lease_until=NULL, reintentar_en=NULL
        WHERE id=$1 AND claim_token=$2 AND estado='ENVIANDO'
        RETURNING id`,
-      [notification.id, notification.claim_token, result.provider, result.providerId || null]
+      [notification.id, notification.claim_token, result.provider, result.providerId || null],
     );
-    if (updated.rowCount && notification.tipo === 'CONFIRMACION' && notification.canal === 'EMAIL') {
-      await client.query('UPDATE citas_medicas SET correo_enviado=TRUE WHERE id=$1', [notification.cita_id]);
+    if (
+      updated.rowCount &&
+      notification.tipo === 'CONFIRMACION' &&
+      notification.canal === 'EMAIL'
+    ) {
+      await client.query('UPDATE citas_medicas SET correo_enviado=TRUE WHERE id=$1', [
+        notification.cita_id,
+      ]);
     }
     return updated.rowCount > 0;
   });
 }
 
 async function markFailed(pool, notification, error) {
-  await withTransaction(pool, (client) => client.query(
-    `UPDATE notificaciones
+  await withTransaction(pool, (client) =>
+    client.query(
+      `UPDATE notificaciones
      SET estado='FALLIDA', intentos=intentos+1, error=$3,
          reintentar_en=NOW() + LEAST(POWER(2, intentos+1), 60) * INTERVAL '1 minute',
          claim_token=NULL, claimed_at=NULL, lease_until=NULL
      WHERE id=$1 AND claim_token=$2 AND estado='ENVIANDO'`,
-    [notification.id, notification.claim_token, String(error.message || 'Error de proveedor').slice(0, 500)]
-  ));
+      [
+        notification.id,
+        notification.claim_token,
+        String(error.message || 'Error de proveedor').slice(0, 500),
+      ],
+    ),
+  );
 }
 
 async function markOmitted(pool, notification) {
-  await withTransaction(pool, (client) => client.query(
-    `UPDATE notificaciones
+  await withTransaction(pool, (client) =>
+    client.query(
+      `UPDATE notificaciones
      SET estado='OMITIDA', claim_token=NULL, claimed_at=NULL, lease_until=NULL
      WHERE id=$1 AND claim_token=$2 AND estado='ENVIANDO'`,
-    [notification.id, notification.claim_token]
-  ));
+      [notification.id, notification.claim_token],
+    ),
+  );
 }
 
 async function deliverWithTimeout(deliver, notification, timeoutMs) {
@@ -90,12 +104,14 @@ async function deliverWithTimeout(deliver, notification, timeoutMs) {
   let timeout;
   try {
     return await Promise.race([
-      Promise.resolve().then(() => deliver({
-        to: notification.destinatario,
-        subject: notification.asunto,
-        text: notification.contenido,
-        signal: controller.signal,
-      })),
+      Promise.resolve().then(() =>
+        deliver({
+          to: notification.destinatario,
+          subject: notification.asunto,
+          text: notification.contenido,
+          signal: controller.signal,
+        }),
+      ),
       new Promise((_, reject) => {
         timeout = setTimeout(() => {
           controller.abort();
@@ -119,27 +135,32 @@ function createNotificationWorker({
   return async function processNotificationQueue() {
     const claimToken = createClaimToken();
     const notifications = await claimBatch(database, claimToken, { batchSize, leaseMs });
-    const outcomes = await Promise.allSettled(notifications.map(async (notification) => {
-      const appointment = await database.query('SELECT estado FROM citas_medicas WHERE id=$1', [notification.cita_id]);
-      if (!appointment.rowCount || appointment.rows[0].estado !== 'CONFIRMADA') {
-        await markOmitted(database, notification);
-        return;
-      }
+    const outcomes = await Promise.allSettled(
+      notifications.map(async (notification) => {
+        const appointment = await database.query('SELECT estado FROM citas_medicas WHERE id=$1', [
+          notification.cita_id,
+        ]);
+        if (!appointment.rowCount || appointment.rows[0].estado !== 'CONFIRMADA') {
+          await markOmitted(database, notification);
+          return;
+        }
 
-      let result;
-      try {
-        const deliver = providers[notification.canal];
-        if (!deliver) throw new Error(`No hay proveedor para el canal ${notification.canal}.`);
-        result = await deliverWithTimeout(deliver, notification, timeoutMs);
-        if (result?.status !== 'ACEPTADO') throw new Error('El proveedor devolvió un estado de aceptación desconocido.');
-      } catch (error) {
-        await markFailed(database, notification, error);
-        return;
-      }
+        let result;
+        try {
+          const deliver = providers[notification.canal];
+          if (!deliver) throw new Error(`No hay proveedor para el canal ${notification.canal}.`);
+          result = await deliverWithTimeout(deliver, notification, timeoutMs);
+          if (result?.status !== 'ACEPTADO')
+            throw new Error('El proveedor devolvió un estado de aceptación desconocido.');
+        } catch (error) {
+          await markFailed(database, notification, error);
+          return;
+        }
 
-      // Si falla esta persistencia, la toma vence y se recupera; no se presenta como fallo del proveedor.
-      await markAccepted(database, notification, result);
-    }));
+        // Si falla esta persistencia, la toma vence y se recupera; no se presenta como fallo del proveedor.
+        await markAccepted(database, notification, result);
+      }),
+    );
     const failedPersistence = outcomes.find((outcome) => outcome.status === 'rejected');
     if (failedPersistence) throw failedPersistence.reason;
     return { claimed: notifications.length };

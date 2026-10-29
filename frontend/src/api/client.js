@@ -27,7 +27,12 @@ export async function requestApi(url, options = {}) {
   const headers = new Headers(fetchOptions.headers || {});
   let body = fetchOptions.body;
 
-  if (body !== undefined && body !== null && typeof body === 'object' && !(body instanceof FormData)) {
+  if (
+    body !== undefined &&
+    body !== null &&
+    typeof body === 'object' &&
+    !(body instanceof FormData)
+  ) {
     headers.set('Content-Type', 'application/json');
     body = JSON.stringify(body);
   }
@@ -37,10 +42,13 @@ export async function requestApi(url, options = {}) {
   try {
     response = await fetch(url, { ...fetchOptions, headers, body });
   } catch (error) {
-    throw new ApiError('No pudimos conectar con el sistema. Revisa tu conexión e intenta nuevamente.', {
-      code: 'NETWORK_ERROR',
-      body: error,
-    });
+    throw new ApiError(
+      'No pudimos conectar con el sistema. Revisa tu conexión e intenta nuevamente.',
+      {
+        code: 'NETWORK_ERROR',
+        body: error,
+      },
+    );
   }
 
   const raw = response.status === 204 ? '' : await response.text();

@@ -13,7 +13,8 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const { act, cleanup, renderHook, waitFor } = await import('@testing-library/react');
 const { default: usePatientPortal } = await import('../src/features/paciente/usePatientPortal.js');
-const { default: useSecretaryPortal } = await import('../src/features/secretaria/useSecretaryPortal.js');
+const { default: useSecretaryPortal } =
+  await import('../src/features/secretaria/useSecretaryPortal.js');
 const originalFetch = globalThis.fetch;
 
 afterEach(() => {
@@ -22,12 +23,16 @@ afterEach(() => {
 });
 
 function jsonResponse(data, status = 200) {
-  return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
 
 test('an older availability response cannot replace a newer filter result', async () => {
   const pending = [];
-  globalThis.fetch = (url, options) => new Promise((resolve) => pending.push({ url, options, resolve }));
+  globalThis.fetch = (url, options) =>
+    new Promise((resolve) => pending.push({ url, options, resolve }));
   const { result } = renderHook(() => usePatientPortal({ medicos: [], especialidades: [] }));
 
   await waitFor(() => assert.equal(pending.length, 1));
@@ -44,7 +49,8 @@ test('a retry after a network error reuses the same reservation idempotency key'
   const reservationHeaders = [];
   let reservationAttempts = 0;
   globalThis.fetch = async (url, options) => {
-    if (url.startsWith('/api/disponibilidad')) return jsonResponse({ ok: true, bloques: [], latencia_ms: 0 });
+    if (url.startsWith('/api/disponibilidad'))
+      return jsonResponse({ ok: true, bloques: [], latencia_ms: 0 });
     if (url === '/api/reservas') {
       reservationHeaders.push(options.headers.get('Idempotency-Key'));
       reservationAttempts += 1;
@@ -85,19 +91,37 @@ test('an expired secretary session preserves the doctor draft for the next login
     if (url.startsWith('/api/agendas')) return jsonResponse({ error: 'Sesión vencida' }, 401);
     throw new Error(`Unexpected request: ${url}`);
   };
-  const { result } = renderHook(() => useSecretaryPortal({ activeTab: 'secretaria', refreshAvailability: async () => {} }));
+  const { result } = renderHook(() =>
+    useSecretaryPortal({ activeTab: 'secretaria', refreshAvailability: async () => {} }),
+  );
   await waitFor(() => assert.deepEqual(result.current.state.medicos, []));
   act(() => {
     result.current.actions.setSecretaryView('agenda');
-    result.current.actions.setPendingMedicoDraft({ nombre: 'Dra. Borrador', email: 'borrador@example.cl' });
+    result.current.actions.setPendingMedicoDraft({
+      nombre: 'Dra. Borrador',
+      email: 'borrador@example.cl',
+    });
     result.current.actions.setSecretaryPassword('clave');
   });
   await act(async () => result.current.actions.loginSecretary({ preventDefault() {} }));
-  await waitFor(() => assert.ok(requests.some((url) => url.startsWith('/api/agendas')), requests.join(', ')));
-  await waitFor(() => assert.equal(result.current.state.secretaryError, 'Tu sesión terminó. Inicia sesión nuevamente para continuar.'));
+  await waitFor(() =>
+    assert.ok(
+      requests.some((url) => url.startsWith('/api/agendas')),
+      requests.join(', '),
+    ),
+  );
+  await waitFor(() =>
+    assert.equal(
+      result.current.state.secretaryError,
+      'Tu sesión terminó. Inicia sesión nuevamente para continuar.',
+    ),
+  );
 
   assert.equal(result.current.state.secretaryToken, '');
   assert.equal(result.current.state.secretaryView, 'agenda');
-  assert.deepEqual(result.current.state.pendingMedicoDraft, { nombre: 'Dra. Borrador', email: 'borrador@example.cl' });
+  assert.deepEqual(result.current.state.pendingMedicoDraft, {
+    nombre: 'Dra. Borrador',
+    email: 'borrador@example.cl',
+  });
   assert.equal(sessionStorage.getItem('medisalud-secretaria-token'), null);
 });

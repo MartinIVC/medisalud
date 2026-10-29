@@ -1,4 +1,15 @@
-function buildConfirmation({ codigoReserva, pacienteNombre, pacienteRut, pacienteEmail, medicoNombre, especialidadNombre, boxAtencion, fecha, horaInicio, horaFin }) {
+function buildConfirmation({
+  codigoReserva,
+  pacienteNombre,
+  pacienteRut,
+  pacienteEmail,
+  medicoNombre,
+  especialidadNombre,
+  boxAtencion,
+  fecha,
+  horaInicio,
+  horaFin,
+}) {
   const subject = `[Medisalud] Confirmación de cita — ${codigoReserva}`;
   const text = [
     `Estimado(a) ${pacienteNombre} (RUT: ${pacienteRut}):`,

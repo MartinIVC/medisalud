@@ -17,8 +17,14 @@ async function runTests() {
     body: JSON.stringify({ password: process.env.SECRETARY_PASSWORD }),
   });
   const login = await loginRes.json();
-  if (!loginRes.ok) throw new Error('Configura SECRETARY_PASSWORD y SECRETARY_TOKEN_SECRET para ejecutar esta suite.');
-  const secretaryHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${login.token}` };
+  if (!loginRes.ok)
+    throw new Error(
+      'Configura SECRETARY_PASSWORD y SECRETARY_TOKEN_SECRET para ejecutar esta suite.',
+    );
+  const secretaryHeaders = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${login.token}`,
+  };
 
   // 1. Verificar MED-15 (Staging + PostgreSQL + 4 especialidades + 15 médicos)
   const healthRes = await fetch(`${API_URL}/health`);
@@ -26,7 +32,9 @@ async function runTests() {
   if (!health.ok || health.resumen.especialidades !== 4 || health.resumen.medicos_activos < 15) {
     throw new Error(`Fallo en MED-15: ${JSON.stringify(health)}`);
   }
-  console.log(`✅ [MED-15 | 2 pts] PostgreSQL operativo (${health.ping_ms} ms) — 4 especialidades, ${health.resumen.medicos_activos} médicos activos (mínimo inicial: 15).`);
+  console.log(
+    `✅ [MED-15 | 2 pts] PostgreSQL operativo (${health.ping_ms} ms) — 4 especialidades, ${health.resumen.medicos_activos} médicos activos (mínimo inicial: 15).`,
+  );
 
   // 2. Verificar MED-10 (Parametrización de bloques de 15, 20 o 30 min y bloqueo de licencia)
   const futureDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -54,7 +62,7 @@ async function runTests() {
     throw new Error(`Fallo en MED-9: ${JSON.stringify(dispData)}`);
   }
   console.log(
-    `✅ [MED-9  | 3 pts] CA-01 & CA-02: Consulta de disponibilidad en ${dispData.latencia_ms} ms (< 2000 ms), ${dispData.total_cupos_libres} bloques disponibles.`
+    `✅ [MED-9  | 3 pts] CA-01 & CA-02: Consulta de disponibilidad en ${dispData.latencia_ms} ms (< 2000 ms), ${dispData.total_cupos_libres} bloques disponibles.`,
   );
 
   const targetBlock = dispData.bloques[0];
@@ -69,12 +77,18 @@ async function runTests() {
       motivo: 'Licencia médica parcial prueba MED-10',
     }),
   });
-  const dispAfterLock = await (await fetch(`${API_URL}/disponibilidad?medico_id=2&fecha=${futureDate}`)).json();
+  const dispAfterLock = await (
+    await fetch(`${API_URL}/disponibilidad?medico_id=2&fecha=${futureDate}`)
+  ).json();
   const stillListed = dispAfterLock.bloques.some((b) => b.agenda_id === blockToLock.agenda_id);
   if (stillListed) {
-    throw new Error('Fallo en MED-10 / MED-9 CA-02: Un bloque bloqueado siguió apareciendo disponible.');
+    throw new Error(
+      'Fallo en MED-10 / MED-9 CA-02: Un bloque bloqueado siguió apareciendo disponible.',
+    );
   }
-  console.log(`✅ [MED-10 & MED-9] CA-02: Bloque bloqueado por secretaría excluido inmediatamente del Portal Web.`);
+  console.log(
+    `✅ [MED-10 & MED-9] CA-02: Bloque bloqueado por secretaría excluido inmediatamente del Portal Web.`,
+  );
 
   // 4. Verificar MED-11 CA-01 (Rechazo de RUT chileno con dígito verificador inválido -> A-06)
   const invalidRutRes = await fetch(`${API_URL}/reservas`, {
@@ -92,12 +106,16 @@ async function runTests() {
   if (invalidRutRes.status !== 400 || invalidRutData.codigo_error !== 'RUT_INVALIDO') {
     throw new Error(`Fallo en MED-11 (Validación RUT): ${JSON.stringify(invalidRutData)}`);
   }
-  console.log(`✅ [MED-11 | 5 pts] CA-01 (A-06): RUT con dígito verificador inválido rechazado correctamente.`);
+  console.log(
+    `✅ [MED-11 | 5 pts] CA-01 (A-06): RUT con dígito verificador inválido rechazado correctamente.`,
+  );
 
   // 5. Verificar MED-16 (RNF-01) y MED-11 (CA-01 / CA-02):
   //    Lanzar 40 solicitudes concurrentes en la misma fracción de segundo sobre el MISMO bloque horario
   const CONCURRENT_USERS = 40;
-  console.log(`\n🚀 [MED-16 | 3 pts] Lanzando ${CONCURRENT_USERS} solicitudes de reserva simultáneas sobre bloque ID=${targetBlock.agenda_id}...`);
+  console.log(
+    `\n🚀 [MED-16 | 3 pts] Lanzando ${CONCURRENT_USERS} solicitudes de reserva simultáneas sobre bloque ID=${targetBlock.agenda_id}...`,
+  );
 
   const requests = Array.from({ length: CONCURRENT_USERS }, (_, idx) => {
     const t0 = performance.now();
@@ -129,7 +147,7 @@ async function runTests() {
 
   if (confirmed.length !== 1 || rejected.length !== CONCURRENT_USERS - 1) {
     throw new Error(
-      `Colisión detectada en MED-16: confirmadas=${confirmed.length}, rechazadas=${rejected.length}`
+      `Colisión detectada en MED-16: confirmadas=${confirmed.length}, rechazadas=${rejected.length}`,
     );
   }
   if (p95Latency > 2000) {
@@ -138,10 +156,16 @@ async function runTests() {
 
   console.log(`✅ [MED-16 | 3 pts] Bloqueo pesimista (SELECT ... FOR UPDATE) verificado:`);
   console.log(`   - Solicitudes simultáneas : ${CONCURRENT_USERS}`);
-  console.log(`   - Confirmadas (A-05)      : ${confirmed.length} (Código: ${confirmed[0].body.reserva.codigo_reserva})`);
+  console.log(
+    `   - Confirmadas (A-05)      : ${confirmed.length} (Código: ${confirmed[0].body.reserva.codigo_reserva})`,
+  );
   console.log(`   - Rechazadas (A-06)       : ${rejected.length} (0% Overbooking)`);
-  console.log(`   - Latencia p95            : ${p95Latency.toFixed(2)} ms (Umbral RNF-01 <= 2000 ms)`);
-  console.log('✅ [MED-11 | 5 pts] CA-02 (A-05): Reserva registrada y notificación incorporada a la cola.');
+  console.log(
+    `   - Latencia p95            : ${p95Latency.toFixed(2)} ms (Umbral RNF-01 <= 2000 ms)`,
+  );
+  console.log(
+    '✅ [MED-11 | 5 pts] CA-02 (A-05): Reserva registrada y notificación incorporada a la cola.',
+  );
   console.log('\n======================================================================');
   console.log(' RESULTADO FINAL: 100% DE TARJETAS DEL SPRINT 1 VERIFICADAS CON ÉXITO');
   console.log('======================================================================');

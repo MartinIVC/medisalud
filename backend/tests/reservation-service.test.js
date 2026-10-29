@@ -25,26 +25,38 @@ function fakePool({ slot = {}, previous = null } = {}) {
 
   return {
     queries,
-    get released() { return released; },
-    get client() { return currentClient; },
+    get released() {
+      return released;
+    },
+    get client() {
+      return currentClient;
+    },
     async connect() {
       currentClient = {
         async query(sql, values = []) {
           queries.push({ sql, values });
-          if (sql.startsWith('SELECT medico_id FROM agendas')) return { rowCount: 1, rows: [{ medico_id: 7 }] };
-          if (sql.startsWith('SELECT id, activo FROM medicos')) return { rowCount: 1, rows: [{ id: 7, activo: slotData.activo }] };
+          if (sql.startsWith('SELECT medico_id FROM agendas'))
+            return { rowCount: 1, rows: [{ medico_id: 7 }] };
+          if (sql.startsWith('SELECT id, activo FROM medicos'))
+            return { rowCount: 1, rows: [{ id: 7, activo: slotData.activo }] };
           if (sql.startsWith('SELECT a.id, a.medico_id')) return { rowCount: 1, rows: [slotData] };
-          if (sql.startsWith('SELECT solicitud_payload_hash')) return previous
-            ? { rowCount: 1, rows: [previous] }
-            : { rowCount: 0, rows: [] };
+          if (sql.startsWith('SELECT solicitud_payload_hash'))
+            return previous ? { rowCount: 1, rows: [previous] } : { rowCount: 0, rows: [] };
           if (sql.startsWith('SELECT id FROM agendas')) return { rowCount: 0, rows: [] };
           if (sql.startsWith('UPDATE agendas')) return { rowCount: 1, rows: [{ id: 12 }] };
-          if (sql.startsWith('INSERT INTO citas_medicas')) return { rowCount: 1, rows: [{ id: 21, codigo_reserva: 'MED-2026-ABCDEF', created_at: 'now' }] };
+          if (sql.startsWith('INSERT INTO citas_medicas'))
+            return {
+              rowCount: 1,
+              rows: [{ id: 21, codigo_reserva: 'MED-2026-ABCDEF', created_at: 'now' }],
+            };
           if (sql.startsWith('INSERT INTO notificaciones')) return { rowCount: 1, rows: [] };
-          if (sql.startsWith('UPDATE citas_medicas SET solicitud_respuesta')) return { rowCount: 1, rows: [] };
+          if (sql.startsWith('UPDATE citas_medicas SET solicitud_respuesta'))
+            return { rowCount: 1, rows: [] };
           return { rowCount: 0, rows: [] };
         },
-        release() { released = true; },
+        release() {
+          released = true;
+        },
       };
       return currentClient;
     },
@@ -71,10 +83,19 @@ test('la reserva revalida el estado, la actividad, la hora futura y los bloqueos
     await context.test(description, async () => {
       const database = fakePool({ slot });
       await assert.rejects(
-        () => createReservation({ database, values, randomBytes: () => Buffer.from('abcdef'), enqueueConfirmation: async () => ({ status: 'PENDIENTE' }) }),
-        (error) => error instanceof HttpError && error.status === 409
+        () =>
+          createReservation({
+            database,
+            values,
+            randomBytes: () => Buffer.from('abcdef'),
+            enqueueConfirmation: async () => ({ status: 'PENDIENTE' }),
+          }),
+        (error) => error instanceof HttpError && error.status === 409,
       );
-      assert.equal(database.queries.some(({ sql }) => sql.startsWith('UPDATE agendas')), false);
+      assert.equal(
+        database.queries.some(({ sql }) => sql.startsWith('UPDATE agendas')),
+        false,
+      );
       assert.equal(database.queries.at(-1).sql, 'ROLLBACK');
       assert.equal(database.released, true);
     });
@@ -97,33 +118,51 @@ test('la reserva crea la cita y encola las notificaciones en la misma transacciÃ
   });
   assert.equal(enqueued, true);
   assert.equal(result.response.reserva.paciente_nombre, 'Ana PÃ©rez');
-  assert.equal(database.queries.some(({ sql }) => sql.startsWith('UPDATE citas_medicas SET solicitud_respuesta')), true);
+  assert.equal(
+    database.queries.some(({ sql }) =>
+      sql.startsWith('UPDATE citas_medicas SET solicitud_respuesta'),
+    ),
+    true,
+  );
   assert.equal(database.queries.at(-1).sql, 'COMMIT');
   assert.equal(database.released, true);
 });
 
 test('una clave repetida recupera el mismo comprobante y no crea otra cita', async () => {
   const request = { ...values, requestKey: 'web-booking-1' };
-  const expectedResponse = { reserva: { codigo_reserva: 'MED-2026-ABCDEF' }, comprobante_correo: { id: '3' } };
-  const database = fakePool({ previous: {
-    solicitud_payload_hash: reservationFingerprint(request),
-    solicitud_respuesta: expectedResponse,
-  } });
+  const expectedResponse = {
+    reserva: { codigo_reserva: 'MED-2026-ABCDEF' },
+    comprobante_correo: { id: '3' },
+  };
+  const database = fakePool({
+    previous: {
+      solicitud_payload_hash: reservationFingerprint(request),
+      solicitud_respuesta: expectedResponse,
+    },
+  });
   const result = await createReservation({ database, values: request });
   assert.equal(result.repeated, true);
   assert.deepEqual(result.response, expectedResponse);
-  assert.equal(database.queries.some(({ sql }) => sql.startsWith('INSERT INTO citas_medicas')), false);
+  assert.equal(
+    database.queries.some(({ sql }) => sql.startsWith('INSERT INTO citas_medicas')),
+    false,
+  );
 });
 
 test('reutilizar una clave con contenido diferente produce un conflicto antes de escribir', async () => {
   const request = { ...values, requestKey: 'web-booking-1' };
-  const database = fakePool({ previous: {
-    solicitud_payload_hash: '0'.repeat(64),
-    solicitud_respuesta: { reserva: { codigo_reserva: 'MED-2026-ABCDEF' } },
-  } });
+  const database = fakePool({
+    previous: {
+      solicitud_payload_hash: '0'.repeat(64),
+      solicitud_respuesta: { reserva: { codigo_reserva: 'MED-2026-ABCDEF' } },
+    },
+  });
   await assert.rejects(
     () => createReservation({ database, values: request }),
-    (error) => error instanceof HttpError && error.code === 'IDEMPOTENCY_CONFLICT'
+    (error) => error instanceof HttpError && error.code === 'IDEMPOTENCY_CONFLICT',
   );
-  assert.equal(database.queries.some(({ sql }) => sql.startsWith('UPDATE agendas')), false);
+  assert.equal(
+    database.queries.some(({ sql }) => sql.startsWith('UPDATE agendas')),
+    false,
+  );
 });

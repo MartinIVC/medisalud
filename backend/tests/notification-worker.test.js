@@ -17,7 +17,9 @@ function fakePool({ appointmentState = 'CONFIRMADA', failAcceptedUpdate = false 
 
   return {
     queries,
-    get activeConnections() { return activeConnections; },
+    get activeConnections() {
+      return activeConnections;
+    },
     async query(sql, values = []) {
       queries.push({ sql, values, source: 'pool' });
       if (sql.startsWith('SELECT estado FROM citas_medicas')) {
@@ -30,7 +32,8 @@ function fakePool({ appointmentState = 'CONFIRMADA', failAcceptedUpdate = false 
       return {
         async query(sql, values = []) {
           queries.push({ sql, values, source: 'client' });
-          if (sql.startsWith('WITH lote AS')) return { rowCount: 1, rows: [{ ...notification, claim_token: values[0] }] };
+          if (sql.startsWith('WITH lote AS'))
+            return { rowCount: 1, rows: [{ ...notification, claim_token: values[0] }] };
           if (sql.includes("SET estado='ACEPTADO'")) {
             if (failAcceptedUpdate) throw new Error('database update failed');
             return { rowCount: 1, rows: [{ id: notification.id }] };
@@ -40,7 +43,9 @@ function fakePool({ appointmentState = 'CONFIRMADA', failAcceptedUpdate = false 
           if (sql.startsWith('UPDATE citas_medicas')) return { rowCount: 1, rows: [] };
           return { rowCount: 0, rows: [] };
         },
-        release() { activeConnections -= 1; },
+        release() {
+          activeConnections -= 1;
+        },
       };
     },
   };
@@ -69,32 +74,58 @@ test('el worker persiste ACEPTADO tras liberar la conexión de toma', async () =
   assert.match(claimSql, /lease_until/);
   const accepted = database.queries.find(({ sql }) => sql.includes("SET estado='ACEPTADO'"));
   assert.ok(accepted);
-  assert.deepEqual(accepted.values, [17, '8be96a36-fd37-4cb8-a912-1c017fe1b16a', 'simulado', 'msg-17']);
-  assert.equal(database.queries.some(({ sql }) => sql.includes("SET estado='FALLIDA'")), false);
+  assert.deepEqual(accepted.values, [
+    17,
+    '8be96a36-fd37-4cb8-a912-1c017fe1b16a',
+    'simulado',
+    'msg-17',
+  ]);
+  assert.equal(
+    database.queries.some(({ sql }) => sql.includes("SET estado='FALLIDA'")),
+    false,
+  );
 });
 
 test('el fallo del proveedor produce FALLIDA y no se traduce en estado de aceptación', async () => {
   const database = fakePool();
   const worker = createNotificationWorker({
     database,
-    providers: { EMAIL: async () => { throw new Error('provider unavailable'); } },
+    providers: {
+      EMAIL: async () => {
+        throw new Error('provider unavailable');
+      },
+    },
   });
 
   await worker();
-  assert.equal(database.queries.some(({ sql }) => sql.includes("SET estado='FALLIDA'")), true);
-  assert.equal(database.queries.some(({ sql }) => sql.includes("SET estado='ACEPTADO'")), false);
+  assert.equal(
+    database.queries.some(({ sql }) => sql.includes("SET estado='FALLIDA'")),
+    true,
+  );
+  assert.equal(
+    database.queries.some(({ sql }) => sql.includes("SET estado='ACEPTADO'")),
+    false,
+  );
 });
 
 test('si falla la persistencia después de aceptar, no se marca como fallo del proveedor', async () => {
   const database = fakePool({ failAcceptedUpdate: true });
   const worker = createNotificationWorker({
     database,
-    providers: { EMAIL: async () => ({ status: 'ACEPTADO', provider: 'simulado', providerId: 'msg-17' }) },
+    providers: {
+      EMAIL: async () => ({ status: 'ACEPTADO', provider: 'simulado', providerId: 'msg-17' }),
+    },
   });
 
   await assert.rejects(() => worker(), /database update failed/);
-  assert.equal(database.queries.some(({ sql }) => sql.includes("SET estado='FALLIDA'")), false);
-  assert.equal(database.queries.some(({ sql }) => sql.includes("SET estado='ACEPTADO'")), true);
+  assert.equal(
+    database.queries.some(({ sql }) => sql.includes("SET estado='FALLIDA'")),
+    false,
+  );
+  assert.equal(
+    database.queries.some(({ sql }) => sql.includes("SET estado='ACEPTADO'")),
+    true,
+  );
 });
 
 test('una notificación reclamada no se vuelve a enviar si la cita fue cancelada', async () => {
@@ -102,12 +133,20 @@ test('una notificación reclamada no se vuelve a enviar si la cita fue cancelada
   let delivered = false;
   const worker = createNotificationWorker({
     database,
-    providers: { EMAIL: async () => { delivered = true; return { status: 'ACEPTADO' }; } },
+    providers: {
+      EMAIL: async () => {
+        delivered = true;
+        return { status: 'ACEPTADO' };
+      },
+    },
   });
 
   await worker();
   assert.equal(delivered, false);
-  assert.equal(database.queries.some(({ sql }) => sql.includes("SET estado='OMITIDA'")), true);
+  assert.equal(
+    database.queries.some(({ sql }) => sql.includes("SET estado='OMITIDA'")),
+    true,
+  );
 });
 
 test('el proveedor queda limitado por un timeout y la toma se libera para reintento', async () => {

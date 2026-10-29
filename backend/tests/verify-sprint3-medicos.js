@@ -23,8 +23,13 @@ function createRut() {
 }
 
 function expiredSecretaryToken() {
-  const body = Buffer.from(JSON.stringify({ role: 'secretaria', exp: Date.now() - 1000 })).toString('base64url');
-  const signature = crypto.createHmac('sha256', process.env.SECRETARY_TOKEN_SECRET).update(body).digest('base64url');
+  const body = Buffer.from(JSON.stringify({ role: 'secretaria', exp: Date.now() - 1000 })).toString(
+    'base64url',
+  );
+  const signature = crypto
+    .createHmac('sha256', process.env.SECRETARY_TOKEN_SECRET)
+    .update(body)
+    .digest('base64url');
   return `${body}.${signature}`;
 }
 
@@ -45,7 +50,7 @@ async function unusedRut() {
     const normalized = rut.replace(/[^0-9kK]/g, '').toUpperCase();
     const found = await pool.query(
       "SELECT 1 FROM medicos WHERE UPPER(REGEXP_REPLACE(rut, '[^0-9kK]', '', 'g')) = $1 LIMIT 1",
-      [normalized]
+      [normalized],
     );
     if (!found.rowCount) return rut;
   }
@@ -54,7 +59,10 @@ async function unusedRut() {
 
 async function verify() {
   assert.ok(process.env.SECRETARY_PASSWORD, 'Configura SECRETARY_PASSWORD para ejecutar la suite.');
-  assert.ok(process.env.SECRETARY_TOKEN_SECRET, 'Configura SECRETARY_TOKEN_SECRET para ejecutar la suite.');
+  assert.ok(
+    process.env.SECRETARY_TOKEN_SECRET,
+    'Configura SECRETARY_TOKEN_SECRET para ejecutar la suite.',
+  );
 
   const loginResponse = await fetch(`${API_URL}/auth/secretaria`, {
     method: 'POST',
@@ -72,35 +80,70 @@ async function verify() {
   const specialtiesResponse = await fetch(`${API_URL}/especialidades`);
   const specialtiesData = await specialtiesResponse.json();
   assert.equal(specialtiesResponse.status, 200);
-  assert.ok(specialtiesData.especialidades?.length, 'Debe existir al menos una especialidad de prueba.');
+  assert.ok(
+    specialtiesData.especialidades?.length,
+    'Debe existir al menos una especialidad de prueba.',
+  );
   const specialtyId = specialtiesData.especialidades[0].id;
-  const invalidRut = await postDoctor({
-    rut: '12 texto 345.678-5', nombre: 'Médico Prueba', email: 'medico@example.cl',
-    especialidad_id: specialtyId, box_atencion: 'Box T1',
-  }, login.token);
+  const invalidRut = await postDoctor(
+    {
+      rut: '12 texto 345.678-5',
+      nombre: 'Médico Prueba',
+      email: 'medico@example.cl',
+      especialidad_id: specialtyId,
+      box_atencion: 'Box T1',
+    },
+    login.token,
+  );
   assert.equal(invalidRut.status, 400, 'Debe rechazar texto ajeno al formato del RUT.');
 
-  const invalidCheckDigit = await postDoctor({
-    rut: '12.345.678-9', nombre: 'Médico Prueba', email: 'medico@example.cl',
-    especialidad_id: specialtyId, box_atencion: 'Box T1',
-  }, login.token);
+  const invalidCheckDigit = await postDoctor(
+    {
+      rut: '12.345.678-9',
+      nombre: 'Médico Prueba',
+      email: 'medico@example.cl',
+      especialidad_id: specialtyId,
+      box_atencion: 'Box T1',
+    },
+    login.token,
+  );
   assert.equal(invalidCheckDigit.status, 400, 'Debe validar el dígito verificador del RUT.');
 
-  const invalidFields = await postDoctor({
-    rut: await unusedRut(), nombre: 'M'.repeat(151), email: 'correo-inválido',
-    especialidad_id: specialtyId, box_atencion: 'B'.repeat(21),
-  }, login.token);
+  const invalidFields = await postDoctor(
+    {
+      rut: await unusedRut(),
+      nombre: 'M'.repeat(151),
+      email: 'correo-inválido',
+      especialidad_id: specialtyId,
+      box_atencion: 'B'.repeat(21),
+    },
+    login.token,
+  );
   const invalidFieldsData = await invalidFields.json();
   assert.equal(invalidFields.status, 400);
-  assert.ok(invalidFieldsData.fields.nombre && invalidFieldsData.fields.email && invalidFieldsData.fields.box_atencion,
-    'Debe informar los errores junto a nombre, correo y box.');
+  assert.ok(
+    invalidFieldsData.fields.nombre &&
+      invalidFieldsData.fields.email &&
+      invalidFieldsData.fields.box_atencion,
+    'Debe informar los errores junto a nombre, correo y box.',
+  );
 
   const invalidSpecialtyRut = await unusedRut();
-  const invalidSpecialty = await postDoctor({
-    rut: invalidSpecialtyRut, nombre: 'Médico Prueba', email: 'medico@example.cl',
-    especialidad_id: 2147483647, box_atencion: 'Box T1',
-  }, login.token);
-  assert.equal(invalidSpecialty.status, 400, 'Debe rechazar una especialidad inexistente sin insertar el médico.');
+  const invalidSpecialty = await postDoctor(
+    {
+      rut: invalidSpecialtyRut,
+      nombre: 'Médico Prueba',
+      email: 'medico@example.cl',
+      especialidad_id: 2147483647,
+      box_atencion: 'Box T1',
+    },
+    login.token,
+  );
+  assert.equal(
+    invalidSpecialty.status,
+    400,
+    'Debe rechazar una especialidad inexistente sin insertar el médico.',
+  );
 
   const rut = await unusedRut();
   const basePayload = {
@@ -121,7 +164,7 @@ async function verify() {
     `SELECT m.activo,
             (SELECT COUNT(*)::INT FROM agendas a WHERE a.medico_id = m.id) AS agendas
        FROM medicos m WHERE m.id = $1`,
-    [created.medico.id]
+    [created.medico.id],
   );
   assert.equal(savedDoctor.rows[0].activo, true);
   assert.equal(savedDoctor.rows[0].agendas, 0, 'Crear un médico no debe crear horarios.');
@@ -133,7 +176,11 @@ async function verify() {
     const unexpectedDuplicate = await duplicateResponse.json();
     createdDoctorIds.push(unexpectedDuplicate.medico.id);
   }
-  assert.equal(duplicateResponse.status, 409, 'Debe detectar el RUT duplicado con otra representación aunque el registro esté inactivo.');
+  assert.equal(
+    duplicateResponse.status,
+    409,
+    'Debe detectar el RUT duplicado con otra representación aunque el registro esté inactivo.',
+  );
 
   const concurrentRut = await unusedRut();
   const concurrentPayload = { ...basePayload, rut: concurrentRut };
@@ -153,7 +200,9 @@ async function verify() {
     'Dos altas simultáneas para el mismo RUT deben crear un solo registro.',
   );
 
-  console.log('Sprint 3: autenticación, validaciones, alta activa, catálogos sin agenda y unicidad concurrente verificados.');
+  console.log(
+    'Sprint 3: autenticación, validaciones, alta activa, catálogos sin agenda y unicidad concurrente verificados.',
+  );
 }
 
 verify()
@@ -168,9 +217,12 @@ verify()
           WHERE m.id = $1
             AND NOT EXISTS (SELECT 1 FROM agendas a WHERE a.medico_id = m.id)
             AND NOT EXISTS (SELECT 1 FROM citas_medicas c WHERE c.medico_id = m.id)`,
-        [id]
+        [id],
       );
-      if (!result.rowCount) console.warn(`El médico de prueba ${id} tiene referencias y se conservó para no perder datos.`);
+      if (!result.rowCount)
+        console.warn(
+          `El médico de prueba ${id} tiene referencias y se conservó para no perder datos.`,
+        );
     }
     await pool.end();
   });

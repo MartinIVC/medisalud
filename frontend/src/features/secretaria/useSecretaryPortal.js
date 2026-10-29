@@ -9,14 +9,22 @@ function localToday() {
 export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
   const todayStr = localToday();
   const [secretaryView, setSecretaryView] = useState('agenda');
-  const [secretaryToken, setSecretaryToken] = useState(() => sessionStorage.getItem('medisalud-secretaria-token') || '');
+  const [secretaryToken, setSecretaryToken] = useState(
+    () => sessionStorage.getItem('medisalud-secretaria-token') || '',
+  );
   const [secretaryPassword, setSecretaryPassword] = useState('');
   const [secretaryError, setSecretaryError] = useState('');
   const [receptionBlock, setReceptionBlock] = useState(null);
   const receptionRequestRef = useRef(null);
   const receptionTriggerRef = useRef(null);
   const receptionDialogRef = useRef(null);
-  const [receptionData, setReceptionData] = useState({ nombre: '', rut: '', email: '', telefono: '+569', origen: 'PRESENCIAL' });
+  const [receptionData, setReceptionData] = useState({
+    nombre: '',
+    rut: '',
+    email: '',
+    telefono: '+569',
+    origen: 'PRESENCIAL',
+  });
   const [receptionError, setReceptionError] = useState('');
   const [receptionFieldErrors, setReceptionFieldErrors] = useState({});
   const [submittingReception, setSubmittingReception] = useState(false);
@@ -41,7 +49,8 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
     if (!receptionBlock) return undefined;
     const dialog = receptionDialogRef.current;
     if (!dialog) return undefined;
-    const selector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const selector =
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
     dialog.querySelector(selector)?.focus();
     const trapFocus = (event) => {
       if (event.key === 'Escape') {
@@ -71,7 +80,8 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
     setCatalogosError('');
     try {
       const [specialties, doctors] = await Promise.all([
-        requestApi('/api/especialidades'), requestApi('/api/medicos'),
+        requestApi('/api/especialidades'),
+        requestApi('/api/medicos'),
       ]);
       if (!specialties.ok || !doctors.ok || !specialties.data.ok || !doctors.data.ok) {
         throw new Error('No pudimos cargar las especialidades y los médicos.');
@@ -80,7 +90,9 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
       setMedicos(doctors.data.medicos);
       return true;
     } catch {
-      setCatalogosError('No pudimos cargar las especialidades y los médicos. Revisa tu conexión e intenta nuevamente.');
+      setCatalogosError(
+        'No pudimos cargar las especialidades y los médicos. Revisa tu conexión e intenta nuevamente.',
+      );
       return false;
     } finally {
       setCatalogosLoading(false);
@@ -94,37 +106,46 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
     setSecAgendas([]);
   }, []);
 
-  const fetchSecAgendas = useCallback(async ({ signal } = {}) => {
-    if (!secretaryToken) return;
-    const requestId = ++secretaryRequestRef.current;
-    const params = new URLSearchParams();
-    if (secMedicoId) params.set('medico_id', secMedicoId);
-    if (secFecha) params.set('fecha', secFecha);
-    try {
-      const response = await requestApi(`/api/agendas?${params.toString()}`, {
-        token: secretaryToken, signal, onUnauthorized: handleSecretaryUnauthorized,
-      });
-      if (signal?.aborted || requestId !== secretaryRequestRef.current) return;
-      if (response.status === 401) return;
-      if (response.ok && response.data.ok) {
-        setSecAgendas(response.data.bloques);
-        setSecError('');
-      } else setSecError(response.data.error || 'No pudimos cargar la agenda. Intenta nuevamente.');
-    } catch {
-      if (!signal?.aborted && requestId === secretaryRequestRef.current) {
-        setSecError('No pudimos cargar la agenda. Revisa tu conexión e intenta nuevamente.');
+  const fetchSecAgendas = useCallback(
+    async ({ signal } = {}) => {
+      if (!secretaryToken) return;
+      const requestId = ++secretaryRequestRef.current;
+      const params = new URLSearchParams();
+      if (secMedicoId) params.set('medico_id', secMedicoId);
+      if (secFecha) params.set('fecha', secFecha);
+      try {
+        const response = await requestApi(`/api/agendas?${params.toString()}`, {
+          token: secretaryToken,
+          signal,
+          onUnauthorized: handleSecretaryUnauthorized,
+        });
+        if (signal?.aborted || requestId !== secretaryRequestRef.current) return;
+        if (response.status === 401) return;
+        if (response.ok && response.data.ok) {
+          setSecAgendas(response.data.bloques);
+          setSecError('');
+        } else
+          setSecError(response.data.error || 'No pudimos cargar la agenda. Intenta nuevamente.');
+      } catch {
+        if (!signal?.aborted && requestId === secretaryRequestRef.current) {
+          setSecError('No pudimos cargar la agenda. Revisa tu conexión e intenta nuevamente.');
+        }
       }
-    }
-  }, [secMedicoId, secFecha, secretaryToken, handleSecretaryUnauthorized]);
+    },
+    [secMedicoId, secFecha, secretaryToken, handleSecretaryUnauthorized],
+  );
 
-  useEffect(() => { fetchCatalogos(); }, [fetchCatalogos]);
+  useEffect(() => {
+    fetchCatalogos();
+  }, [fetchCatalogos]);
 
   useEffect(() => {
     if (activeTab === 'secretaria' && secretaryToken) fetchCatalogos();
   }, [activeTab, secretaryToken, secretaryView, fetchCatalogos]);
 
   useEffect(() => {
-    if (activeTab !== 'secretaria' || !secretaryToken || secretaryView !== 'agenda') return undefined;
+    if (activeTab !== 'secretaria' || !secretaryToken || secretaryView !== 'agenda')
+      return undefined;
     let active = true;
     let timer;
     let controller;
@@ -146,7 +167,8 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
     setSecretaryError('');
     try {
       const response = await requestApi('/api/auth/secretaria', {
-        method: 'POST', body: { password: secretaryPassword },
+        method: 'POST',
+        body: { password: secretaryPassword },
       });
       if (!response.ok) {
         setSecretaryError(response.data.error || 'No fue posible iniciar sesión.');
@@ -172,7 +194,9 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
     sessionStorage.removeItem('medisalud-secretaria-token');
     setSecretaryToken('');
     setSecAgendas([]);
-    setSecretaryError('Tu sesión expiró. Inicia sesión nuevamente; conservamos el formulario en esta página.');
+    setSecretaryError(
+      'Tu sesión expiró. Inicia sesión nuevamente; conservamos el formulario en esta página.',
+    );
   }
 
   function openReceptionBooking(block, event) {
@@ -205,26 +229,43 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
     setSubmittingReception(true);
     try {
       const body = {
-        agenda_id: receptionBlock.agenda_id, paciente_nombre: receptionData.nombre,
-        paciente_rut: receptionData.rut, paciente_email: receptionData.email,
-        paciente_telefono: receptionData.telefono, origen: receptionData.origen,
+        agenda_id: receptionBlock.agenda_id,
+        paciente_nombre: receptionData.nombre,
+        paciente_rut: receptionData.rut,
+        paciente_email: receptionData.email,
+        paciente_telefono: receptionData.telefono,
+        origen: receptionData.origen,
       };
       const response = await requestApi('/api/reservas', {
-        method: 'POST', token: secretaryToken,
+        method: 'POST',
+        token: secretaryToken,
         headers: { 'Idempotency-Key': idempotencyKeyFor(receptionRequestRef, body) },
-        body, onUnauthorized: handleSecretaryUnauthorized,
+        body,
+        onUnauthorized: handleSecretaryUnauthorized,
       });
       if (response.ok) {
         closeReceptionBooking();
-        setReceptionData({ nombre: '', rut: '', email: '', telefono: '+569', origen: 'PRESENCIAL' });
+        setReceptionData({
+          nombre: '',
+          rut: '',
+          email: '',
+          telefono: '+569',
+          origen: 'PRESENCIAL',
+        });
         fetchSecAgendas();
         refreshAvailability();
       } else {
-        setReceptionError(response.data.error || response.data.mensaje || 'No se pudo registrar la reserva. Revisa los datos e inténtalo nuevamente.');
+        setReceptionError(
+          response.data.error ||
+            response.data.mensaje ||
+            'No se pudo registrar la reserva. Revisa los datos e inténtalo nuevamente.',
+        );
         setReceptionFieldErrors(response.data.fields || {});
       }
     } catch {
-      setReceptionError('No pudimos conectar con el sistema. Los datos siguen en el formulario; inténtalo nuevamente.');
+      setReceptionError(
+        'No pudimos conectar con el sistema. Los datos siguen en el formulario; inténtalo nuevamente.',
+      );
     } finally {
       setSubmittingReception(false);
     }
@@ -235,52 +276,91 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
     setSecFeedback(null);
     try {
       const response = await requestApi('/api/agendas/configurar', {
-        method: 'POST', token: secretaryToken, onUnauthorized: handleSecretaryUnauthorized,
+        method: 'POST',
+        token: secretaryToken,
+        onUnauthorized: handleSecretaryUnauthorized,
         body: {
-          medico_id: Number(secMedicoId), fecha: secFecha, hora_inicio: secHoraInicio,
-          hora_fin: secHoraFin, duracion_min: Number(secDuracion),
+          medico_id: Number(secMedicoId),
+          fecha: secFecha,
+          hora_inicio: secHoraInicio,
+          hora_fin: secHoraFin,
+          duracion_min: Number(secDuracion),
         },
       });
       setSecFeedback(response.data);
-      if (response.ok) { fetchSecAgendas(); refreshAvailability(); }
+      if (response.ok) {
+        fetchSecAgendas();
+        refreshAvailability();
+      }
     } catch {
-      setSecFeedback({ ok: false, error: 'No pudimos conectar con el sistema. La configuración sigue en el formulario.' });
+      setSecFeedback({
+        ok: false,
+        error: 'No pudimos conectar con el sistema. La configuración sigue en el formulario.',
+      });
     }
   }
 
   async function handleBloquearDia(esFeriadoGlobal = false) {
     const doctor = medicos.find((item) => String(item.id) === String(secMedicoId));
-    const alcance = esFeriadoGlobal ? 'todos los profesionales' : doctor?.nombre || 'el profesional seleccionado';
+    const alcance = esFeriadoGlobal
+      ? 'todos los profesionales'
+      : doctor?.nombre || 'el profesional seleccionado';
     const tipo = esFeriadoGlobal ? 'feriado' : 'ausencia';
-    if (!window.confirm(`Vas a registrar un ${tipo} para ${alcance} el ${secFecha}. Se bloquearán los horarios disponibles de esa jornada. ¿Continuar?`)) return;
+    if (
+      !window.confirm(
+        `Vas a registrar un ${tipo} para ${alcance} el ${secFecha}. Se bloquearán los horarios disponibles de esa jornada. ¿Continuar?`,
+      )
+    )
+      return;
     setSecFeedback(null);
     try {
       const response = await requestApi('/api/agendas/bloquear', {
-        method: 'POST', token: secretaryToken, onUnauthorized: handleSecretaryUnauthorized,
+        method: 'POST',
+        token: secretaryToken,
+        onUnauthorized: handleSecretaryUnauthorized,
         body: {
-          medico_id: Number(secMedicoId), fecha: secFecha,
+          medico_id: Number(secMedicoId),
+          fecha: secFecha,
           es_feriado_global: esFeriadoGlobal,
           motivo: esFeriadoGlobal ? `Día Festivo Global: ${secMotivoBloqueo}` : secMotivoBloqueo,
         },
       });
       setSecFeedback(response.data);
-      if (response.ok) { fetchSecAgendas(); refreshAvailability(); }
+      if (response.ok) {
+        fetchSecAgendas();
+        refreshAvailability();
+      }
     } catch {
-      setSecFeedback({ ok: false, error: 'No pudimos conectar con el sistema. El bloqueo no fue confirmado.' });
+      setSecFeedback({
+        ok: false,
+        error: 'No pudimos conectar con el sistema. El bloqueo no fue confirmado.',
+      });
     }
   }
 
   async function handleToggleBloque(block) {
-    const endpoint = block.estado === 'BLOQUEADO' ? '/api/agendas/desbloquear' : '/api/agendas/bloquear';
+    const endpoint =
+      block.estado === 'BLOQUEADO' ? '/api/agendas/desbloquear' : '/api/agendas/bloquear';
     try {
       const result = await requestApi(endpoint, {
-        method: 'POST', token: secretaryToken, onUnauthorized: handleSecretaryUnauthorized,
-        body: { agenda_id: block.agenda_id, motivo: secMotivoBloqueo || 'Bloqueo manual por secretaría (MED-10)' },
+        method: 'POST',
+        token: secretaryToken,
+        onUnauthorized: handleSecretaryUnauthorized,
+        body: {
+          agenda_id: block.agenda_id,
+          motivo: secMotivoBloqueo || 'Bloqueo manual por secretaría (MED-10)',
+        },
       });
       if (!result.ok) setSecFeedback(result.data);
-      else { fetchSecAgendas(); refreshAvailability(); }
+      else {
+        fetchSecAgendas();
+        refreshAvailability();
+      }
     } catch {
-      setSecFeedback({ ok: false, error: 'No pudimos conectar con el sistema. El estado del bloque no fue confirmado.' });
+      setSecFeedback({
+        ok: false,
+        error: 'No pudimos conectar con el sistema. El estado del bloque no fue confirmado.',
+      });
     }
   }
 
@@ -303,21 +383,59 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
   }
 
   const state = {
-    secretaryView, secretaryToken, secretaryPassword, secretaryError,
-    receptionBlock, receptionDialogRef, receptionData, receptionError,
-    receptionFieldErrors, submittingReception, especialidades, medicos,
-    catalogosLoading, catalogosError, pendingMedicoDraft, secMedicoId,
-    secFecha, secHoraInicio, secHoraFin, secDuracion, secMotivoBloqueo,
-    secAgendas, secFeedback, secError, scheduleDetailsOpen, todayStr,
+    secretaryView,
+    secretaryToken,
+    secretaryPassword,
+    secretaryError,
+    receptionBlock,
+    receptionDialogRef,
+    receptionData,
+    receptionError,
+    receptionFieldErrors,
+    submittingReception,
+    especialidades,
+    medicos,
+    catalogosLoading,
+    catalogosError,
+    pendingMedicoDraft,
+    secMedicoId,
+    secFecha,
+    secHoraInicio,
+    secHoraFin,
+    secDuracion,
+    secMotivoBloqueo,
+    secAgendas,
+    secFeedback,
+    secError,
+    scheduleDetailsOpen,
+    todayStr,
   };
   const actions = {
-    setSecretaryView, setSecretaryPassword, loginSecretary, setPendingMedicoDraft,
-    refreshDoctorCatalogs, handleDoctorSessionExpired, logoutSecretary,
-    setSecMedicoId, setSecFeedback, setSecError, setScheduleDetailsOpen,
-    setSecHoraInicio, setSecHoraFin, setSecDuracion, setSecMotivoBloqueo,
-    handleConfigurarAgenda, handleBloquearDia, setSecFecha, moveSecretaryDate,
-    fetchSecAgendas, openReceptionBooking, handleToggleBloque,
-    closeReceptionBooking, submitReceptionBooking, updateReceptionField,
+    setSecretaryView,
+    setSecretaryPassword,
+    loginSecretary,
+    setPendingMedicoDraft,
+    refreshDoctorCatalogs,
+    handleDoctorSessionExpired,
+    logoutSecretary,
+    setSecMedicoId,
+    setSecFeedback,
+    setSecError,
+    setScheduleDetailsOpen,
+    setSecHoraInicio,
+    setSecHoraFin,
+    setSecDuracion,
+    setSecMotivoBloqueo,
+    handleConfigurarAgenda,
+    handleBloquearDia,
+    setSecFecha,
+    moveSecretaryDate,
+    fetchSecAgendas,
+    openReceptionBooking,
+    handleToggleBloque,
+    closeReceptionBooking,
+    submitReceptionBooking,
+    updateReceptionField,
     receptionDialogRef,
     formatRutInput,
   };

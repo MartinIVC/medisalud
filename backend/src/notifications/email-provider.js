@@ -2,12 +2,24 @@ async function deliverEmail({ to, subject, text, signal }, env = process.env) {
   if (env.SENDGRID_API_KEY && env.SENDGRID_FROM) {
     const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${env.SENDGRID_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ personalizations: [{ to: [{ email: to }] }], from: { email: env.SENDGRID_FROM }, subject, content: [{ type: 'text/plain', value: text }] }),
+      headers: {
+        Authorization: `Bearer ${env.SENDGRID_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        personalizations: [{ to: [{ email: to }] }],
+        from: { email: env.SENDGRID_FROM },
+        subject,
+        content: [{ type: 'text/plain', value: text }],
+      }),
       signal,
     });
     if (!response.ok) throw new Error(`SendGrid respondió HTTP ${response.status}`);
-    return { status: 'ACEPTADO', provider: 'SendGrid', providerId: response.headers.get('x-message-id') || null };
+    return {
+      status: 'ACEPTADO',
+      provider: 'SendGrid',
+      providerId: response.headers.get('x-message-id') || null,
+    };
   }
 
   if (env.SMTP_HOST) {
@@ -23,7 +35,12 @@ async function deliverEmail({ to, subject, text, signal }, env = process.env) {
     });
     let result;
     try {
-      result = await transporter.sendMail({ from: env.SMTP_FROM || env.SMTP_USER, to, subject, text });
+      result = await transporter.sendMail({
+        from: env.SMTP_FROM || env.SMTP_USER,
+        to,
+        subject,
+        text,
+      });
     } finally {
       transporter.close();
     }

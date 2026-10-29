@@ -2,7 +2,11 @@ const { app } = require('./app');
 const { pool } = require('./db');
 const { processNotificationQueue } = require('./notifications/queue');
 
-function start({ port = Number(process.env.PORT || 4000), database = pool, notificationWorker = processNotificationQueue } = {}) {
+function start({
+  port = Number(process.env.PORT || 4000),
+  database = pool,
+  notificationWorker = processNotificationQueue,
+} = {}) {
   let processingQueue = false;
   const processNotifications = async () => {
     if (processingQueue) return;
@@ -27,7 +31,9 @@ function start({ port = Number(process.env.PORT || 4000), database = pool, notif
     server,
     async close() {
       clearInterval(timer);
-      await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+      await new Promise((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
       await database.end();
     },
   };
@@ -35,10 +41,14 @@ function start({ port = Number(process.env.PORT || 4000), database = pool, notif
 
 if (require.main === module) {
   const running = start();
-  const shutdown = () => running.close().then(() => process.exit(0)).catch((error) => {
-    console.error('[Medisalud Backend] Error al cerrar:', error.message);
-    process.exit(1);
-  });
+  const shutdown = () =>
+    running
+      .close()
+      .then(() => process.exit(0))
+      .catch((error) => {
+        console.error('[Medisalud Backend] Error al cerrar:', error.message);
+        process.exit(1);
+      });
   process.once('SIGINT', shutdown);
   process.once('SIGTERM', shutdown);
 }

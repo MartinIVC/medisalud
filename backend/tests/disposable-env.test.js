@@ -12,13 +12,24 @@ test('integration tests require an explicitly local disposable database and API'
   assert.equal(parsed.database.name, 'medisalud_test');
   assert.equal(parsed.apiUrl, validEnvironment.TEST_API_URL);
   assert.throws(() => requireDisposableTestEnvironment({}), /TEST_DATABASE_URL y TEST_API_URL/);
-  assert.throws(() => requireDisposableTestEnvironment({
-    ...validEnvironment,
-    TEST_DATABASE_URL: 'postgresql://user:secret@db.example.com/medisalud_test',
-  }), /base local descartable/);
-  assert.throws(() => requireDisposableTestEnvironment({
-    ...validEnvironment,
-    TEST_DATABASE_URL: 'postgresql://user:secret@localhost/medisalud',
-  }), /base local descartable/);
-  assert.throws(() => requireDisposableTestEnvironment({ ...validEnvironment, DB_NAME: 'medisalud' }), /no coincide/);
+  assert.throws(
+    () =>
+      requireDisposableTestEnvironment({
+        ...validEnvironment,
+        TEST_DATABASE_URL: 'postgresql://user:secret@db.example.com/medisalud_test',
+      }),
+    /base local descartable/,
+  );
+  assert.throws(
+    () =>
+      requireDisposableTestEnvironment({
+        ...validEnvironment,
+        TEST_DATABASE_URL: 'postgresql://user:secret@localhost/medisalud',
+      }),
+    /base local descartable/,
+  );
+  assert.throws(
+    () => requireDisposableTestEnvironment({ ...validEnvironment, DB_NAME: 'medisalud' }),
+    /no coincide/,
+  );
 });

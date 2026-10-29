@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "description": "Motor de Reservas y Gestión de Agendas Medisalud (Sprint 1: MED-15, MED-9, MED-10, MED-11, MED-16)",
   "main": "src/index.js",
-  "engines": { "node": ">=22.13 <27" },
+  "engines": {
+    "node": ">=22.13 <27"
+  },
   "scripts": {
     "start": "node src/index.js",
     "test": "node --test",

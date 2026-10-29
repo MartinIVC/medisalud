@@ -9,7 +9,9 @@ const router = express.Router();
  * GET /api/especialidades
  * Lista las especialidades médicas con conteo de profesionales activos
  */
-router.get('/especialidades', asyncHandler(async (_req, res) => {
+router.get(
+  '/especialidades',
+  asyncHandler(async (_req, res) => {
     const result = await pool.query(`
       SELECT
         e.id,
@@ -22,16 +24,26 @@ router.get('/especialidades', asyncHandler(async (_req, res) => {
       ORDER BY e.id ASC
     `);
     res.json({ ok: true, especialidades: result.rows });
-}));
+  }),
+);
 
 /**
  * GET /api/medicos?especialidad_id=
  * Lista los médicos activos (filtrables por especialidad)
  */
-router.get('/medicos', asyncHandler(async (req, res) => {
+router.get(
+  '/medicos',
+  asyncHandler(async (req, res) => {
     const { especialidad_id } = req.query;
-    if (especialidad_id !== undefined && (typeof especialidad_id !== 'string' || !/^\d+$/.test(especialidad_id) || !positiveInteger(Number(especialidad_id)))) {
-      return sendError(res, 400, 'VALIDATION_ERROR', 'Indica una especialidad válida.', { especialidad_id: 'Selecciona una especialidad válida.' });
+    if (
+      especialidad_id !== undefined &&
+      (typeof especialidad_id !== 'string' ||
+        !/^\d+$/.test(especialidad_id) ||
+        !positiveInteger(Number(especialidad_id)))
+    ) {
+      return sendError(res, 400, 'VALIDATION_ERROR', 'Indica una especialidad válida.', {
+        especialidad_id: 'Selecciona una especialidad válida.',
+      });
     }
     const params = [];
     let whereClause = 'WHERE m.activo = TRUE';
@@ -56,10 +68,11 @@ router.get('/medicos', asyncHandler(async (req, res) => {
       ${whereClause}
       ORDER BY e.id ASC, m.nombre ASC
       `,
-      params
+      params,
     );
     res.json({ ok: true, medicos: result.rows });
-}));
+  }),
+);
 
 /**
  * GET /api/disponibilidad
@@ -67,19 +80,42 @@ router.get('/medicos', asyncHandler(async (req, res) => {
  * Filtra bloques con estado = 'DISPONIBLE' (excluyendo RESERVADO y BLOQUEADO - CA-02)
  * Mide explícitamente la latencia en PostgreSQL para certificar el umbral < 2,0 s (CA-01).
  */
-router.get('/disponibilidad', asyncHandler(async (req, res) => {
-  const startHr = process.hrtime.bigint();
+router.get(
+  '/disponibilidad',
+  asyncHandler(async (req, res) => {
+    const startHr = process.hrtime.bigint();
     const { especialidad_id, medico_id, fecha_desde, fecha_hasta, fecha } = req.query;
     const fields = {};
-    for (const [field, value] of [['especialidad_id', especialidad_id], ['medico_id', medico_id]]) {
-      if (value !== undefined && (typeof value !== 'string' || !/^\d+$/.test(value) || !positiveInteger(Number(value)))) fields[field] = 'Selecciona una opción válida.';
+    for (const [field, value] of [
+      ['especialidad_id', especialidad_id],
+      ['medico_id', medico_id],
+    ]) {
+      if (
+        value !== undefined &&
+        (typeof value !== 'string' || !/^\d+$/.test(value) || !positiveInteger(Number(value)))
+      )
+        fields[field] = 'Selecciona una opción válida.';
     }
-    for (const [field, value] of [['fecha', fecha], ['fecha_desde', fecha_desde], ['fecha_hasta', fecha_hasta]]) {
-      if (value !== undefined && !isValidDate(value)) fields[field] = 'Ingresa una fecha real con formato AAAA-MM-DD.';
+    for (const [field, value] of [
+      ['fecha', fecha],
+      ['fecha_desde', fecha_desde],
+      ['fecha_hasta', fecha_hasta],
+    ]) {
+      if (value !== undefined && !isValidDate(value))
+        fields[field] = 'Ingresa una fecha real con formato AAAA-MM-DD.';
     }
-    if (fecha !== undefined && (fecha_desde !== undefined || fecha_hasta !== undefined)) fields.fecha = 'Usa fecha o un rango de fechas, no ambos.';
-    if (fecha_desde && fecha_hasta && fecha_desde > fecha_hasta) fields.fecha_hasta = 'La fecha de término debe ser igual o posterior al inicio.';
-    if (Object.keys(fields).length) return sendError(res, 400, 'VALIDATION_ERROR', 'Revisa los filtros de disponibilidad.', fields);
+    if (fecha !== undefined && (fecha_desde !== undefined || fecha_hasta !== undefined))
+      fields.fecha = 'Usa fecha o un rango de fechas, no ambos.';
+    if (fecha_desde && fecha_hasta && fecha_desde > fecha_hasta)
+      fields.fecha_hasta = 'La fecha de término debe ser igual o posterior al inicio.';
+    if (Object.keys(fields).length)
+      return sendError(
+        res,
+        400,
+        'VALIDATION_ERROR',
+        'Revisa los filtros de disponibilidad.',
+        fields,
+      );
     const params = [];
     const conditions = [
       `a.estado = 'DISPONIBLE'`,
@@ -102,7 +138,9 @@ router.get('/disponibilidad', asyncHandler(async (req, res) => {
       params.push(fecha);
       conditions.push(`a.fecha = $${params.length}::DATE`);
     } else {
-      const desde = fecha_desde || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date());
+      const desde =
+        fecha_desde ||
+        new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date());
       params.push(desde);
       conditions.push(`a.fecha >= $${params.length}::DATE`);
 
@@ -145,6 +183,7 @@ router.get('/disponibilidad', asyncHandler(async (req, res) => {
       total_cupos_libres: result.rows.length,
       bloques: result.rows,
     });
-}));
+  }),
+);
 
 module.exports = router;

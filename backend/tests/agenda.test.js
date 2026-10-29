@@ -6,7 +6,10 @@ test('la generación de bloques no cruza medianoche ni trunca la hora de fin', (
   const intervals = generateIntervals('09:00', '23:59', 30);
   assert.equal(intervals.length, 29);
   assert.deepEqual(intervals.at(-1), { start: '23:00', end: '23:30' });
-  assert.equal(intervals.some(({ end }) => end === '00:00'), false);
+  assert.equal(
+    intervals.some(({ end }) => end === '00:00'),
+    false,
+  );
 });
 
 test('la generación omite un rango menor que el bloque y admite duraciones válidas', () => {
@@ -28,10 +31,13 @@ test('reconfigurar conserva los bloques disponibles que tienen citas históricas
           if (sql.startsWith('SELECT 1 FROM bloqueos_agenda')) return { rowCount: 0, rows: [] };
           if (sql.startsWith('SELECT COUNT(*)')) return { rowCount: 1, rows: [{ total: 1 }] };
           if (sql.startsWith('DELETE FROM agendas')) return { rowCount: 3, rows: [] };
-          if (sql.startsWith('WITH requested')) return { rowCount: 2, rows: [{ id: 11 }, { id: 12 }] };
+          if (sql.startsWith('WITH requested'))
+            return { rowCount: 2, rows: [{ id: 11 }, { id: 12 }] };
           return { rowCount: 0, rows: [] };
         },
-        release() { released = true; },
+        release() {
+          released = true;
+        },
       };
     },
   };

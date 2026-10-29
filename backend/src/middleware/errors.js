@@ -28,13 +28,22 @@ function sendError(res, status, code, message, fields, legacyCode = code) {
 function errorHandler(error, _req, res, _next) {
   if (res.headersSent) return;
   if (error.type === 'entity.parse.failed') {
-    return sendError(res, 400, 'INVALID_JSON', 'El cuerpo de la solicitud no contiene JSON válido.');
+    return sendError(
+      res,
+      400,
+      'INVALID_JSON',
+      'El cuerpo de la solicitud no contiene JSON válido.',
+    );
   }
 
-  const status = error.status || (['ECONNREFUSED', 'ETIMEDOUT', '53300'].includes(error.code) ? 503 : 500);
-  const code = error.status && error.code && typeof error.code === 'string' && /^[A-Z_]+$/.test(error.code)
-    ? error.code
-    : status === 503 ? 'SERVICE_UNAVAILABLE' : 'INTERNAL_ERROR';
+  const status =
+    error.status || (['ECONNREFUSED', 'ETIMEDOUT', '53300'].includes(error.code) ? 503 : 500);
+  const code =
+    error.status && error.code && typeof error.code === 'string' && /^[A-Z_]+$/.test(error.code)
+      ? error.code
+      : status === 503
+        ? 'SERVICE_UNAVAILABLE'
+        : 'INTERNAL_ERROR';
   if (status >= 500) console.error('[API] Error no controlado:', error.message);
   const message = status >= 500 ? 'Ocurrió un error interno. Intenta nuevamente.' : error.message;
   return sendError(res, status, code, message, error.fields);
