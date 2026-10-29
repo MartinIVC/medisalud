@@ -1,8 +1,8 @@
 const { app } = require('./app');
 const { pool } = require('./db');
-const { processEmailQueue } = require('./utils/mailer');
+const { processNotificationQueue } = require('./notifications/queue');
 
-function start({ port = Number(process.env.PORT || 4000), database = pool, notificationWorker = processEmailQueue } = {}) {
+function start({ port = Number(process.env.PORT || 4000), database = pool, notificationWorker = processNotificationQueue } = {}) {
   let processingQueue = false;
   const processNotifications = async () => {
     if (processingQueue) return;

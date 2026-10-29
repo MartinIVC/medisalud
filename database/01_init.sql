@@ -91,12 +91,16 @@ CREATE TABLE IF NOT EXISTS notificaciones (
     proveedor VARCHAR(40),
     proveedor_id VARCHAR(255),
     reintentar_en TIMESTAMP WITH TIME ZONE,
+    claim_token UUID,
+    claimed_at TIMESTAMP WITH TIME ZONE,
+    lease_until TIMESTAMP WITH TIME ZONE,
     programado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     enviado_en TIMESTAMP WITH TIME ZONE,
     creado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_notificacion_cita_canal_tipo UNIQUE (cita_id, canal, tipo)
 );
 CREATE INDEX IF NOT EXISTS idx_notificaciones_pendientes ON notificaciones(estado, programado_en);
+CREATE INDEX IF NOT EXISTS idx_notificaciones_toma_vencida ON notificaciones(lease_until) WHERE estado = 'ENVIANDO';
 
 CREATE TABLE IF NOT EXISTS bloqueos_agenda (
     id BIGSERIAL PRIMARY KEY,
