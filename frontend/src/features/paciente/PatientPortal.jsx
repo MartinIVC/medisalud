@@ -1,20 +1,67 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   Calendar,
+  Check,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
   Clock,
+  Copy,
+  HeartPulse,
   Mail,
+  MapPin,
   Phone,
+  Printer,
   Search,
   ShieldCheck,
+  Sparkles,
   Stethoscope,
+  Sun,
+  Sunset,
+  Ticket,
   User,
+  Zap,
 } from 'lucide-react';
 import { formatRutInput } from '../../utils/rut.js';
 import { onlyMobileSubscriberDigits, parseChileanMobileDigits } from '../../utils/phone.js';
+
+function getDoctorInitials(name = '') {
+  const clean = name.replace(/^(dr\.?|dra\.?)\s+/i, '').trim();
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'MD';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
+function buildQuickDates(baseDateStr) {
+  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(
+    new Date(),
+  );
+  const startStr = baseDateStr && baseDateStr < todayStr ? baseDateStr : todayStr;
+  const base = new Date(`${startStr}T12:00:00Z`);
+  if (Number.isNaN(base.getTime())) return [];
+
+  return Array.from({ length: 7 }, (_, idx) => {
+    const d = new Date(base);
+    d.setUTCDate(base.getUTCDate() + idx);
+    const iso = d.toISOString().slice(0, 10);
+    const weekday = d
+      .toLocaleDateString('es-CL', { weekday: 'short', timeZone: 'UTC' })
+      .replace('.', '');
+    const dayNum = d.toLocaleDateString('es-CL', { day: '2-digit', timeZone: 'UTC' });
+    const monthShort = d
+      .toLocaleDateString('es-CL', { month: 'short', timeZone: 'UTC' })
+      .replace('.', '');
+    return {
+      iso,
+      weekday,
+      dayNum,
+      monthShort,
+      isToday: iso === todayStr,
+    };
+  });
+}
 
 export default function PatientPortal({ state, actions }) {
   const {
@@ -56,9 +103,12 @@ export default function PatientPortal({ state, actions }) {
     setSelectedMedico,
   } = actions;
 
+  const [copiedCode, setCopiedCode] = useState(false);
   const bookingFormRef = useRef(null);
   const bookingHeadingRef = useRef(null);
   const shouldScrollToBookingRef = useRef(false);
+
+  const quickDates = useMemo(() => buildQuickDates(selectedFecha), [selectedFecha]);
 
   const scrollToBookingForm = useCallback(() => {
     const formSection = bookingFormRef.current;
@@ -82,64 +132,261 @@ export default function PatientPortal({ state, actions }) {
     scrollToBookingForm();
   }, [selectedBloque, scrollToBookingForm]);
 
+  const activeStepIndex = selectedBloque ? (bookingStep === 'datos' ? 1 : 2) : 0;
+
+  function handleCopyCode(code) {
+    if (!code || !navigator?.clipboard?.writeText) return;
+    navigator.clipboard.writeText(code).then(() => {
+      setCopiedCode(true);
+      window.setTimeout(() => setCopiedCode(false), 2200);
+    });
+  }
+
   return (
     <div className="space-y-6 sm:space-y-8">
-      <section className="relative isolate overflow-hidden rounded-3xl bg-gradient-to-r from-teal-950 via-teal-900 to-emerald-900 p-6 text-white shadow-lg shadow-teal-950/10 sm:p-8 lg:p-10">
-        <div className="pointer-events-none absolute -right-12 -top-20 -z-10 h-64 w-64 rounded-full bg-emerald-400/10 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-32 right-1/3 -z-10 h-64 w-64 rounded-full bg-teal-300/10 blur-3xl" />
-        <div className="relative max-w-3xl">
-          <p className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold tracking-wide text-teal-100">
-            <Stethoscope className="h-4 w-4" aria-hidden="true" />
-            Atención médica, más simple
-          </p>
-          <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">Reserva tu hora</h1>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-teal-100 sm:text-base">
-          Elige un horario, completa tus datos y confirma tu reserva.
-          </p>
-        </div>
-        <ol aria-label="Pasos de la reserva" className="relative mt-7 flex flex-wrap items-center gap-2 text-sm sm:gap-3">
-          {['Elegir hora', 'Tus datos', 'Revisar y reservar'].map((step, index) => (
-            <li
-              key={step}
-              className={`flex items-center gap-2 rounded-full border px-3 py-2 transition ${index === (selectedBloque ? (bookingStep === 'datos' ? 1 : 2) : 0) ? 'border-white bg-white text-teal-950 shadow-sm' : 'border-white/15 bg-white/5 text-teal-100'}`}
+      {/* Hero Bio-Editorial con Pulso EKG y Telemetría en Vivo */}
+      <section className="bg-hero-mesh relative isolate overflow-hidden rounded-3xl border border-teal-800/40 p-6 text-white shadow-clinical-lg sm:p-8 lg:p-10">
+        {/* Onda EKG decorativa de fondo */}
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 900 140"
+          className="pointer-events-none absolute -bottom-3 right-0 -z-10 h-36 w-full max-w-3xl opacity-25"
+          fill="none"
+        >
+          <path
+            d="M0 90 H240 L270 60 L295 115 L325 20 L355 125 L380 75 L405 90 H620 L650 55 L675 110 L705 30 L735 120 L760 85 H900"
+            stroke="url(#ekgGrad)"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeDasharray="240"
+            className="animate-ekg-pulse"
+          />
+          <defs>
+            <linearGradient
+              id="ekgGrad"
+              x1="0"
+              y1="0"
+              x2="900"
+              y2="0"
+              gradientUnits="userSpaceOnUse"
             >
-              <span className={`grid h-6 w-6 place-items-center rounded-full text-xs font-bold ${index === (selectedBloque ? (bookingStep === 'datos' ? 1 : 2) : 0) ? 'bg-teal-700 text-white' : 'bg-white/10 text-white'}`}>
-                {index + 1}
-              </span>
-              <span className="font-semibold">{step}</span>
-            </li>
-          ))}
-        </ol>
-      </section>
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3 lg:gap-8">
-        {/* Columna Izquierda: Filtros A-01 (MED-9) */}
-        <section className="h-fit rounded-2xl border border-teal-200 bg-teal-100/70 p-5 shadow-md shadow-teal-950/5 sm:p-6 lg:sticky lg:top-28">
-          <div className="-mx-5 -mt-5 mb-5 rounded-t-2xl border-b border-teal-100 bg-gradient-to-br from-teal-100/90 to-teal-50/60 p-5 sm:-mx-6 sm:-mt-6 sm:p-6">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <span className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-teal-700">
-                <span className="grid h-8 w-8 place-items-center rounded-xl bg-white text-teal-700 shadow-sm ring-1 ring-teal-100">
-                  <Search className="h-4 w-4" aria-hidden="true" />
-                </span>
-                Encuentra tu consulta
-              </span>
-              <span className="rounded-full border border-teal-100 bg-white px-2.5 py-1 text-[11px] font-semibold text-teal-800 shadow-sm">
-                Paso 1 de 3
-              </span>
+              <stop offset="0%" stopColor="#2dd4bf" stopOpacity="0" />
+              <stop offset="45%" stopColor="#5eead4" stopOpacity="0.9" />
+              <stop offset="85%" stopColor="#34d399" stopOpacity="1" />
+              <stop offset="100%" stopColor="#34d399" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+        </svg>
+
+        <div className="grid grid-cols-1 items-center gap-6 lg:grid-cols-12">
+          <div className="lg:col-span-7">
+            <div className="inline-flex items-center gap-2 rounded-full border border-teal-300/25 bg-teal-950/50 px-3.5 py-1.5 text-xs font-semibold tracking-wide text-emerald-300 backdrop-blur-md">
+              <HeartPulse className="h-4 w-4 text-emerald-400" aria-hidden="true" />
+              <span>Agenda Ambulatoria Digital · Confirmación Inmediata</span>
             </div>
-            <h2 className="text-xl font-bold tracking-tight text-slate-900">Elige tu hora</h2>
-            <p className="mt-1.5 text-sm leading-5 text-slate-500">
-              Filtra por especialidad, profesional y fecha para ver los cupos disponibles.
+            <h1 className="font-display mt-4 text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-[2.65rem] lg:leading-[1.12]">
+              Reserva tu hora médica con precisión y sin esperas
+            </h1>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-teal-100/85 sm:text-base">
+              Explora la disponibilidad en tiempo real de nuestros especialistas, selecciona el
+              bloque que mejor se adapte a tu rutina y obtén tu pase clínico digital al instante.
             </p>
           </div>
 
-          <div className="space-y-4">
+          {/* Tarjetas de telemetría rápida */}
+          <div className="grid grid-cols-3 gap-2.5 sm:gap-3 lg:col-span-5">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.07] p-3.5 backdrop-blur-md">
+              <span className="flex items-center gap-1.5 text-[11px] font-medium text-teal-200/80">
+                <Calendar className="h-3.5 w-3.5 text-emerald-300" aria-hidden="true" />
+                Cupos libres
+              </span>
+              <p className="mt-1.5 font-mono text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                {loadingDisp ? '…' : disponibilidad.total_cupos_libres || 0}
+              </p>
+              <span className="mt-0.5 block text-[11px] text-emerald-300/90">Para la fecha</span>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.07] p-3.5 backdrop-blur-md">
+              <span className="flex items-center gap-1.5 text-[11px] font-medium text-teal-200/80">
+                <Stethoscope className="h-3.5 w-3.5 text-teal-300" aria-hidden="true" />
+                Médicos
+              </span>
+              <p className="mt-1.5 font-mono text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                {medicosFiltrados.length}
+              </p>
+              <span className="mt-0.5 block text-[11px] text-teal-200/80">Habilitados</span>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.07] p-3.5 backdrop-blur-md">
+              <span className="flex items-center gap-1.5 text-[11px] font-medium text-teal-200/80">
+                <Zap className="h-3.5 w-3.5 text-amber-300" aria-hidden="true" />
+                Respuesta
+              </span>
+              <p className="mt-1.5 font-mono text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                {disponibilidad.latencia_ms || 0}
+                <span className="ml-0.5 text-xs font-normal text-teal-200">ms</span>
+              </p>
+              <span className="mt-0.5 block text-[11px] text-teal-200/80">Tiempo real</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Riel de progreso de 3 pasos */}
+        <div className="mt-7 border-t border-white/10 pt-5">
+          <ol
+            aria-label="Pasos de la reserva"
+            className="flex flex-wrap items-center gap-2 text-sm sm:gap-3"
+          >
+            {[
+              { label: 'Elegir hora', sub: 'Especialidad y bloque' },
+              { label: 'Tus datos', sub: 'Ficha del paciente' },
+              { label: 'Revisar y reservar', sub: 'Pase confirmado' },
+            ].map((step, index) => {
+              const isCurrent = index === activeStepIndex;
+              const isCompleted =
+                index < activeStepIndex || (index === 2 && reservaResult?.type === 'success');
+              return (
+                <li
+                  key={step.label}
+                  className={`flex items-center gap-3 rounded-2xl border px-3.5 py-2 transition-all duration-200 ${
+                    isCurrent
+                      ? 'border-white bg-white text-teal-950 shadow-md shadow-teal-950/20'
+                      : isCompleted
+                        ? 'border-emerald-400/40 bg-emerald-500/20 text-emerald-100'
+                        : 'border-white/15 bg-white/5 text-teal-100/80'
+                  }`}
+                >
+                  <span
+                    className={`grid h-7 w-7 place-items-center rounded-xl font-mono text-xs font-bold ${
+                      isCurrent
+                        ? 'bg-teal-800 text-white'
+                        : isCompleted
+                          ? 'bg-emerald-400 text-teal-950'
+                          : 'bg-white/10 text-white'
+                    }`}
+                  >
+                    {isCompleted ? (
+                      <Check className="h-4 w-4" aria-hidden="true" />
+                    ) : (
+                      `0${index + 1}`
+                    )}
+                  </span>
+                  <div className="leading-tight">
+                    <span className="block font-semibold">{step.label}</span>
+                    <span
+                      className={`hidden text-[11px] sm:block ${
+                        isCurrent ? 'text-teal-700' : 'text-teal-200/70'
+                      }`}
+                    >
+                      {step.sub}
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      </section>
+
+      {/* Cinta rápida de especialidades médicas */}
+      {especialidades.length > 0 && (
+        <div
+          aria-label="Filtro rápido por especialidad"
+          className="no-print flex items-center gap-2 overflow-x-auto pb-1 pt-0.5"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              resetRequestKey();
+              setSelectedEsp('');
+              setSelectedMedico('');
+              setSelectedBloque(null);
+              setReservaResult(null);
+            }}
+            className={`inline-flex shrink-0 items-center gap-2 rounded-2xl border px-4 py-2 text-xs font-semibold transition-all ${
+              selectedEsp === ''
+                ? 'border-teal-800 bg-teal-900 text-white shadow-sm'
+                : 'border-slate-200/90 bg-white text-slate-700 hover:border-teal-300 hover:bg-teal-50/50'
+            }`}
+          >
+            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+            Todas las especialidades
+          </button>
+          {especialidades.map((esp) => {
+            const active = String(selectedEsp) === String(esp.id);
+            return (
+              <button
+                key={esp.id}
+                type="button"
+                onClick={() => {
+                  resetRequestKey();
+                  setSelectedEsp(String(esp.id));
+                  setSelectedMedico('');
+                  setSelectedBloque(null);
+                  setReservaResult(null);
+                }}
+                className={`inline-flex shrink-0 items-center gap-2 rounded-2xl border px-3.5 py-2 text-xs font-semibold transition-all ${
+                  active
+                    ? 'border-teal-800 bg-teal-900 text-white shadow-sm'
+                    : 'border-slate-200/90 bg-white text-slate-700 hover:border-teal-300 hover:bg-teal-50/50'
+                }`}
+              >
+                <Stethoscope className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>{esp.nombre}</span>
+                <span
+                  className={`rounded-full px-1.5 py-0.2 font-mono text-[10px] ${
+                    active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {esp.total_medicos}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3 lg:gap-8">
+        {/* Columna Izquierda: Consola de Filtros A-01 (MED-9) */}
+        <section className="no-print h-fit overflow-hidden rounded-3xl border border-teal-900/10 bg-white shadow-clinical lg:sticky lg:top-24">
+          <div className="border-b border-slate-100 bg-gradient-to-br from-teal-900 via-teal-800 to-emerald-900 p-5 text-white sm:p-6">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <span className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-300">
+                <span className="grid h-8 w-8 place-items-center rounded-xl bg-white/10 text-emerald-300 ring-1 ring-white/15">
+                  <Search className="h-4 w-4" aria-hidden="true" />
+                </span>
+                Buscador Clínico
+              </span>
+              <span className="rounded-full border border-white/15 bg-white/10 px-2.5 py-1 font-mono text-[11px] font-semibold text-teal-100">
+                Paso 1 de 3
+              </span>
+            </div>
+            <h2 className="font-display text-xl font-bold tracking-tight text-white">
+              Elige tu hora
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-teal-100/85">
+              Filtra por especialidad, profesional y fecha para explorar los bloques disponibles.
+            </p>
+          </div>
+
+          <div className="space-y-4 p-5 sm:p-6">
             <div>
-              <label htmlFor="patient-specialty" className="mb-1.5 block text-sm font-semibold text-slate-700">
+              <label
+                htmlFor="patient-specialty"
+                className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600"
+              >
                 Especialidad Médica
               </label>
               <div className="relative">
-                <Stethoscope className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-                <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                <Stethoscope
+                  className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-teal-700"
+                  aria-hidden="true"
+                />
+                <ChevronDown
+                  className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                  aria-hidden="true"
+                />
                 <select
                   id="patient-specialty"
                   value={selectedEsp}
@@ -150,7 +397,7 @@ export default function PatientPortal({ state, actions }) {
                     setSelectedBloque(null);
                     setReservaResult(null);
                   }}
-                  className="min-h-12 w-full appearance-none rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-3 text-sm shadow-sm transition focus:border-teal-600 focus:outline-none focus:ring-4 focus:ring-teal-600/10"
+                  className="min-h-12 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50/70 py-2 pl-10 pr-9 text-sm font-medium text-slate-800 shadow-sm transition focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-600/10"
                 >
                   <option value="">Todas las especialidades</option>
                   {especialidades.map((esp) => (
@@ -163,12 +410,21 @@ export default function PatientPortal({ state, actions }) {
             </div>
 
             <div>
-              <label htmlFor="patient-doctor" className="mb-1.5 block text-sm font-semibold text-slate-700">
+              <label
+                htmlFor="patient-doctor"
+                className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600"
+              >
                 Profesional ({medicosFiltrados.length} disponibles)
               </label>
               <div className="relative">
-                <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-                <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                <User
+                  className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-teal-700"
+                  aria-hidden="true"
+                />
+                <ChevronDown
+                  className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                  aria-hidden="true"
+                />
                 <select
                   id="patient-doctor"
                   value={selectedMedico}
@@ -178,9 +434,9 @@ export default function PatientPortal({ state, actions }) {
                     setSelectedBloque(null);
                     setReservaResult(null);
                   }}
-                  className="min-h-12 w-full appearance-none rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-3 text-sm shadow-sm transition focus:border-teal-600 focus:outline-none focus:ring-4 focus:ring-teal-600/10"
+                  className="min-h-12 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50/70 py-2 pl-10 pr-9 text-sm font-medium text-slate-800 shadow-sm transition focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-600/10"
                 >
-                  <option value="">Cualquiera</option>
+                  <option value="">Cualquiera disponible</option>
                   {medicosFiltrados.map((med) => (
                     <option key={med.id} value={med.id}>
                       {med.nombre} — {med.especialidad_nombre} ({med.box_atencion})
@@ -191,11 +447,17 @@ export default function PatientPortal({ state, actions }) {
             </div>
 
             <div>
-              <label htmlFor="patient-date" className="mb-1.5 block text-sm font-semibold text-slate-700">
-                Fecha
+              <label
+                htmlFor="patient-date"
+                className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600"
+              >
+                Fecha de Atención
               </label>
               <div className="relative">
-                <Calendar className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                <Calendar
+                  className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-teal-700"
+                  aria-hidden="true"
+                />
                 <input
                   id="patient-date"
                   type="date"
@@ -206,7 +468,7 @@ export default function PatientPortal({ state, actions }) {
                     setSelectedBloque(null);
                     setReservaResult(null);
                   }}
-                  className="min-h-12 w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-3 text-sm shadow-sm transition focus:border-teal-600 focus:outline-none focus:ring-4 focus:ring-teal-600/10"
+                  className="min-h-12 w-full rounded-xl border border-slate-200 bg-slate-50/70 py-2 pl-10 pr-3 font-mono text-sm font-medium text-slate-800 shadow-sm transition focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-600/10"
                 />
               </div>
             </div>
@@ -214,56 +476,128 @@ export default function PatientPortal({ state, actions }) {
             <button
               type="button"
               onClick={fetchDisponibilidad}
-              className="mt-1 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800 hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-600/20 active:scale-[0.99]"
+              className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal-800 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-teal-950/15 transition hover:bg-teal-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-600/20 active:scale-[0.99]"
             >
               <Search className="h-4 w-4" aria-hidden="true" />
               Buscar horarios
             </button>
-            <p className="flex items-start gap-2 text-xs leading-5 text-slate-500">
-              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-teal-600" aria-hidden="true" />
-              La reserva se confirma en el siguiente paso.
-            </p>
+
+            <div className="rounded-2xl border border-teal-100 bg-teal-50/60 p-3.5">
+              <p className="flex items-start gap-2.5 text-xs leading-5 text-teal-900">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-teal-700" aria-hidden="true" />
+                <span>
+                  Tu cupo se bloquea de forma segura al confirmar tus datos en el paso final.
+                </span>
+              </p>
+            </div>
           </div>
         </section>
 
-        {/* Columna Central/Derecha: Grilla de Horarios A-02 y Formulario A-03..A-06 */}
+        {/* Columna Central/Derecha: Grilla de Horarios A-02 y Pase de Reserva A-03..A-06 */}
         <section className="space-y-6 lg:col-span-2">
-          <div className="overflow-hidden rounded-2xl border border-teal-200 bg-teal-100/70 shadow-md shadow-teal-950/5">
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-teal-100 bg-teal-100/70 p-5 sm:p-6">
-              <div className="flex min-w-0 items-start gap-3">
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-700 ring-1 ring-teal-100">
-                  <Calendar className="h-5 w-5" aria-hidden="true" />
-                </span>
-                <div className="min-w-0">
-                  <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-teal-700">Agenda de atención</p>
-                  <h2 className="text-lg font-bold tracking-tight text-slate-900">Horarios disponibles</h2>
-                  <p className="mt-1 text-sm leading-5 text-slate-500">
-                    Elige un bloque que se ajuste a tu día.
-                  </p>
+          <div className="no-print overflow-hidden rounded-3xl border border-teal-900/10 bg-white shadow-clinical">
+            {/* Cabecera de Agenda + Cinta de 7 días */}
+            <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-teal-50/40 p-5 sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex min-w-0 items-start gap-3.5">
+                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-teal-900 text-teal-100 shadow-sm">
+                    <Calendar className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="mb-0.5 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-teal-700">
+                      Cartelera Clínica
+                    </p>
+                    <h2 className="font-display text-xl font-bold tracking-tight text-slate-900">
+                      Horarios disponibles
+                    </h2>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      Selecciona un bloque horario para generar tu pase de atención.
+                    </p>
+                  </div>
+                </div>
+                <div
+                  className={`inline-flex min-h-10 items-center gap-2 rounded-2xl border px-3.5 py-1.5 text-xs font-bold ${
+                    loadingDisp
+                      ? 'border-slate-200 bg-slate-50 text-slate-500'
+                      : (disponibilidad.total_cupos_libres || 0) > 0
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                        : 'border-amber-200 bg-amber-50 text-amber-900'
+                  }`}
+                >
+                  {loadingDisp ? (
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-teal-600 border-r-transparent" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+                  )}
+                  {loadingDisp
+                    ? 'Buscando cupos…'
+                    : `${disponibilidad.total_cupos_libres || 0} cupos disponibles`}
                 </div>
               </div>
-              <div className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-semibold ${loadingDisp ? 'border-slate-200 bg-slate-50 text-slate-500' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>
-                {loadingDisp ? (
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-teal-600 border-r-transparent" />
-                ) : (
-                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                )}
-                {loadingDisp ? 'Buscando cupos…' : `${disponibilidad.total_cupos_libres || 0} cupos disponibles`}
-              </div>
+
+              {/* Cinta interactiva de próximos días */}
+              {quickDates.length > 0 && (
+                <div className="mt-5 grid grid-cols-7 gap-1.5 sm:gap-2">
+                  {quickDates.map((d) => {
+                    const isSelectedDate = d.iso === selectedFecha;
+                    return (
+                      <button
+                        key={d.iso}
+                        type="button"
+                        onClick={() => {
+                          resetRequestKey();
+                          setSelectedFecha(d.iso);
+                          setSelectedBloque(null);
+                          setReservaResult(null);
+                        }}
+                        className={`flex flex-col items-center justify-center rounded-2xl border py-2 px-1 text-center transition-all ${
+                          isSelectedDate
+                            ? 'border-teal-800 bg-teal-900 text-white shadow-md shadow-teal-950/15'
+                            : 'border-slate-200/80 bg-white text-slate-600 hover:border-teal-300 hover:bg-teal-50/40'
+                        }`}
+                      >
+                        <span
+                          className={`text-[10px] font-bold uppercase tracking-wider ${
+                            isSelectedDate ? 'text-emerald-300' : 'text-slate-400'
+                          }`}
+                        >
+                          {d.isToday ? 'Hoy' : d.weekday}
+                        </span>
+                        <span className="mt-0.5 font-mono text-base font-bold leading-none sm:text-lg">
+                          {d.dayNum}
+                        </span>
+                        <span
+                          className={`mt-0.5 text-[10px] capitalize ${
+                            isSelectedDate ? 'text-teal-100' : 'text-slate-400'
+                          }`}
+                        >
+                          {d.monthShort}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {loadingDisp ? (
               <div
                 role="status"
                 aria-live="polite"
-                className="space-y-4 bg-teal-50/70 p-5 text-sm text-slate-500 sm:p-6"
+                className="space-y-4 bg-slate-50/50 p-6 text-sm text-slate-500"
               >
                 <p className="text-center font-medium text-slate-600">
-                  Estamos consultando la agenda para esta fecha.
+                  Estamos consultando la agenda clínica para esta fecha…
                 </p>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-hidden="true">
+                <div
+                  className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
+                  aria-hidden="true"
+                >
                   {[0, 1, 2].map((item) => (
-                    <div key={item} className="animate-pulse rounded-xl border border-slate-200 bg-white p-4">
+                    <div
+                      key={item}
+                      className="animate-pulse rounded-2xl border border-slate-200 bg-white p-4"
+                    >
                       <div className="h-4 w-2/3 rounded bg-slate-200" />
                       <div className="mt-3 h-3 w-1/2 rounded bg-slate-100" />
                     </div>
@@ -273,55 +607,95 @@ export default function PatientPortal({ state, actions }) {
             ) : availabilityError ? (
               <div
                 role="alert"
-                className="mx-5 my-5 rounded-xl border border-rose-200 bg-rose-50 p-6 text-center sm:mx-6 sm:my-6"
+                className="mx-5 my-5 rounded-2xl border border-rose-200 bg-rose-50/80 p-6 text-center sm:mx-6 sm:my-6"
               >
-                <AlertCircle className="mx-auto mb-2 h-6 w-6 text-rose-600" aria-hidden="true" />
-                <p className="font-semibold text-rose-900">No pudimos cargar la información</p>
+                <AlertCircle className="mx-auto mb-2 h-7 w-7 text-rose-600" aria-hidden="true" />
+                <p className="font-bold text-rose-950">No pudimos cargar la información</p>
                 <p className="mt-1 text-sm text-rose-800">{availabilityError}</p>
                 <button
                   type="button"
                   onClick={fetchDisponibilidad}
-                  className="mt-4 min-h-11 rounded-xl bg-teal-700 px-4 font-semibold text-white shadow-sm transition hover:bg-teal-800"
+                  className="mt-4 min-h-11 rounded-xl bg-teal-800 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-900"
                 >
                   Reintentar
                 </button>
               </div>
             ) : disponibilidad.bloques?.length === 0 ? (
-              <div className="mx-5 my-5 rounded-xl border border-amber-200 bg-amber-50/70 px-5 py-8 text-center sm:mx-6 sm:my-6">
-                <Calendar className="mx-auto mb-2 h-6 w-6 text-amber-700" aria-hidden="true" />
-                <p className="font-semibold text-amber-950">
+              <div className="mx-5 my-6 rounded-2xl border border-amber-200/80 bg-gradient-to-b from-amber-50/70 to-white px-5 py-10 text-center sm:mx-6">
+                <span className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-amber-100/80 text-amber-800">
+                  <Calendar className="h-6 w-6" aria-hidden="true" />
+                </span>
+                <p className="font-display text-lg font-bold text-amber-950">
                   {medicosFiltrados.length === 0
                     ? 'No hay profesionales disponibles'
                     : 'No hay horas para esta fecha'}
                 </p>
-                <p className="mt-1 text-sm text-amber-800">
+                <p className="mx-auto mt-1 max-w-md text-sm text-amber-900/80">
                   {medicosFiltrados.length === 0
-                    ? 'Prueba otra especialidad.'
-                    : 'Prueba otra fecha o quita el filtro de profesional.'}
+                    ? 'Prueba seleccionando otra especialidad médica en el panel lateral.'
+                    : 'Selecciona otro día en la cinta superior o quita el filtro de profesional.'}
                 </p>
               </div>
             ) : (
-              <div className="space-y-6 bg-teal-50/60 p-5 sm:p-6">
+              <div className="space-y-6 bg-slate-50/40 p-5 sm:p-6">
                 {Object.entries(groupedBlocks).map(([group, blocks]) => {
                   const period = group.endsWith('· Mañana') ? 'Mañana' : 'Tarde';
                   const doctorName = group.replace(/ · (Mañana|Tarde)$/, '');
+                  const sampleBlock = blocks[0];
+                  const initials = getDoctorInitials(doctorName);
 
                   return (
-                    <section key={group} aria-label={`Horarios de ${group}`}>
-                      <div className="mb-3 flex items-center gap-3">
-                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-500">
-                          <User className="h-4 w-4" aria-hidden="true" />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <h3 className="truncate text-sm font-semibold text-slate-800">{doctorName}</h3>
-                          <p className="mt-0.5 text-xs text-slate-500">
-                            {blocks.length} {blocks.length === 1 ? 'horario' : 'horarios'}
-                          </p>
+                    <section
+                      key={group}
+                      aria-label={`Horarios de ${group}`}
+                      className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5"
+                    >
+                      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-teal-800 to-emerald-900 font-mono text-xs font-bold tracking-wider text-teal-100 shadow-sm">
+                            {initials}
+                          </span>
+                          <div className="min-w-0">
+                            <h3 className="truncate text-base font-bold text-slate-900">
+                              {doctorName}
+                            </h3>
+                            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                              <span className="font-medium text-teal-800">
+                                {sampleBlock?.especialidad_nombre}
+                              </span>
+                              {sampleBlock?.box_atencion && (
+                                <>
+                                  <span>•</span>
+                                  <span className="inline-flex items-center gap-1">
+                                    <MapPin className="h-3 w-3 text-slate-400" aria-hidden="true" />
+                                    {sampleBlock.box_atencion}
+                                  </span>
+                                </>
+                              )}
+                              <span>•</span>
+                              <span>
+                                {blocks.length} {blocks.length === 1 ? 'horario' : 'horarios'}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                        <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${period === 'Mañana' ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-200' : 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-100'}`}>
-                          {period}
+
+                        <span
+                          className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+                            period === 'Mañana'
+                              ? 'bg-amber-50 text-amber-900 ring-1 ring-amber-200/80'
+                              : 'bg-indigo-50 text-indigo-900 ring-1 ring-indigo-200/80'
+                          }`}
+                        >
+                          {period === 'Mañana' ? (
+                            <Sun className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
+                          ) : (
+                            <Sunset className="h-3.5 w-3.5 text-indigo-600" aria-hidden="true" />
+                          )}
+                          Jornada {period}
                         </span>
                       </div>
+
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                         {blocks.map((b) => {
                           const isSelected = selectedBloque?.agenda_id === b.agenda_id;
@@ -342,35 +716,56 @@ export default function PatientPortal({ state, actions }) {
                                 setReservaResult(null);
                                 setBookingStep('datos');
                               }}
-                              className={`group w-full rounded-2xl border p-4 text-left shadow-sm transition duration-150 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-600/15 ${
+                              className={`group relative w-full overflow-hidden rounded-2xl border p-4 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-600/20 ${
                                 isSelected
-                                  ? 'border-teal-600 bg-teal-50/70 ring-2 ring-teal-600/15'
-                                  : 'border-slate-200 bg-white hover:border-teal-400 hover:bg-teal-50/30 hover:shadow-md'
+                                  ? 'border-teal-700 bg-gradient-to-br from-teal-50/90 via-white to-emerald-50/60 shadow-md ring-2 ring-teal-700/20'
+                                  : 'border-slate-200/90 bg-slate-50/40 hover:-translate-y-0.5 hover:border-teal-500 hover:bg-white hover:shadow-md'
                               }`}
                             >
+                              <div
+                                className={`absolute inset-x-0 top-0 h-1 transition-colors ${
+                                  isSelected
+                                    ? 'bg-gradient-to-r from-teal-600 to-emerald-500'
+                                    : 'bg-transparent group-hover:bg-teal-500/60'
+                                }`}
+                              />
                               <div className="flex items-center justify-between gap-2">
-                                <span className="flex items-center gap-2 text-base font-bold tabular-nums text-slate-900">
-                                  <Clock className="h-4 w-4 shrink-0 text-teal-700" aria-hidden="true" />
+                                <span className="flex items-center gap-2 font-mono text-base font-bold tabular-nums text-slate-900">
+                                  <Clock
+                                    className={`h-4 w-4 shrink-0 ${
+                                      isSelected
+                                        ? 'text-teal-700'
+                                        : 'text-slate-400 group-hover:text-teal-600'
+                                    }`}
+                                    aria-hidden="true"
+                                  />
                                   {b.hora_inicio} – {b.hora_fin}
                                 </span>
-                                <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-800 ring-1 ring-emerald-200">
+                                <span className="rounded-lg bg-emerald-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-emerald-800 ring-1 ring-emerald-200/80">
                                   {b.duracion_min} min
                                 </span>
                               </div>
-                              <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
-                                <div className="flex min-w-0 items-center gap-2">
-                                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500">
-                                    <Stethoscope className="h-4 w-4" aria-hidden="true" />
-                                  </span>
-                                  <div className="min-w-0">
-                                    <p className="truncate text-xs font-semibold text-slate-800">{b.medico_nombre}</p>
-                                    <p className="mt-0.5 truncate text-[11px] text-slate-500">{b.especialidad_nombre}</p>
-                                  </div>
+                              <div className="mt-3.5 flex items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
+                                <div className="min-w-0">
+                                  <p className="truncate text-xs font-semibold text-slate-700">
+                                    {b.medico_nombre}
+                                  </p>
+                                  <p className="truncate text-[11px] text-slate-500">
+                                    {b.box_atencion
+                                      ? `${b.especialidad_nombre} · ${b.box_atencion}`
+                                      : b.especialidad_nombre}
+                                  </p>
                                 </div>
                                 {isSelected ? (
-                                  <CheckCircle2 className="h-5 w-5 shrink-0 text-teal-700" aria-hidden="true" />
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-teal-800 px-2 py-0.5 text-[10px] font-bold text-white">
+                                    <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                                    Elegido
+                                  </span>
                                 ) : (
-                                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-teal-700" aria-hidden="true" />
+                                  <ChevronRight
+                                    className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-teal-700"
+                                    aria-hidden="true"
+                                  />
                                 )}
                               </div>
                             </button>
@@ -384,65 +779,116 @@ export default function PatientPortal({ state, actions }) {
             )}
           </div>
 
-          {/* Formulario de Reserva Web con Validación de RUT (MED-11 / CU-02) */}
+          {/* Pase Clínico de Atención y Formulario de Reserva (MED-11 / CU-02) */}
           {selectedBloque && (
             <div
               ref={bookingFormRef}
-              className="scroll-mt-24 overflow-hidden rounded-2xl border border-teal-200 bg-white shadow-sm"
+              className="scroll-mt-24 overflow-hidden rounded-3xl border border-teal-900/15 bg-white shadow-clinical-lg"
             >
-              <div className="border-b border-slate-100 bg-gradient-to-r from-teal-50/80 to-white p-5 sm:p-6">
-                <div>
-                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-teal-700">
-                    <Calendar className="h-4 w-4" aria-hidden="true" />
-                    Detalles de tu cita
+              {/* Encabezado estilo Boarding Pass Clínico */}
+              <div className="bg-hero-mesh relative overflow-hidden p-5 text-white sm:p-6">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <div className="mb-1.5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 font-mono text-[11px] font-semibold uppercase tracking-wider text-emerald-300">
+                      <Ticket className="h-3.5 w-3.5" aria-hidden="true" />
+                      Pase de Atención Ambulatoria
+                    </div>
+                    <h3
+                      ref={bookingHeadingRef}
+                      tabIndex={-1}
+                      className="font-display text-xl font-bold tracking-tight text-white focus:outline-none sm:text-2xl"
+                    >
+                      {bookingStep === 'revision'
+                        ? 'Revisa tu reserva'
+                        : bookingStep === 'confirmacion'
+                          ? 'Reserva confirmada'
+                          : 'Tus datos'}
+                    </h3>
                   </div>
-                  <h3
-                    ref={bookingHeadingRef}
-                    tabIndex={-1}
-                    className="text-lg font-bold tracking-tight text-slate-900 focus:outline-none"
-                  >
-                    {bookingStep === 'revision'
-                      ? 'Revisa tu reserva'
-                      : bookingStep === 'confirmacion'
-                        ? 'Reserva confirmada'
-                        : 'Tus datos'}
-                  </h3>
-                  <p className="mt-1 text-sm leading-6 text-slate-600">
-                    {new Date(`${selectedBloque.fecha}T12:00:00`).toLocaleDateString('es-CL', {
-                      weekday: 'long',
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                    })}{' '}
-                    ·{' '}
-                    <strong>
-                      {selectedBloque.hora_inicio} a {selectedBloque.hora_fin}
-                    </strong>{' '}
-                    con <strong>{selectedBloque.medico_nombre}</strong> (
-                    {selectedBloque.especialidad_nombre})
-                  </p>
+
+                  <div className="rounded-2xl border border-white/15 bg-white/10 px-3.5 py-2 text-right backdrop-blur-md">
+                    <span className="block font-mono text-[10px] uppercase tracking-wider text-teal-200">
+                      Bloque Seleccionado
+                    </span>
+                    <span className="font-mono text-base font-bold text-white">
+                      {selectedBloque.hora_inicio} – {selectedBloque.hora_fin}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Resumen perforado del turno seleccionado */}
+                <div className="mt-4 grid grid-cols-1 gap-3 rounded-2xl border border-white/15 bg-teal-950/50 p-3.5 text-xs sm:grid-cols-3">
+                  <div>
+                    <span className="block text-[10px] uppercase tracking-wider text-teal-300/80">
+                      Profesional
+                    </span>
+                    <strong className="mt-0.5 block truncate text-sm text-white">
+                      {selectedBloque.medico_nombre}
+                    </strong>
+                    <span className="text-teal-200/80">{selectedBloque.especialidad_nombre}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] uppercase tracking-wider text-teal-300/80">
+                      Fecha programada
+                    </span>
+                    <strong className="mt-0.5 block capitalize text-sm text-white">
+                      {new Date(`${selectedBloque.fecha}T12:00:00`).toLocaleDateString('es-CL', {
+                        weekday: 'long',
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                      })}
+                    </strong>
+                    <span className="text-teal-200/80">
+                      Duración estimada: {selectedBloque.duracion_min} min
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] uppercase tracking-wider text-teal-300/80">
+                      Paciente Titular
+                    </span>
+                    <strong className="mt-0.5 block truncate text-sm text-emerald-300">
+                      {pacienteNombre.trim() || 'Pendiente de completar'}
+                    </strong>
+                    <span className="font-mono text-teal-200/80">
+                      {pacienteRut ? `RUT ${pacienteRut}` : 'Ingresa tu RUT abajo'}
+                    </span>
+                  </div>
                 </div>
               </div>
 
               {bookingStep === 'revision' && (
-                <div className="mx-5 mt-5 rounded-xl border border-teal-200 bg-teal-50 p-4 text-sm text-teal-950 sm:mx-6">
-                  <p className="flex items-center gap-2 font-semibold">
-                    <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-                    Comprueba tus datos antes de reservar
-                  </p>
-                  <p className="mt-2">
-                    {pacienteNombre} · RUT {pacienteRut}
-                  </p>
-                  <p>
-                    {pacienteEmail} · {pacienteTelefono}
-                  </p>
+                <div className="mx-5 mt-5 rounded-2xl border border-teal-200 bg-gradient-to-br from-teal-50/90 to-emerald-50/50 p-5 text-sm text-teal-950 sm:mx-6">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="flex items-center gap-2 font-bold text-teal-900">
+                      <ShieldCheck className="h-5 w-5 text-teal-700" aria-hidden="true" />
+                      Comprueba tus datos antes de reservar
+                    </p>
+                    <span className="rounded-full bg-teal-900 px-2.5 py-0.5 font-mono text-[11px] font-semibold text-emerald-200">
+                      Verificación Final
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 gap-2 rounded-xl bg-white/80 p-3.5 ring-1 ring-teal-200/70 sm:grid-cols-2">
+                    <div>
+                      <span className="text-xs text-slate-500">Paciente y RUT</span>
+                      <p className="font-semibold text-slate-900">
+                        {pacienteNombre} · <span className="font-mono">RUT {pacienteRut}</span>
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-slate-500">Contacto de notificación</span>
+                      <p className="font-semibold text-slate-900">
+                        {pacienteEmail} · <span className="font-mono">{pacienteTelefono}</span>
+                      </p>
+                    </div>
+                  </div>
                   <button
                     type="button"
                     onClick={() => {
                       setBookingStep('datos');
                       setReservaResult(null);
                     }}
-                    className="mt-2 min-h-11 font-semibold text-teal-800 underline decoration-teal-300 underline-offset-4"
+                    className="mt-3 inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-teal-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-teal-900 shadow-sm transition hover:bg-teal-50"
                   >
                     Editar mis datos
                   </button>
@@ -452,17 +898,33 @@ export default function PatientPortal({ state, actions }) {
               {bookingStep !== 'confirmacion' && (
                 <form
                   onSubmit={handleReservarSubmit}
-                  className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 sm:p-6"
+                  className="grid grid-cols-1 gap-5 p-5 sm:grid-cols-2 sm:p-6"
                 >
                   <div>
-                    <label
-                      htmlFor="patient-rut"
-                      className="mb-1.5 block text-sm font-semibold text-slate-700"
-                    >
-                      RUT *
-                    </label>
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
+                      <label
+                        htmlFor="patient-rut"
+                        className="block text-sm font-semibold text-slate-700"
+                      >
+                        RUT *
+                      </label>
+                      {rutCheck && fieldTouched.rut && (
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[10px] font-bold ${
+                            rutCheck.valid
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-rose-100 text-rose-800'
+                          }`}
+                        >
+                          {rutCheck.valid ? 'MÓDULO 11 OK' : 'RUT INVÁLIDO'}
+                        </span>
+                      )}
+                    </div>
                     <div className="relative">
-                      <ShieldCheck className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                      <ShieldCheck
+                        className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                        aria-hidden="true"
+                      />
                       <input
                         id="patient-rut"
                         type="text"
@@ -489,11 +951,11 @@ export default function PatientPortal({ state, actions }) {
                           setFieldTouched({ ...fieldTouched, rut: true });
                           setReservaResult(null);
                         }}
-                        className={`min-h-12 w-full rounded-xl border bg-white py-2 pl-10 pr-3 text-sm shadow-sm transition focus:outline-none focus:ring-4 focus:ring-teal-600/10 ${
+                        className={`min-h-12 w-full rounded-xl border bg-white py-2 pl-10 pr-3 font-mono text-sm shadow-sm transition focus:outline-none focus:ring-4 focus:ring-teal-600/10 ${
                           rutCheck
                             ? rutCheck.valid
-                              ? 'border-emerald-500 bg-emerald-50/30 focus:border-emerald-500'
-                              : 'border-rose-500 bg-rose-50/30 focus:border-rose-500 focus:ring-rose-500/10'
+                              ? 'border-emerald-500 bg-emerald-50/20 focus:border-emerald-500'
+                              : 'border-rose-500 bg-rose-50/20 focus:border-rose-500 focus:ring-rose-500/10'
                             : 'border-slate-200 focus:border-teal-600'
                         }`}
                       />
@@ -501,7 +963,7 @@ export default function PatientPortal({ state, actions }) {
                     {rutCheck && fieldTouched.rut && (
                       <p
                         id="patient-rut-local-error"
-                        className={`text-[11px] mt-1 font-medium ${
+                        className={`mt-1 text-[11px] font-medium ${
                           rutCheck.valid ? 'text-emerald-700' : 'text-rose-700'
                         }`}
                       >
@@ -527,7 +989,10 @@ export default function PatientPortal({ state, actions }) {
                       Nombre completo *
                     </label>
                     <div className="relative">
-                      <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                      <User
+                        className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                        aria-hidden="true"
+                      />
                       <input
                         id="patient-name"
                         type="text"
@@ -565,7 +1030,10 @@ export default function PatientPortal({ state, actions }) {
                       Correo electrónico *
                     </label>
                     <div className="relative">
-                      <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                      <Mail
+                        className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                        aria-hidden="true"
+                      />
                       <input
                         id="patient-email"
                         type="email"
@@ -604,8 +1072,11 @@ export default function PatientPortal({ state, actions }) {
                       Teléfono móvil *
                     </label>
                     <div className="relative mt-1 flex min-h-12 items-center rounded-xl border border-slate-200 bg-white shadow-sm transition focus-within:border-teal-600 focus-within:ring-4 focus-within:ring-teal-600/10">
-                      <Phone className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-                      <span className="ml-10 border-r border-slate-200 px-3 py-1 text-sm font-semibold text-slate-600">
+                      <Phone
+                        className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                        aria-hidden="true"
+                      />
+                      <span className="ml-10 border-r border-slate-200 px-3 py-1 font-mono text-sm font-semibold text-slate-600">
                         +569
                       </span>
                       <input
@@ -619,7 +1090,9 @@ export default function PatientPortal({ state, actions }) {
                         title="Ingresa exactamente 8 dígitos después del prefijo +569."
                         aria-invalid={Boolean(reservationFieldErrors.paciente_telefono)}
                         aria-describedby={
-                          reservationFieldErrors.paciente_telefono ? 'patient-phone-error' : undefined
+                          reservationFieldErrors.paciente_telefono
+                            ? 'patient-phone-error'
+                            : undefined
                         }
                         placeholder="12345678"
                         value={
@@ -639,7 +1112,7 @@ export default function PatientPortal({ state, actions }) {
                           );
                           setReservaResult(null);
                         }}
-                        className="min-h-12 min-w-0 flex-1 rounded-r-xl bg-transparent px-3 py-2 text-sm tracking-wide focus:outline-none"
+                        className="min-h-12 min-w-0 flex-1 rounded-r-xl bg-transparent px-3 py-2 font-mono text-sm tracking-wide focus:outline-none"
                       />
                     </div>
                     <p className="mt-1 text-xs text-slate-500">
@@ -672,7 +1145,7 @@ export default function PatientPortal({ state, actions }) {
                     <button
                       type="submit"
                       disabled={submittingReserva}
-                      className="min-h-11 rounded-xl bg-teal-700 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-600/20 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="min-h-11 rounded-xl bg-teal-800 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-teal-950/15 transition hover:bg-teal-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-600/20 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {submittingReserva
                         ? 'Procesando reserva…'
@@ -684,74 +1157,146 @@ export default function PatientPortal({ state, actions }) {
                 </form>
               )}
 
-              {/* Resultado A-05 (Éxito) o A-06 (Rechazo) */}
+              {/* Resultado A-05 (Éxito - Pase Clínico Perforado) o A-06 (Rechazo) */}
               {reservaResult && (
                 <div
-                  className={`mx-5 mb-5 overflow-hidden rounded-2xl border sm:mx-6 ${
+                  className={`mx-5 mb-6 overflow-hidden rounded-2xl border sm:mx-6 ${
                     reservaResult.type === 'success'
-                      ? 'border-emerald-200 bg-emerald-50 text-emerald-950'
+                      ? 'mt-5 border-emerald-300/80 bg-gradient-to-br from-emerald-50/90 via-white to-teal-50/60 text-slate-900 shadow-md'
                       : 'border-rose-200 bg-rose-50 text-rose-950'
                   }`}
                 >
                   {reservaResult.type === 'success' ? (
                     <div className="p-5 sm:p-6">
-                      <div className="mb-4 flex items-start gap-3">
-                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200">
-                          <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
-                        </span>
-                        <div>
-                          <h4 className="text-xl font-bold tracking-tight">Tu hora está reservada</h4>
-                          <p className="mt-1 text-sm text-emerald-800">Te enviaremos el comprobante con los detalles.</p>
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="flex items-start gap-3.5">
+                          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20">
+                            <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
+                          </span>
+                          <div>
+                            <span className="font-mono text-[11px] font-bold uppercase tracking-widest text-emerald-700">
+                              Comprobante Oficial · Medisalud
+                            </span>
+                            <h4 className="font-display text-2xl font-bold tracking-tight text-slate-900">
+                              Tu hora está reservada
+                            </h4>
+                            <p className="mt-0.5 text-sm text-slate-600">
+                              Presenta este pase digital al llegar al centro médico.
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Código de reserva con botón copiar */}
+                        <div className="flex items-center gap-2 rounded-2xl border border-emerald-300 bg-white px-4 py-2.5 shadow-sm">
+                          <div>
+                            <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                              Código de reserva
+                            </span>
+                            <strong className="font-mono text-base font-bold tracking-wider text-teal-900">
+                              {reservaResult.data.reserva.codigo_reserva}
+                            </strong>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleCopyCode(reservaResult.data.reserva.codigo_reserva)
+                            }
+                            title="Copiar código"
+                            className="no-print ml-2 inline-flex h-9 items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-xs font-semibold text-slate-700 transition hover:bg-teal-50 hover:text-teal-800"
+                          >
+                            {copiedCode ? (
+                              <>
+                                <Check
+                                  className="h-3.5 w-3.5 text-emerald-600"
+                                  aria-hidden="true"
+                                />
+                                Copiado
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                                Copiar
+                              </>
+                            )}
+                          </button>
                         </div>
                       </div>
-                      <p className="rounded-xl border border-dashed border-emerald-300 bg-white/70 px-4 py-3 text-sm">
-                        Código de reserva:{' '}
-                        <strong className="font-mono font-bold tracking-wide">
-                          {reservaResult.data.reserva.codigo_reserva}
-                        </strong>
-                      </p>
-                      <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-                        <div className="rounded-lg bg-white/60 p-3">
-                          <dt className="font-semibold">Profesional</dt>
-                          <dd>{reservaResult.data.reserva.medico_nombre}</dd>
-                        </div>
-                        <div className="rounded-lg bg-white/60 p-3">
-                          <dt className="font-semibold">Especialidad</dt>
-                          <dd>{reservaResult.data.reserva.especialidad_nombre}</dd>
-                        </div>
-                        <div className="rounded-lg bg-white/60 p-3">
-                          <dt className="font-semibold">Fecha y hora</dt>
-                          <dd>
-                            {reservaResult.data.reserva.fecha} ·{' '}
-                            {reservaResult.data.reserva.hora_inicio}–
-                            {reservaResult.data.reserva.hora_fin}
-                          </dd>
-                        </div>
-                        <div className="rounded-lg bg-white/60 p-3">
-                          <dt className="font-semibold">Lugar</dt>
-                          <dd>{reservaResult.data.reserva.box_atencion}</dd>
-                        </div>
-                      </dl>
-                      <p className="mt-4 text-sm leading-6">
-                        El comprobante quedó en cola para enviarse a{' '}
-                        <strong>{pacienteEmail}</strong>.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          resetRequestKey();
-                          setSelectedBloque(null);
-                          setReservaResult(null);
-                          setBookingStep('datos');
-                          setPacienteRut('');
-                          setPacienteNombre('');
-                          setPacienteEmail('');
-                          setPacienteTelefono('+569');
-                        }}
-                        className="mt-4 min-h-11 rounded-xl bg-teal-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800"
-                      >
-                        Reservar otra hora
-                      </button>
+
+                      <div className="ticket-divider my-5 pt-5">
+                        <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                          <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
+                            <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                              Profesional
+                            </dt>
+                            <dd className="mt-1 font-bold text-slate-900">
+                              {reservaResult.data.reserva.medico_nombre}
+                            </dd>
+                          </div>
+                          <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
+                            <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                              Especialidad
+                            </dt>
+                            <dd className="mt-1 font-bold text-teal-800">
+                              {reservaResult.data.reserva.especialidad_nombre}
+                            </dd>
+                          </div>
+                          <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
+                            <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                              Fecha y hora
+                            </dt>
+                            <dd className="mt-1 font-mono font-bold text-slate-900">
+                              {reservaResult.data.reserva.fecha} ·{' '}
+                              {reservaResult.data.reserva.hora_inicio}–
+                              {reservaResult.data.reserva.hora_fin}
+                            </dd>
+                          </div>
+                          <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
+                            <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                              Lugar / Box
+                            </dt>
+                            <dd className="mt-1 font-bold text-slate-900">
+                              {reservaResult.data.reserva.box_atencion}
+                            </dd>
+                          </div>
+                        </dl>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-emerald-100/60 px-4 py-3 text-xs text-emerald-950">
+                        <p>
+                          El comprobante quedó en cola para enviarse a{' '}
+                          <strong>{pacienteEmail}</strong>.
+                        </p>
+                        <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-emerald-800">
+                          ESTADO: CONFIRMADA
+                        </span>
+                      </div>
+
+                      <div className="no-print mt-5 flex flex-wrap items-center justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={() => window.print?.()}
+                          className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                        >
+                          <Printer className="h-4 w-4" aria-hidden="true" />
+                          Imprimir comprobante
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            resetRequestKey();
+                            setSelectedBloque(null);
+                            setReservaResult(null);
+                            setBookingStep('datos');
+                            setPacienteRut('');
+                            setPacienteNombre('');
+                            setPacienteEmail('');
+                            setPacienteTelefono('+569');
+                          }}
+                          className="min-h-11 rounded-xl bg-teal-800 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-900"
+                        >
+                          Reservar otra hora
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <div className="p-5 sm:p-6">

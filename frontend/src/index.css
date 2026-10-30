@@ -2,9 +2,87 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  body {
+    font-family:
+      'Plus Jakarta Sans',
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      sans-serif;
+    background-color: #f4f8f7;
+  }
+}
+
+.bg-clinical-canvas {
+  background-color: #f4f8f7;
+  background-image:
+    radial-gradient(at 0% 0%, rgba(20, 184, 166, 0.09) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(16, 185, 129, 0.08) 0px, transparent 45%),
+    radial-gradient(at 50% 100%, rgba(15, 118, 110, 0.06) 0px, transparent 55%),
+    linear-gradient(to right, rgba(15, 118, 110, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 118, 110, 0.035) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    100% 100%,
+    100% 100%,
+    32px 32px,
+    32px 32px;
+}
+
+.bg-hero-mesh {
+  background-color: #042f2e;
+  background-image:
+    radial-gradient(circle at 85% 15%, rgba(45, 212, 191, 0.22) 0%, transparent 45%),
+    radial-gradient(circle at 15% 85%, rgba(16, 185, 129, 0.18) 0%, transparent 50%),
+    linear-gradient(135deg, #022c22 0%, #042f2e 48%, #0f4c45 100%);
+}
+
+.ticket-notch-left,
+.ticket-notch-right {
+  position: relative;
+}
+
+.ticket-divider {
+  position: relative;
+  border-top: 2px dashed rgba(15, 118, 110, 0.22);
+}
+
+.ticket-divider::before,
+.ticket-divider::after {
+  content: '';
+  position: absolute;
+  top: -11px;
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  background-color: #f4f8f7;
+  border: 1px solid rgba(15, 118, 110, 0.18);
+}
+
+.ticket-divider::before {
+  left: -31px;
+}
+
+.ticket-divider::after {
+  right: -31px;
+}
+
 :focus-visible {
-  outline: 3px solid #0f766e;
+  outline: 3px solid #0d9488;
   outline-offset: 3px;
+}
+
+@media print {
+  header,
+  footer,
+  nav,
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #ffffff !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
