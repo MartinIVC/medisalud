@@ -3,9 +3,10 @@ const crypto = require('node:crypto');
 const { pool } = require('../db');
 const { requireSecretary } = require('../middleware/auth');
 const { asyncHandler, sendError, HttpError } = require('../middleware/errors');
-const { parseReservation } = require('../schemas/inputs');
+const { parseReservation, parseReservationManagement } = require('../schemas/inputs');
 const { withTransaction } = require('../db/transaction');
 const { createReservation } = require('../services/reservas');
+const { manageReservation } = require('../services/gestionar-reserva');
 
 const router = express.Router();
 
@@ -136,6 +137,43 @@ router.post(
       return { ok: true, estado: 'ASISTIRA' };
     });
     return res.json(response);
+  }),
+);
+
+router.post(
+  '/reservas/:id/gestionar',
+  requireSecretary,
+  asyncHandler(async (req, res) => {
+    if (!/^\d+$/.test(req.params.id)) {
+      return sendError(res, 400, 'VALIDATION_ERROR', 'Indica una cita válida.', {
+        id: 'Indica una cita válida.',
+      });
+    }
+    const reservationId = Number(req.params.id);
+    if (!Number.isSafeInteger(reservationId) || reservationId <= 0) {
+      return sendError(res, 400, 'VALIDATION_ERROR', 'Indica una cita válida.', {
+        id: 'Indica una cita válida.',
+      });
+    }
+
+    const parsed = parseReservationManagement(req.body);
+    if (Object.keys(parsed.errors).length) {
+      return sendError(
+        res,
+        400,
+        'VALIDATION_ERROR',
+        'Revisa los datos de la cancelación o reprogramación.',
+        parsed.errors,
+      );
+    }
+
+    const result = await manageReservation({
+      reservationId,
+      action: parsed.value.action,
+      agendaId: parsed.value.agendaId,
+      motivo: parsed.value.motivo,
+    });
+    return res.json(result);
   }),
 );
 

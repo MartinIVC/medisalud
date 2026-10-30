@@ -28,9 +28,11 @@ async function claimBatch(pool, claimToken, { batchSize = BATCH_SIZE, leaseMs = 
       `WITH lote AS (
          SELECT n.id
          FROM notificaciones n
-         JOIN citas_medicas c ON c.id=n.cita_id AND c.estado='CONFIRMADA'
+         JOIN citas_medicas c ON c.id=n.cita_id
          WHERE (n.estado IN ('PENDIENTE','FALLIDA')
                 OR (n.estado='ENVIANDO' AND (n.lease_until IS NULL OR n.lease_until <= NOW())))
+           AND ((n.tipo='CANCELACION' AND c.estado='CANCELADA')
+                OR (n.tipo<>'CANCELACION' AND c.estado='CONFIRMADA'))
            AND n.intentos < $3
            AND n.programado_en <= NOW()
            AND (n.reintentar_en IS NULL OR n.reintentar_en <= NOW())
@@ -140,7 +142,11 @@ function createNotificationWorker({
         const appointment = await database.query('SELECT estado FROM citas_medicas WHERE id=$1', [
           notification.cita_id,
         ]);
-        if (!appointment.rowCount || appointment.rows[0].estado !== 'CONFIRMADA') {
+        const canSend =
+          notification.tipo === 'CANCELACION'
+            ? appointment.rows[0]?.estado === 'CANCELADA'
+            : appointment.rows[0]?.estado === 'CONFIRMADA';
+        if (!appointment.rowCount || !canSend) {
           await markOmitted(database, notification);
           return;
         }

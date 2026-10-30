@@ -109,6 +109,31 @@ function parseAgendaBlockAction(body) {
   return { errors, value: data };
 }
 
+function parseReservationManagement(body) {
+  const errors = {};
+  const data = isPlainObject(body) ? body : {};
+  if (!isPlainObject(body)) errors.form = 'La solicitud debe contener un objeto JSON.';
+
+  const action = typeof data.accion === 'string' ? data.accion.toUpperCase() : '';
+  if (!['CANCELAR', 'MOVER'].includes(action)) {
+    errors.accion = 'Selecciona cancelar o mover la cita.';
+  }
+
+  const motivo = typeof data.motivo === 'string' ? data.motivo.trim() : '';
+  if (!motivo || motivo.length > 255) {
+    errors.motivo = 'Indica un motivo de hasta 255 caracteres.';
+  }
+
+  if (action === 'MOVER' && !positiveInteger(data.agenda_id)) {
+    errors.agenda_id = 'Selecciona un nuevo horario disponible.';
+  }
+  if (action === 'CANCELAR' && data.agenda_id !== undefined) {
+    errors.agenda_id = 'No se debe indicar un horario al cancelar una cita.';
+  }
+
+  return { errors, value: { action, agendaId: data.agenda_id, motivo } };
+}
+
 module.exports = {
   isPlainObject,
   isValidDate,
@@ -116,4 +141,5 @@ module.exports = {
   parseReservation,
   parseAgendaConfiguration,
   parseAgendaBlockAction,
+  parseReservationManagement,
 };

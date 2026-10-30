@@ -82,7 +82,9 @@ CREATE TABLE IF NOT EXISTS notificaciones (
     id BIGSERIAL PRIMARY KEY,
     cita_id INTEGER NOT NULL REFERENCES citas_medicas(id) ON DELETE CASCADE,
     canal VARCHAR(10) NOT NULL CHECK (canal IN ('EMAIL','WHATSAPP')),
-    tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('CONFIRMACION','RECORDATORIO')),
+    tipo VARCHAR(20) NOT NULL CHECK (
+      tipo IN ('CONFIRMACION','RECORDATORIO','CANCELACION','REPROGRAMACION')
+    ),
     destinatario VARCHAR(255) NOT NULL,
     asunto VARCHAR(255),
     contenido TEXT NOT NULL,
@@ -98,11 +100,13 @@ CREATE TABLE IF NOT EXISTS notificaciones (
     lease_until TIMESTAMP WITH TIME ZONE,
     programado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     enviado_en TIMESTAMP WITH TIME ZONE,
-    creado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_notificacion_cita_canal_tipo UNIQUE (cita_id, canal, tipo)
+    creado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_notificaciones_pendientes ON notificaciones(estado, programado_en);
 CREATE INDEX IF NOT EXISTS idx_notificaciones_toma_vencida ON notificaciones(lease_until) WHERE estado = 'ENVIANDO';
+CREATE UNIQUE INDEX IF NOT EXISTS uq_notificacion_cita_canal_tipo
+    ON notificaciones(cita_id, canal, tipo)
+    WHERE tipo IN ('CONFIRMACION','RECORDATORIO');
 
 CREATE TABLE IF NOT EXISTS bloqueos_agenda (
     id BIGSERIAL PRIMARY KEY,

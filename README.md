@@ -201,6 +201,17 @@ docker compose exec -T db psql -U medisalud -d medisalud_db < database/migration
 docker compose exec -T db psql -U medisalud -d medisalud_db < database/migrations/20261028_idempotency_response.sql
 ```
 
+Para habilitar la gestión de cancelaciones y cambios de cita en una base existente, aplica también la migración que permite varios avisos de cambio por reserva:
+
+```powershell
+Get-Content -Raw .\database\migrations\20261030_gestion_reservas.sql |
+  docker compose exec -T db psql -U medisalud -d medisalud_db
+```
+
+```bash
+docker compose exec -T db psql -U medisalud -d medisalud_db < database/migrations/20261030_gestion_reservas.sql
+```
+
 ## Verificación automatizada
 
 Para ejecutar las comprobaciones de calidad localmente necesitas Node.js 22.13.0 o posterior, mientras sea menor que la versión 27. Instala dependencias desde los tres lockfiles y ejecuta el conjunto habitual:

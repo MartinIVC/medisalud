@@ -60,9 +60,12 @@ router.get(
         a.duracion_min,
         a.estado,
         a.motivo_bloqueo,
+        ((a.fecha + a.hora_inicio) AT TIME ZONE 'America/Santiago') > NOW() AS futuro,
+        c.id AS cita_id,
         c.codigo_reserva,
         c.paciente_rut,
-        c.paciente_nombre
+        c.paciente_nombre,
+        c.paciente_email
       FROM agendas a
       INNER JOIN medicos m ON m.id = a.medico_id
       INNER JOIN especialidades e ON e.id = m.especialidad_id

@@ -227,7 +227,8 @@ async function createReservation({
              ((($6::date + $7::time) AT TIME ZONE 'America/Santiago') - INTERVAL '24 hours'),
              CASE WHEN ((($6::date + $7::time) AT TIME ZONE 'America/Santiago') - INTERVAL '24 hours') <= NOW()
                THEN 'OMITIDA' ELSE 'PENDIENTE' END)
-           ON CONFLICT (cita_id, canal, tipo) DO NOTHING`,
+           ON CONFLICT (cita_id, canal, tipo)
+             WHERE tipo IN ('CONFIRMACION','RECORDATORIO') DO NOTHING`,
           [appointment.id, channel, recipient, subject, reminderText, slot.fecha, slot.hora_inicio],
         );
       }
