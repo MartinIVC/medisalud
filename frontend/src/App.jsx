@@ -3,7 +3,6 @@ import {
   Activity,
   Calendar,
   CheckCircle2,
-  Clock,
   Eye,
   EyeOff,
   KeyRound,
@@ -25,32 +24,12 @@ export default function App() {
     sessionStorage.getItem('medisalud-secretaria-token') ? 'secretaria' : 'paciente',
   );
   const [showPassword, setShowPassword] = useState(false);
-  const [chileTime, setChileTime] = useState(() =>
-    new Intl.DateTimeFormat('es-CL', {
-      timeZone: 'America/Santiago',
-      hour: '2-digit',
-      minute: '2-digit',
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-    }).format(new Date()),
-  );
-
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      setChileTime(
-        new Intl.DateTimeFormat('es-CL', {
-          timeZone: 'America/Santiago',
-          hour: '2-digit',
-          minute: '2-digit',
-          weekday: 'short',
-          day: 'numeric',
-          month: 'short',
-        }).format(new Date()),
-      );
-    }, 30000);
-    return () => window.clearInterval(interval);
-  }, []);
+  const chileDate = new Intl.DateTimeFormat('es-CL', {
+    timeZone: 'America/Santiago',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  }).format(new Date());
 
   const patientAvailabilityRef = useRef(() => {});
   const refreshPatientAvailability = useCallback(
@@ -98,8 +77,8 @@ export default function App() {
           </div>
           <div className="flex items-center gap-3 font-mono text-[11px] text-teal-200/90">
             <span className="inline-flex items-center gap-1.5">
-              <Clock className="h-3 w-3 text-teal-400" aria-hidden="true" />
-              Santiago · <span className="capitalize">{chileTime}</span>
+              <Calendar className="h-3 w-3 text-teal-400" aria-hidden="true" />
+              Santiago · <span className="capitalize">{chileDate}</span>
             </span>
           </div>
         </div>
