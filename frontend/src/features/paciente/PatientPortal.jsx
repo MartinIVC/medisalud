@@ -200,7 +200,7 @@ export default function PatientPortal({ state, actions }) {
             strokeWidth="3"
             strokeLinecap="round"
             strokeLinejoin="round"
-            strokeDasharray="240"
+            strokeDasharray="240 240"
             className="animate-ekg-pulse"
           />
           <defs>

@@ -22,9 +22,12 @@ module.exports = {
       },
       keyframes: {
         ekgPulse: {
-          '0%': { strokeDashoffset: '240', opacity: '0.35' },
+          '0%': { strokeDashoffset: '480' },
+          '100%': { strokeDashoffset: '0' },
+        },
+        ekgGlow: {
+          '0%, 100%': { opacity: '0.35' },
           '50%': { opacity: '1' },
-          '100%': { strokeDashoffset: '0', opacity: '0.35' },
         },
         floatSlow: {
           '0%, 100%': { transform: 'translateY(0px)' },
@@ -32,7 +35,7 @@ module.exports = {
         },
       },
       animation: {
-        'ekg-pulse': 'ekgPulse 4.5s ease-in-out infinite',
+        'ekg-pulse': 'ekgPulse 6s linear infinite, ekgGlow 4.5s ease-in-out infinite',
         'float-slow': 'floatSlow 5s ease-in-out infinite',
       },
     },
