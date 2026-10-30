@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { CheckCircle2, Mail, Plus, ShieldCheck, Stethoscope, User } from 'lucide-react';
 import { validateRutClient } from '../utils/rut';
 import { requestApi } from '../api/client';
 
@@ -130,16 +131,19 @@ export default function CrearMedico({
   }
 
   const fieldClass = (field) =>
-    `mt-1 w-full min-h-11 rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
-      errors[field] ? 'border-rose-500 focus:ring-rose-500' : 'border-slate-300 focus:ring-teal-600'
+    `mt-1 min-h-12 w-full rounded-xl border bg-white py-2 pl-10 pr-3 text-sm shadow-sm transition focus:outline-none focus:ring-4 ${
+      errors[field] ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500/10' : 'border-slate-200 focus:border-teal-600 focus:ring-teal-600/10'
     }`;
 
   return (
-    <section className="max-w-3xl mx-auto bg-white rounded-xl shadow-sm border border-slate-200 p-5 sm:p-7">
-      <div className="mb-5">
-        <p className="text-sm font-semibold text-teal-800">Panel de secretaría</p>
-        <h1 className="text-xl font-bold text-slate-900 mt-1">Crear médico</h1>
-        <p className="text-sm text-slate-600 mt-1">
+    <section className="mx-auto max-w-3xl rounded-2xl border border-teal-200 bg-teal-100/70 p-5 shadow-md shadow-teal-950/5 sm:p-8">
+      <div className="mb-6 border-b border-slate-100 pb-5">
+        <p className="inline-flex items-center gap-2 rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-teal-800">
+          <Stethoscope className="h-3.5 w-3.5" aria-hidden="true" />
+          Panel de secretaría
+        </p>
+        <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-900">Crear médico</h1>
+        <p className="mt-1 text-sm leading-6 text-slate-500">
           El médico quedará activo y aparecerá en los catálogos. El registro no crea horarios
           automáticamente.
         </p>
@@ -150,9 +154,9 @@ export default function CrearMedico({
           <div
             role="status"
             aria-live="polite"
-            className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-950"
+            className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-950"
           >
-            <h2 className="font-bold">Médico creado correctamente</h2>
+            <h2 className="flex items-center gap-2 font-bold"><CheckCircle2 className="h-5 w-5 text-emerald-600" aria-hidden="true" />Médico creado correctamente</h2>
             <p className="mt-1 text-sm">
               {createdDoctor.nombre} · {createdDoctor.rut}
             </p>
@@ -161,7 +165,7 @@ export default function CrearMedico({
           {catalogRefreshFailed && (
             <div
               role="alert"
-              className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"
+              className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"
             >
               El registro se guardó, pero no pudimos actualizar los catálogos. Recárgalos antes de
               crear otro médico.
@@ -178,14 +182,14 @@ export default function CrearMedico({
             <button
               type="button"
               onClick={createAnother}
-              className="min-h-11 px-4 rounded-lg border border-slate-300 text-sm font-semibold text-slate-700"
+              className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
             >
               Crear otro médico
             </button>
             <button
               type="button"
               onClick={() => onContinueScheduling(createdDoctor.id)}
-              className="min-h-11 px-4 rounded-lg bg-teal-700 text-white text-sm font-semibold"
+              className="min-h-11 rounded-xl bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800"
             >
               Configurar horarios
             </button>
@@ -194,13 +198,13 @@ export default function CrearMedico({
       ) : (
         <>
           {specialtiesLoading ? (
-            <p role="status" className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
+            <p role="status" className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
               Cargando especialidades…
             </p>
           ) : specialtiesError ? (
             <div
               role="alert"
-              className="rounded-lg bg-rose-50 border border-rose-200 p-4 text-sm text-rose-900"
+              className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900"
             >
               <p>{specialtiesError}</p>
               <button
@@ -214,7 +218,7 @@ export default function CrearMedico({
           ) : specialties.length === 0 ? (
             <div
               role="alert"
-              className="rounded-lg bg-amber-50 border border-amber-200 p-4 text-sm text-amber-950"
+              className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"
             >
               <p>
                 No hay especialidades disponibles. Recarga el catálogo o consulta al responsable del
@@ -233,31 +237,34 @@ export default function CrearMedico({
           {formError && (
             <p
               role="alert"
-              className="mb-4 rounded-lg bg-rose-50 border border-rose-200 p-3 text-sm text-rose-900"
+              className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900"
             >
               {formError}
             </p>
           )}
 
-          <form onSubmit={submit} noValidate className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <form onSubmit={submit} noValidate className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div>
               <label htmlFor="doctor-rut" className="block text-sm font-semibold text-slate-700">
                 RUT *
               </label>
-              <input
-                id="doctor-rut"
-                ref={(node) => {
-                  refs.current.rut = node;
-                }}
-                value={form.rut}
-                onChange={(event) => updateField('rut', event.target.value)}
-                autoComplete="off"
-                placeholder="12.345.678-5"
-                maxLength={15}
-                aria-invalid={Boolean(errors.rut)}
-                aria-describedby={errors.rut ? 'doctor-rut-error' : undefined}
-                className={fieldClass('rut')}
-              />
+              <div className="relative">
+                <ShieldCheck className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                <input
+                  id="doctor-rut"
+                  ref={(node) => {
+                    refs.current.rut = node;
+                  }}
+                  value={form.rut}
+                  onChange={(event) => updateField('rut', event.target.value)}
+                  autoComplete="off"
+                  placeholder="12.345.678-5"
+                  maxLength={15}
+                  aria-invalid={Boolean(errors.rut)}
+                  aria-describedby={errors.rut ? 'doctor-rut-error' : undefined}
+                  className={fieldClass('rut')}
+                />
+              </div>
               {errors.rut && (
                 <p id="doctor-rut-error" role="alert" className="mt-1 text-sm text-rose-800">
                   {errors.rut}
@@ -268,19 +275,22 @@ export default function CrearMedico({
               <label htmlFor="doctor-name" className="block text-sm font-semibold text-slate-700">
                 Nombre completo *
               </label>
-              <input
-                id="doctor-name"
-                ref={(node) => {
-                  refs.current.nombre = node;
-                }}
-                value={form.nombre}
-                onChange={(event) => updateField('nombre', event.target.value)}
-                autoComplete="name"
-                maxLength={150}
-                aria-invalid={Boolean(errors.nombre)}
-                aria-describedby={errors.nombre ? 'doctor-name-error' : undefined}
-                className={fieldClass('nombre')}
-              />
+              <div className="relative">
+                <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                <input
+                  id="doctor-name"
+                  ref={(node) => {
+                    refs.current.nombre = node;
+                  }}
+                  value={form.nombre}
+                  onChange={(event) => updateField('nombre', event.target.value)}
+                  autoComplete="name"
+                  maxLength={150}
+                  aria-invalid={Boolean(errors.nombre)}
+                  aria-describedby={errors.nombre ? 'doctor-name-error' : undefined}
+                  className={fieldClass('nombre')}
+                />
+              </div>
               {errors.nombre && (
                 <p id="doctor-name-error" role="alert" className="mt-1 text-sm text-rose-800">
                   {errors.nombre}
@@ -291,20 +301,23 @@ export default function CrearMedico({
               <label htmlFor="doctor-email" className="block text-sm font-semibold text-slate-700">
                 Correo electrónico *
               </label>
-              <input
-                id="doctor-email"
-                ref={(node) => {
-                  refs.current.email = node;
-                }}
-                type="email"
-                value={form.email}
-                onChange={(event) => updateField('email', event.target.value)}
-                autoComplete="email"
-                maxLength={150}
-                aria-invalid={Boolean(errors.email)}
-                aria-describedby={errors.email ? 'doctor-email-error' : undefined}
-                className={fieldClass('email')}
-              />
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                <input
+                  id="doctor-email"
+                  ref={(node) => {
+                    refs.current.email = node;
+                  }}
+                  type="email"
+                  value={form.email}
+                  onChange={(event) => updateField('email', event.target.value)}
+                  autoComplete="email"
+                  maxLength={150}
+                  aria-invalid={Boolean(errors.email)}
+                  aria-describedby={errors.email ? 'doctor-email-error' : undefined}
+                  className={fieldClass('email')}
+                />
+              </div>
               {errors.email && (
                 <p id="doctor-email-error" role="alert" className="mt-1 text-sm text-rose-800">
                   {errors.email}
@@ -318,27 +331,30 @@ export default function CrearMedico({
               >
                 Especialidad *
               </label>
-              <select
-                id="doctor-specialty"
-                ref={(node) => {
-                  refs.current.especialidad_id = node;
-                }}
-                value={form.especialidad_id}
-                onChange={(event) => updateField('especialidad_id', event.target.value)}
-                disabled={
-                  specialtiesLoading || Boolean(specialtiesError) || specialties.length === 0
-                }
-                aria-invalid={Boolean(errors.especialidad_id)}
-                aria-describedby={errors.especialidad_id ? 'doctor-specialty-error' : undefined}
-                className={fieldClass('especialidad_id')}
-              >
-                <option value="">Selecciona una especialidad</option>
-                {specialties.map((specialty) => (
-                  <option key={specialty.id} value={specialty.id}>
-                    {specialty.nombre}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <Stethoscope className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                <select
+                  id="doctor-specialty"
+                  ref={(node) => {
+                    refs.current.especialidad_id = node;
+                  }}
+                  value={form.especialidad_id}
+                  onChange={(event) => updateField('especialidad_id', event.target.value)}
+                  disabled={
+                    specialtiesLoading || Boolean(specialtiesError) || specialties.length === 0
+                  }
+                  aria-invalid={Boolean(errors.especialidad_id)}
+                  aria-describedby={errors.especialidad_id ? 'doctor-specialty-error' : undefined}
+                  className={`${fieldClass('especialidad_id')} appearance-none`}
+                >
+                  <option value="">Selecciona una especialidad</option>
+                  {specialties.map((specialty) => (
+                    <option key={specialty.id} value={specialty.id}>
+                      {specialty.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
               {errors.especialidad_id && (
                 <p id="doctor-specialty-error" role="alert" className="mt-1 text-sm text-rose-800">
                   {errors.especialidad_id}
@@ -349,19 +365,22 @@ export default function CrearMedico({
               <label htmlFor="doctor-box" className="block text-sm font-semibold text-slate-700">
                 Box de atención *
               </label>
-              <input
-                id="doctor-box"
-                ref={(node) => {
-                  refs.current.box_atencion = node;
-                }}
-                value={form.box_atencion}
-                onChange={(event) => updateField('box_atencion', event.target.value)}
-                maxLength={20}
-                placeholder="Box 101"
-                aria-invalid={Boolean(errors.box_atencion)}
-                aria-describedby={errors.box_atencion ? 'doctor-box-error' : undefined}
-                className={fieldClass('box_atencion')}
-              />
+              <div className="relative">
+                <Plus className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                <input
+                  id="doctor-box"
+                  ref={(node) => {
+                    refs.current.box_atencion = node;
+                  }}
+                  value={form.box_atencion}
+                  onChange={(event) => updateField('box_atencion', event.target.value)}
+                  maxLength={20}
+                  placeholder="Box 101"
+                  aria-invalid={Boolean(errors.box_atencion)}
+                  aria-describedby={errors.box_atencion ? 'doctor-box-error' : undefined}
+                  className={fieldClass('box_atencion')}
+                />
+              </div>
               {errors.box_atencion && (
                 <p id="doctor-box-error" role="alert" className="mt-1 text-sm text-rose-800">
                   {errors.box_atencion}
@@ -381,7 +400,7 @@ export default function CrearMedico({
                   onCancel();
                 }}
                 disabled={saving}
-                className="min-h-11 px-4 rounded-lg border border-slate-300 text-sm font-semibold text-slate-700 disabled:opacity-50"
+                className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
               >
                 Cancelar
               </button>
@@ -393,7 +412,7 @@ export default function CrearMedico({
                   Boolean(specialtiesError) ||
                   specialties.length === 0
                 }
-                className="min-h-11 px-5 rounded-lg bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold disabled:opacity-50"
+                className="min-h-11 rounded-xl bg-teal-700 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-600/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {saving ? 'Guardando…' : 'Guardar médico'}
               </button>

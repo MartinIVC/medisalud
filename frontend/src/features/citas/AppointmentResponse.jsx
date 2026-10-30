@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { AlertCircle, Calendar, CheckCircle2, Clock, ShieldCheck, Stethoscope } from 'lucide-react';
 import { requestApi } from '../../api/client';
 
 export default function AppointmentResponse({ token }) {
@@ -56,67 +57,81 @@ export default function AppointmentResponse({ token }) {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 p-6 flex items-center justify-center">
-      <section className="max-w-md w-full rounded-xl bg-white border border-slate-200 shadow-sm p-6 space-y-4">
-        <h1 className="text-xl font-bold text-slate-800">Respuesta a tu cita</h1>
+    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-teal-50/60 p-4 sm:p-6">
+      <section className="w-full max-w-lg space-y-5 rounded-3xl border border-slate-200/80 bg-white p-5 shadow-lg shadow-slate-900/5 sm:p-8">
+        <div className="border-b border-slate-100 pb-5">
+          <span className="mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-teal-50 text-teal-700 ring-1 ring-teal-100">
+            <Stethoscope className="h-6 w-6" aria-hidden="true" />
+          </span>
+          <p className="mb-1 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-teal-700">
+            <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+            Gestión de cita
+          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Respuesta a tu cita</h1>
+        </div>
         {loading && (
-          <p role="status" className="text-sm text-slate-600">
+          <p role="status" className="flex items-center gap-2 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-teal-600 border-r-transparent" />
             Cargando detalle de la cita…
           </p>
         )}
         {error && (
-          <p role="alert" className="text-sm text-rose-800">
+          <p role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
             {error}
           </p>
         )}
         {appointment && (
           <>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm leading-6 text-slate-500">
               Revisa tu cita antes de confirmar asistencia o cancelar.
             </p>
-            <dl className="rounded-lg bg-slate-50 p-4 space-y-2 text-sm">
-              <div>
-                <dt className="font-semibold">Código</dt>
-                <dd>{appointment.codigo_reserva}</dd>
+            <dl className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 text-sm sm:grid-cols-2">
+              <div className="rounded-xl bg-white p-3 ring-1 ring-slate-100">
+                <dt className="font-semibold text-slate-500">Código</dt>
+                <dd className="mt-1 font-mono font-semibold text-slate-900">{appointment.codigo_reserva}</dd>
               </div>
-              <div>
-                <dt className="font-semibold">Profesional</dt>
-                <dd>{appointment.medico_nombre}</dd>
+              <div className="rounded-xl bg-white p-3 ring-1 ring-slate-100">
+                <dt className="flex items-center gap-1.5 font-semibold text-slate-500"><Stethoscope className="h-3.5 w-3.5" aria-hidden="true" />Profesional</dt>
+                <dd className="mt-1 font-medium text-slate-900">{appointment.medico_nombre}</dd>
               </div>
-              <div>
-                <dt className="font-semibold">Especialidad</dt>
-                <dd>{appointment.especialidad_nombre}</dd>
+              <div className="rounded-xl bg-white p-3 ring-1 ring-slate-100">
+                <dt className="font-semibold text-slate-500">Especialidad</dt>
+                <dd className="mt-1 font-medium text-slate-900">{appointment.especialidad_nombre}</dd>
               </div>
-              <div>
-                <dt className="font-semibold">Fecha y hora</dt>
-                <dd>
+              <div className="rounded-xl bg-white p-3 ring-1 ring-slate-100">
+                <dt className="flex items-center gap-1.5 font-semibold text-slate-500"><Calendar className="h-3.5 w-3.5" aria-hidden="true" />Fecha y hora</dt>
+                <dd className="mt-1 flex items-center gap-1.5 font-medium text-slate-900">
+                  <Clock className="h-3.5 w-3.5 shrink-0 text-teal-600" aria-hidden="true" />
                   {appointment.fecha} · {appointment.hora_inicio}–{appointment.hora_fin}
                 </dd>
               </div>
-              <div>
-                <dt className="font-semibold">Lugar</dt>
-                <dd>{appointment.box_atencion}</dd>
+              <div className="rounded-xl bg-white p-3 ring-1 ring-slate-100 sm:col-span-2">
+                <dt className="font-semibold text-slate-500">Lugar</dt>
+                <dd className="mt-1 font-medium text-slate-900">{appointment.box_atencion}</dd>
               </div>
             </dl>
             {appointment.estado === 'CANCELADA' ? (
-              <p className="text-sm font-semibold text-rose-800">Esta cita ya fue cancelada.</p>
+              <p className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800"><AlertCircle className="h-5 w-5" aria-hidden="true" />Esta cita ya fue cancelada.</p>
             ) : actionDone ? (
-              <p role="status" className="text-sm font-semibold text-emerald-800">
+              <p role="status" className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">
+                <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
                 Tu respuesta quedó registrada.
               </p>
             ) : (
-              <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex flex-col gap-3 pt-1 sm:flex-row">
                 <button
                   disabled={submitting}
                   onClick={() => respond('CONFIRMAR')}
-                  className="min-h-11 flex-1 rounded-lg bg-teal-700 text-white px-3 py-2 font-semibold disabled:opacity-50"
+                  className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-teal-700 px-3 py-2 font-semibold text-white shadow-sm transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-600/20 disabled:cursor-not-allowed disabled:opacity-50"
                 >
+                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                   Confirmar asistencia
                 </button>
                 <button
                   disabled={submitting}
                   onClick={() => respond('CANCELAR')}
-                  className="min-h-11 flex-1 rounded-lg border border-rose-300 text-rose-800 px-3 py-2 font-semibold disabled:opacity-50"
+                  className="min-h-12 flex-1 rounded-xl border border-rose-200 bg-white px-3 py-2 font-semibold text-rose-700 transition hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-600/10 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Cancelar cita
                 </button>
@@ -125,7 +140,7 @@ export default function AppointmentResponse({ token }) {
           </>
         )}
         {reply && (
-          <p role="status" className="text-sm text-slate-700">
+          <p role="status" className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
             {reply}
           </p>
         )}
