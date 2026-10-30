@@ -324,24 +324,14 @@ export default function App() {
 
       {/* Pie de página clínico */}
       <footer className="no-print mt-12 border-t border-slate-200/80 bg-white/75 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-5 text-xs text-slate-500 sm:flex-row">
-          <div className="flex items-center gap-2.5">
+        <div className="mx-auto flex max-w-7xl items-center justify-center px-4 py-5 text-xs text-slate-500">
+          <div className="flex flex-wrap items-center justify-center gap-2.5 text-center">
             <span className="grid h-6 w-6 place-items-center rounded-lg bg-teal-900 text-teal-200">
               <Stethoscope className="h-3.5 w-3.5" aria-hidden="true" />
             </span>
             <span className="font-semibold text-slate-700">Medisalud</span>
             <span>·</span>
             <span>Plataforma de Agendamiento y Gestión Ambulatoria</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-4 text-slate-500">
-            <span className="inline-flex items-center gap-1.5">
-              <ShieldCheck className="h-3.5 w-3.5 text-teal-600" aria-hidden="true" />
-              Validación RUT Módulo 11
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Activity className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
-              Reserva Transaccional Segura
-            </span>
           </div>
         </div>
       </footer>

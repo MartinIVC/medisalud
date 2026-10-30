@@ -21,7 +21,6 @@ import {
   Sunset,
   Ticket,
   User,
-  Zap,
 } from 'lucide-react';
 import { formatRutInput } from '../../utils/rut.js';
 import { onlyMobileSubscriberDigits, parseChileanMobileDigits } from '../../utils/phone.js';
@@ -195,7 +194,7 @@ export default function PatientPortal({ state, actions }) {
           </div>
 
           {/* Tarjetas de telemetría rápida */}
-          <div className="grid grid-cols-3 gap-2.5 sm:gap-3 lg:col-span-5">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:col-span-5">
             <div className="rounded-2xl border border-white/10 bg-white/[0.07] p-3.5 backdrop-blur-md">
               <span className="flex items-center gap-1.5 text-[11px] font-medium text-teal-200/80">
                 <Calendar className="h-3.5 w-3.5 text-emerald-300" aria-hidden="true" />
@@ -216,18 +215,6 @@ export default function PatientPortal({ state, actions }) {
                 {medicosFiltrados.length}
               </p>
               <span className="mt-0.5 block text-[11px] text-teal-200/80">Habilitados</span>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-white/[0.07] p-3.5 backdrop-blur-md">
-              <span className="flex items-center gap-1.5 text-[11px] font-medium text-teal-200/80">
-                <Zap className="h-3.5 w-3.5 text-amber-300" aria-hidden="true" />
-                Respuesta
-              </span>
-              <p className="mt-1.5 font-mono text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                {disponibilidad.latencia_ms || 0}
-                <span className="ml-0.5 text-xs font-normal text-teal-200">ms</span>
-              </p>
-              <span className="mt-0.5 block text-[11px] text-teal-200/80">Tiempo real</span>
             </div>
           </div>
         </div>
