@@ -21,7 +21,9 @@ import useSecretaryPortal from './features/secretaria/useSecretaryPortal';
 
 export default function App() {
   const appointmentToken = new URLSearchParams(window.location.search).get('cita_token');
-  const [activeTab, setActiveTab] = useState('paciente');
+  const [activeTab, setActiveTab] = useState(() =>
+    sessionStorage.getItem('medisalud-secretaria-token') ? 'secretaria' : 'paciente',
+  );
   const [showPassword, setShowPassword] = useState(false);
   const [chileTime, setChileTime] = useState(() =>
     new Intl.DateTimeFormat('es-CL', {
