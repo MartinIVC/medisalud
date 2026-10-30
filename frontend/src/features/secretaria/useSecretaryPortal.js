@@ -300,18 +300,8 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
     }
   }
 
-  async function handleBloquearDia(esFeriadoGlobal = false) {
-    const doctor = medicos.find((item) => String(item.id) === String(secMedicoId));
-    const alcance = esFeriadoGlobal
-      ? 'todos los profesionales'
-      : doctor?.nombre || 'el profesional seleccionado';
-    const tipo = esFeriadoGlobal ? 'feriado' : 'ausencia';
-    if (
-      !window.confirm(
-        `Vas a registrar un ${tipo} para ${alcance} el ${secFecha}. Se bloquearán los horarios disponibles de esa jornada. ¿Continuar?`,
-      )
-    )
-      return;
+  async function handleBloquearDia(esFeriadoGlobal = false, motivo = secMotivoBloqueo) {
+    const motivoLimpio = String(motivo || '').trim();
     setSecFeedback(null);
     try {
       const response = await requestApi('/api/agendas/bloquear', {
@@ -322,7 +312,7 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
           medico_id: Number(secMedicoId),
           fecha: secFecha,
           es_feriado_global: esFeriadoGlobal,
-          motivo: esFeriadoGlobal ? `Día Festivo Global: ${secMotivoBloqueo}` : secMotivoBloqueo,
+          motivo: esFeriadoGlobal ? `Día Festivo Global: ${motivoLimpio}` : motivoLimpio,
         },
       });
       setSecFeedback(response.data);
@@ -330,15 +320,17 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
         fetchSecAgendas();
         refreshAvailability();
       }
+      return response.ok;
     } catch {
       setSecFeedback({
         ok: false,
         error: 'No pudimos conectar con el sistema. El bloqueo no fue confirmado.',
       });
+      return false;
     }
   }
 
-  async function handleToggleBloque(block) {
+  async function handleToggleBloque(block, motivo = secMotivoBloqueo) {
     const endpoint =
       block.estado === 'BLOQUEADO' ? '/api/agendas/desbloquear' : '/api/agendas/bloquear';
     try {
@@ -348,19 +340,22 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
         onUnauthorized: handleSecretaryUnauthorized,
         body: {
           agenda_id: block.agenda_id,
-          motivo: secMotivoBloqueo || 'Bloqueo manual por secretaría (MED-10)',
+          motivo: motivo || 'Bloqueo manual por secretaría (MED-10)',
         },
       });
-      if (!result.ok) setSecFeedback(result.data);
-      else {
-        fetchSecAgendas();
-        refreshAvailability();
+      if (!result.ok) {
+        setSecFeedback(result.data);
+        return false;
       }
+      fetchSecAgendas();
+      refreshAvailability();
+      return true;
     } catch {
       setSecFeedback({
         ok: false,
         error: 'No pudimos conectar con el sistema. El estado del bloque no fue confirmado.',
       });
+      return false;
     }
   }
 
@@ -417,6 +412,7 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
     setPendingMedicoDraft,
     refreshDoctorCatalogs,
     handleDoctorSessionExpired,
+    handleSecretaryUnauthorized,
     logoutSecretary,
     setSecMedicoId,
     setSecFeedback,

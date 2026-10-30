@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Activity,
   Calendar,
@@ -18,7 +19,9 @@ import {
   Unlock,
   User,
   UserPlus,
+  X,
 } from 'lucide-react';
+import { requestApi } from '../../api/client.js';
 import { formatRutInput } from '../../utils/rut';
 import { onlyMobileSubscriberDigits, parseChileanMobileDigits } from '../../utils/phone.js';
 import CrearMedico from '../../components/CrearMedico';
@@ -61,6 +64,7 @@ export default function SecretaryPortal({ state, actions }) {
     setSecretaryView,
     refreshDoctorCatalogs,
     handleDoctorSessionExpired,
+    handleSecretaryUnauthorized,
     setPendingMedicoDraft,
     logoutSecretary,
     setSecMedicoId,
@@ -86,11 +90,305 @@ export default function SecretaryPortal({ state, actions }) {
 
   const [statusFilter, setStatusFilter] = useState('TODOS');
   const [searchQuery, setSearchQuery] = useState('');
+  const [specialtyFilter, setSpecialtyFilter] = useState('');
+  const [blockingTarget, setBlockingTarget] = useState(null);
+  const [blockingInProgress, setBlockingInProgress] = useState(false);
+  const [appointmentAction, setAppointmentAction] = useState(null);
+  const [appointmentReason, setAppointmentReason] = useState('');
+  const [appointmentSubmitting, setAppointmentSubmitting] = useState(false);
+  const [appointmentError, setAppointmentError] = useState('');
+  const [appointmentManagementMessage, setAppointmentManagementMessage] = useState('');
+  const [appointmentManagementEmailReady, setAppointmentManagementEmailReady] = useState(true);
+  const [moveDoctorId, setMoveDoctorId] = useState('');
+  const [moveDate, setMoveDate] = useState(todayStr);
+  const [moveAgendaId, setMoveAgendaId] = useState('');
+  const [moveSlots, setMoveSlots] = useState([]);
+  const [moveSlotsLoading, setMoveSlotsLoading] = useState(false);
+  const [moveSlotsError, setMoveSlotsError] = useState('');
+  const blockingDialogRef = useRef(null);
+  const blockingTriggerRef = useRef(null);
+  const blockingInProgressRef = useRef(false);
+  const appointmentDialogRef = useRef(null);
+  const appointmentTriggerRef = useRef(null);
+  const appointmentSubmittingRef = useRef(false);
+
+  const filteredDoctors = useMemo(
+    () =>
+      specialtyFilter
+        ? medicos.filter((doctor) => String(doctor.especialidad_id) === specialtyFilter)
+        : medicos,
+    [medicos, specialtyFilter],
+  );
 
   const selectedDoctor = useMemo(
     () => medicos.find((m) => String(m.id) === String(secMedicoId)) || null,
     [medicos, secMedicoId],
   );
+
+  function handleSpecialtyFilterChange(value) {
+    setSpecialtyFilter(value);
+    if (!value) return;
+
+    const currentDoctor = medicos.find((doctor) => String(doctor.id) === String(secMedicoId));
+    if (String(currentDoctor?.especialidad_id) === value) return;
+
+    const firstMatchingDoctor = medicos.find(
+      (doctor) => String(doctor.especialidad_id) === value,
+    );
+    if (firstMatchingDoctor) setSecMedicoId(String(firstMatchingDoctor.id));
+  }
+
+  function openBlockingDialog(target, event) {
+    blockingTriggerRef.current = event?.currentTarget || document.activeElement;
+    setSecFeedback(null);
+    if (target.type === 'slot') {
+      setSecMotivoBloqueo('Bloqueo manual por secretaría (MED-10)');
+    }
+    setBlockingTarget(target);
+  }
+
+  function openAppointmentDialog(action, appointment, event) {
+    appointmentTriggerRef.current = event?.currentTarget || document.activeElement;
+    setAppointmentAction({ action, appointment });
+    setAppointmentReason('');
+    setAppointmentError('');
+    setAppointmentManagementMessage('');
+    setAppointmentManagementEmailReady(true);
+    if (action === 'MOVER') {
+      setMoveDoctorId(String(appointment.medico_id || secMedicoId));
+      setMoveDate(appointment.fecha || secFecha);
+      setMoveAgendaId('');
+      setMoveSlots([]);
+      setMoveSlotsError('');
+    }
+  }
+
+  function closeAppointmentDialog() {
+    if (appointmentSubmittingRef.current) return;
+    setAppointmentAction(null);
+  }
+
+  function closeBlockingDialog() {
+    if (blockingInProgressRef.current) return;
+    setBlockingTarget(null);
+  }
+
+  async function submitBlockingAction(isGlobalHoliday = false) {
+    if (!blockingTarget) return;
+    blockingInProgressRef.current = true;
+    setBlockingInProgress(true);
+    try {
+      const succeeded =
+        blockingTarget.type === 'slot'
+          ? await handleToggleBloque(blockingTarget.block)
+          : await handleBloquearDia(isGlobalHoliday);
+      if (succeeded) setBlockingTarget(null);
+    } finally {
+      blockingInProgressRef.current = false;
+      setBlockingInProgress(false);
+    }
+  }
+
+  async function submitAppointmentAction() {
+    if (!appointmentAction) return;
+    appointmentSubmittingRef.current = true;
+    setAppointmentSubmitting(true);
+    setAppointmentError('');
+    const { action, appointment } = appointmentAction;
+    try {
+      const response = await requestApi(`/api/reservas/${appointment.cita_id}/gestionar`, {
+        method: 'POST',
+        token: secretaryToken,
+        onUnauthorized: handleSecretaryUnauthorized,
+        body: {
+          accion: action,
+          motivo: appointmentReason.trim(),
+          ...(action === 'MOVER' ? { agenda_id: Number(moveAgendaId) } : {}),
+        },
+      });
+      if (!response.ok) {
+        setAppointmentError(response.data.error || 'No se pudo actualizar la cita.');
+        return;
+      }
+
+      setAppointmentManagementMessage(response.data.mensaje || 'La cita fue actualizada.');
+      setAppointmentManagementEmailReady(
+        response.data.correo_aviso?.proveedor_configurado !== false,
+      );
+      setAppointmentAction(null);
+      fetchSecAgendas();
+    } catch (error) {
+      setAppointmentError(error.message || 'No pudimos conectar con el sistema.');
+    } finally {
+      appointmentSubmittingRef.current = false;
+      setAppointmentSubmitting(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!blockingTarget) return undefined;
+
+    const appRoot = document.getElementById('root');
+    const rootWasInert = appRoot?.inert ?? false;
+    const previousBodyOverflow = document.body.style.overflow;
+    const dialog = blockingDialogRef.current;
+    const focusableSelector =
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+    if (appRoot) appRoot.inert = true;
+    document.body.style.setProperty('overflow', 'hidden');
+    dialog?.querySelector(focusableSelector)?.focus();
+
+    function handleDialogKeyDown(event) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeBlockingDialog();
+        return;
+      }
+      if (event.key !== 'Tab' || !dialog) return;
+
+      const focusable = [...dialog.querySelectorAll(focusableSelector)];
+      if (!focusable.length) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    dialog?.addEventListener('keydown', handleDialogKeyDown);
+    return () => {
+      dialog?.removeEventListener('keydown', handleDialogKeyDown);
+      if (appRoot) appRoot.inert = rootWasInert;
+      if (previousBodyOverflow) {
+        document.body.style.setProperty('overflow', previousBodyOverflow);
+      } else {
+        document.body.style.removeProperty('overflow');
+      }
+
+      const trigger = blockingTriggerRef.current;
+      if (trigger?.isConnected && !trigger.disabled) trigger.focus({ preventScroll: true });
+    };
+  }, [blockingTarget]);
+
+  useEffect(() => {
+    if (appointmentAction?.action !== 'MOVER' || !moveDoctorId || !moveDate) {
+      setMoveSlots([]);
+      setMoveAgendaId('');
+      setMoveSlotsLoading(false);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const params = new URLSearchParams({ medico_id: moveDoctorId, fecha: moveDate });
+    setMoveSlotsLoading(true);
+    setMoveSlotsError('');
+    setMoveSlots([]);
+    setMoveAgendaId('');
+
+    requestApi(`/api/agendas?${params.toString()}`, {
+      token: secretaryToken,
+      signal: controller.signal,
+      onUnauthorized: handleSecretaryUnauthorized,
+    })
+      .then((response) => {
+        if (controller.signal.aborted) return;
+        if (!response.ok || !response.data.ok) {
+          setMoveSlotsError(response.data.error || 'No pudimos cargar los horarios disponibles.');
+          return;
+        }
+
+        const available = (response.data.bloques || []).filter(
+          (block) =>
+            block.estado === 'DISPONIBLE' &&
+            block.futuro &&
+            Number(block.agenda_id) !== Number(appointmentAction.appointment.agenda_id),
+        );
+        setMoveSlots(available);
+        setMoveAgendaId(available[0] ? String(available[0].agenda_id) : '');
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) {
+          setMoveSlotsError(error.message || 'No pudimos cargar los horarios disponibles.');
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setMoveSlotsLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [
+    appointmentAction?.action,
+    appointmentAction?.appointment?.agenda_id,
+    moveDate,
+    moveDoctorId,
+    secretaryToken,
+    handleSecretaryUnauthorized,
+  ]);
+
+  useEffect(() => {
+    if (!appointmentAction) return undefined;
+
+    const appRoot = document.getElementById('root');
+    const rootWasInert = appRoot?.inert ?? false;
+    const previousBodyOverflow = document.body.style.overflow;
+    const dialog = appointmentDialogRef.current;
+    const focusableSelector =
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+    if (appRoot) appRoot.inert = true;
+    document.body.style.setProperty('overflow', 'hidden');
+    dialog?.querySelector(focusableSelector)?.focus();
+
+    function handleDialogKeyDown(event) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeAppointmentDialog();
+        return;
+      }
+      if (event.key !== 'Tab' || !dialog) return;
+
+      const focusable = [...dialog.querySelectorAll(focusableSelector)];
+      if (!focusable.length) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    dialog?.addEventListener('keydown', handleDialogKeyDown);
+    return () => {
+      dialog?.removeEventListener('keydown', handleDialogKeyDown);
+      if (appRoot) appRoot.inert = rootWasInert;
+      if (previousBodyOverflow) {
+        document.body.style.setProperty('overflow', previousBodyOverflow);
+      } else {
+        document.body.style.removeProperty('overflow');
+      }
+
+      const trigger = appointmentTriggerRef.current;
+      if (trigger?.isConnected && !trigger.disabled) trigger.focus({ preventScroll: true });
+    };
+  }, [appointmentAction]);
 
   const metrics = useMemo(() => {
     const total = secAgendas.length;
@@ -167,6 +465,7 @@ export default function SecretaryPortal({ state, actions }) {
         onClearDraft={() => setPendingMedicoDraft(null)}
         onCancel={() => setSecretaryView('agenda')}
         onContinueScheduling={(medicoId) => {
+          setSpecialtyFilter('');
           setSecMedicoId(String(medicoId));
           setSecFeedback(null);
           setSecError('');
@@ -277,7 +576,33 @@ export default function SecretaryPortal({ state, actions }) {
       <section className="overflow-hidden rounded-3xl border border-teal-900/10 bg-white shadow-clinical">
         {/* Selector de Profesional, Fecha y Navegación */}
         <div className="border-b border-slate-100 bg-slate-50/70 p-5 sm:p-6">
-          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.2fr)_minmax(180px,auto)_auto_auto]">
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-[minmax(160px,0.8fr)_minmax(230px,1.2fr)_minmax(170px,auto)_auto_auto]">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
+              <span className="mb-1.5 flex items-center gap-2">
+                <SlidersHorizontal className="h-3.5 w-3.5 text-teal-700" aria-hidden="true" />
+                Especialidad
+              </span>
+              <select
+                aria-label="Filtrar médicos por especialidad"
+                value={specialtyFilter}
+                onChange={(event) => handleSpecialtyFilterChange(event.target.value)}
+                className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-800 shadow-sm transition focus:border-teal-600 focus:outline-none focus:ring-4 focus:ring-teal-600/10"
+              >
+                <option value="">Todas las especialidades</option>
+                {especialidades
+                  .filter((specialty) =>
+                    medicos.some(
+                      (doctor) => String(doctor.especialidad_id) === String(specialty.id),
+                    ),
+                  )
+                  .map((specialty) => (
+                    <option key={specialty.id} value={String(specialty.id)}>
+                      {specialty.nombre}
+                    </option>
+                  ))}
+              </select>
+            </label>
+
             <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
               <span className="mb-1.5 flex items-center gap-2">
                 <User className="h-3.5 w-3.5 text-teal-700" aria-hidden="true" />
@@ -289,7 +614,7 @@ export default function SecretaryPortal({ state, actions }) {
                 onChange={(e) => setSecMedicoId(e.target.value)}
                 className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-800 shadow-sm transition focus:border-teal-600 focus:outline-none focus:ring-4 focus:ring-teal-600/10"
               >
-                {medicos.map((m) => (
+                {filteredDoctors.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.nombre} · {m.especialidad_nombre}
                   </option>
@@ -472,6 +797,19 @@ export default function SecretaryPortal({ state, actions }) {
             </div>
           )}
 
+          {appointmentManagementMessage && (
+            <div
+              role="status"
+              className={`mb-4 rounded-xl border px-4 py-3 text-sm font-medium ${
+                appointmentManagementEmailReady
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                  : 'border-amber-200 bg-amber-50 text-amber-900'
+              }`}
+            >
+              {appointmentManagementMessage}
+            </div>
+          )}
+
           {secError && (
             <div
               role="alert"
@@ -566,11 +904,35 @@ export default function SecretaryPortal({ state, actions }) {
                   {b.estado !== 'RESERVADO' && (
                     <button
                       type="button"
-                      onClick={() => handleToggleBloque(b)}
+                      onClick={(event) =>
+                        b.estado === 'BLOQUEADO'
+                          ? handleToggleBloque(b)
+                          : openBlockingDialog({ type: 'slot', block: b }, event)
+                      }
                       className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                     >
                       {b.estado === 'BLOQUEADO' ? 'Habilitar' : 'Bloquear'}
                     </button>
+                  )}
+                  {b.estado === 'RESERVADO' && b.futuro && b.cita_id && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={(event) => openAppointmentDialog('MOVER', b, event)}
+                        className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3.5 text-sm font-semibold text-teal-900 transition hover:bg-teal-100"
+                      >
+                        <Calendar className="h-4 w-4" aria-hidden="true" />
+                        Mover
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => openAppointmentDialog('CANCELAR', b, event)}
+                        className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 text-sm font-semibold text-rose-800 transition hover:bg-rose-100"
+                      >
+                        <X className="h-4 w-4" aria-hidden="true" />
+                        Cancelar
+                      </button>
+                    </>
                   )}
                 </div>
               </article>
@@ -678,7 +1040,11 @@ export default function SecretaryPortal({ state, actions }) {
                           {b.estado !== 'RESERVADO' && (
                             <button
                               type="button"
-                              onClick={() => handleToggleBloque(b)}
+                              onClick={(event) =>
+                                b.estado === 'BLOQUEADO'
+                                  ? handleToggleBloque(b)
+                                  : openBlockingDialog({ type: 'slot', block: b }, event)
+                              }
                               className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold transition ${
                                 b.estado === 'BLOQUEADO'
                                   ? 'bg-emerald-600 text-white hover:bg-emerald-700'
@@ -697,6 +1063,26 @@ export default function SecretaryPortal({ state, actions }) {
                                 </>
                               )}
                             </button>
+                          )}
+                          {b.estado === 'RESERVADO' && b.futuro && b.cita_id && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={(event) => openAppointmentDialog('MOVER', b, event)}
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-xs font-semibold text-teal-900 transition hover:bg-teal-100"
+                              >
+                                <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
+                                Mover
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(event) => openAppointmentDialog('CANCELAR', b, event)}
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-800 transition hover:bg-rose-100"
+                              >
+                                <X className="h-3.5 w-3.5" aria-hidden="true" />
+                                Cancelar
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>
@@ -937,9 +1323,8 @@ export default function SecretaryPortal({ state, actions }) {
           </summary>
 
           <div className="border-t border-slate-100 p-5 sm:p-6">
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-              {/* Columna 1: Generación de Bloques */}
-              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-5 lg:col-span-7">
+            <div>
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-5">
                 <div className="mb-4">
                   <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-teal-700">
                     Planificación de Jornada
@@ -968,7 +1353,7 @@ export default function SecretaryPortal({ state, actions }) {
                         onChange={(e) => setSecMedicoId(e.target.value)}
                         className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm transition focus:border-teal-600 focus:outline-none focus:ring-4 focus:ring-teal-600/10"
                       >
-                        {medicos.map((m) => (
+                        {filteredDoctors.map((m) => (
                           <option key={m.id} value={m.id}>
                             {m.nombre} ({m.especialidad_nombre})
                           </option>
@@ -1045,64 +1430,23 @@ export default function SecretaryPortal({ state, actions }) {
                     </select>
                   </div>
 
-                  <button
-                    type="submit"
-                    className="min-h-12 w-full rounded-xl bg-teal-800 py-2.5 text-sm font-semibold text-white shadow-md shadow-teal-950/15 transition hover:bg-teal-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-600/20"
-                  >
-                    Guardar horarios
-                  </button>
-                </form>
-              </div>
-
-              {/* Columna 2: Bloqueo de feriados o licencias médicas (CA-02) */}
-              <div className="flex flex-col justify-between rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50/70 via-white to-amber-50/30 p-5 lg:col-span-5">
-                <div className="space-y-4">
-                  <div>
-                    <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-bold uppercase tracking-wider text-amber-800">
-                      <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
-                      Contingencia y Feriados
-                    </span>
-                    <h3 className="font-display mt-1 text-lg font-bold text-slate-900">
-                      Registrar ausencia o feriado
-                    </h3>
-                    <p className="mt-0.5 text-xs text-slate-600">
-                      Inhabilita los bloques disponibles para el médico activo o aplica un bloqueo
-                      de día festivo para toda la clínica.
-                    </p>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button
+                      type="submit"
+                      className="min-h-12 w-full rounded-xl bg-teal-800 py-2.5 text-sm font-semibold text-white shadow-md shadow-teal-950/15 transition hover:bg-teal-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-600/20"
+                    >
+                      Guardar horarios
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => openBlockingDialog({ type: 'day' }, event)}
+                      className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-900 transition hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-500/20"
+                    >
+                      <ShieldAlert className="h-4 w-4" aria-hidden="true" />
+                      Bloquear jornada
+                    </button>
                   </div>
-
-                  <label
-                    htmlFor="absence-reason"
-                    className="block text-xs font-bold uppercase tracking-wider text-slate-700"
-                  >
-                    Motivo
-                    <input
-                      id="absence-reason"
-                      type="text"
-                      value={secMotivoBloqueo}
-                      onChange={(e) => setSecMotivoBloqueo(e.target.value)}
-                      placeholder="Motivo del bloqueo..."
-                      className="mt-1.5 min-h-12 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 shadow-sm transition focus:border-amber-600 focus:outline-none focus:ring-4 focus:ring-amber-500/15"
-                    />
-                  </label>
-                </div>
-
-                <div className="mt-5 grid grid-cols-1 gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => handleBloquearDia(false)}
-                    className="min-h-11 w-full rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-500/20"
-                  >
-                    Bloquear jornada del profesional
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleBloquearDia(true)}
-                    className="min-h-11 w-full rounded-xl border border-amber-800 bg-amber-900 px-4 py-2.5 text-sm font-semibold text-amber-50 shadow-sm transition hover:bg-amber-950 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-500/20"
-                  >
-                    Bloquear fecha para todos los profesionales
-                  </button>
-                </div>
+                </form>
               </div>
             </div>
 
@@ -1121,6 +1465,341 @@ export default function SecretaryPortal({ state, actions }) {
           </div>
         </details>
       </section>
+
+      {blockingTarget && typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) closeBlockingDialog();
+            }}
+          >
+            <section
+              ref={blockingDialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="secretary-blocking-title"
+              tabIndex={-1}
+              className="max-h-[calc(100dvh-1.5rem)] w-full max-w-xl overflow-y-auto rounded-3xl border border-amber-200 bg-white shadow-2xl shadow-slate-950/30 focus:outline-none sm:max-h-[calc(100dvh-3rem)]"
+            >
+              <header className="flex items-start justify-between gap-4 rounded-t-3xl bg-gradient-to-br from-amber-50 to-white p-5 sm:p-6">
+                <div>
+                  <span className="inline-flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-wider text-amber-800">
+                    <ShieldAlert className="h-4 w-4" aria-hidden="true" />
+                    {blockingTarget.type === 'slot' ? 'Bloqueo de horario' : 'Contingencia y feriados'}
+                  </span>
+                  <h2
+                    id="secretary-blocking-title"
+                    className="font-display mt-1 text-xl font-bold text-slate-900"
+                  >
+                    {blockingTarget.type === 'slot'
+                      ? 'Bloquear este horario'
+                      : 'Registrar ausencia o feriado'}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {blockingTarget.type === 'slot'
+                      ? 'Indica el motivo para inhabilitar este bloque.'
+                      : 'Elige si el bloqueo aplica al profesional seleccionado o a toda la clínica.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Cerrar diálogo de bloqueo"
+                  onClick={closeBlockingDialog}
+                  disabled={blockingInProgress}
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </header>
+
+              <div className="space-y-4 p-5 sm:p-6">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+                  <p className="font-semibold text-slate-900">
+                    {blockingTarget.type === 'slot'
+                      ? `${selectedDoctor?.nombre || 'Profesional seleccionado'} · ${blockingTarget.block.hora_inicio} – ${blockingTarget.block.hora_fin}`
+                      : selectedDoctor?.nombre || 'Profesional seleccionado'}
+                  </p>
+                  <p className="mt-0.5 text-slate-600">
+                    {new Date(`${secFecha}T12:00:00`).toLocaleDateString('es-CL', {
+                      weekday: 'long',
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                    })}
+                  </p>
+                </div>
+
+                <label
+                  htmlFor="secretary-blocking-reason"
+                  className="block text-xs font-bold uppercase tracking-wider text-slate-700"
+                >
+                  Motivo
+                  <input
+                    id="secretary-blocking-reason"
+                    type="text"
+                    required
+                    value={secMotivoBloqueo}
+                    onChange={(event) => setSecMotivoBloqueo(event.target.value)}
+                    placeholder="Motivo del bloqueo..."
+                    className="mt-1.5 min-h-12 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 shadow-sm transition focus:border-amber-600 focus:outline-none focus:ring-4 focus:ring-amber-500/15"
+                  />
+                </label>
+
+                {secFeedback && !secFeedback.ok && (
+                  <p
+                    role="alert"
+                    className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800"
+                  >
+                    {secFeedback.error || secFeedback.mensaje}
+                  </p>
+                )}
+
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={closeBlockingDialog}
+                    disabled={blockingInProgress}
+                    className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  {blockingTarget.type === 'slot' ? (
+                    <button
+                      type="button"
+                      onClick={() => submitBlockingAction(false)}
+                      disabled={blockingInProgress || !secMotivoBloqueo.trim()}
+                      className="min-h-11 rounded-xl bg-amber-600 px-4 text-sm font-semibold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {blockingInProgress ? 'Bloqueando…' : 'Bloquear horario'}
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => submitBlockingAction(false)}
+                        disabled={blockingInProgress || !secMotivoBloqueo.trim()}
+                        className="min-h-11 rounded-xl bg-amber-600 px-4 text-sm font-semibold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {blockingInProgress ? 'Bloqueando…' : 'Bloquear jornada'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => submitBlockingAction(true)}
+                        disabled={blockingInProgress || !secMotivoBloqueo.trim()}
+                        className="min-h-11 rounded-xl border border-amber-800 bg-amber-900 px-4 text-sm font-semibold text-amber-50 transition hover:bg-amber-950 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Bloquear fecha para todos
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </section>
+          </div>,
+          document.body,
+        )}
+
+      {appointmentAction && typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[90] flex items-center justify-center overflow-y-auto bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) closeAppointmentDialog();
+            }}
+          >
+            <section
+              ref={appointmentDialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="secretary-appointment-action-title"
+              tabIndex={-1}
+              className="max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/30 focus:outline-none sm:max-h-[calc(100dvh-3rem)]"
+            >
+              <header
+                className={`flex items-start justify-between gap-4 rounded-t-3xl p-5 sm:p-6 ${
+                  appointmentAction.action === 'CANCELAR'
+                    ? 'bg-gradient-to-br from-rose-50 to-white'
+                    : 'bg-gradient-to-br from-teal-50 to-white'
+                }`}
+              >
+                <div>
+                  <span className="inline-flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-wider text-teal-800">
+                    <Calendar className="h-4 w-4" aria-hidden="true" />
+                    Gestión de cita · Secretaría
+                  </span>
+                  <h2
+                    id="secretary-appointment-action-title"
+                    className="font-display mt-1 text-xl font-bold text-slate-900"
+                  >
+                    {appointmentAction.action === 'CANCELAR'
+                      ? 'Cancelar cita por contingencia'
+                      : 'Mover cita a otro horario'}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {appointmentAction.action === 'CANCELAR'
+                      ? 'La hora quedará disponible y avisaremos al paciente por correo.'
+                      : 'Selecciona un bloque disponible. Avisaremos al paciente por correo.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Cerrar gestión de cita"
+                  onClick={closeAppointmentDialog}
+                  disabled={appointmentSubmitting}
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-600/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </header>
+
+              <div className="space-y-4 p-5 sm:p-6">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+                  <p className="font-semibold text-slate-900">
+                    {appointmentAction.appointment.paciente_nombre} ·{' '}
+                    {appointmentAction.appointment.codigo_reserva}
+                  </p>
+                  <p className="mt-0.5 text-slate-600">
+                    {appointmentAction.appointment.paciente_email}
+                  </p>
+                  <p className="mt-1 text-slate-600">
+                    Cita actual: {appointmentAction.appointment.fecha},{' '}
+                    {appointmentAction.appointment.hora_inicio}–
+                    {appointmentAction.appointment.hora_fin} ·{' '}
+                    {appointmentAction.appointment.medico_nombre}
+                  </p>
+                </div>
+
+                {appointmentAction.action === 'MOVER' && (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <label
+                      htmlFor="move-appointment-doctor"
+                      className="block text-xs font-bold uppercase tracking-wider text-slate-700"
+                    >
+                      Profesional
+                      <select
+                        id="move-appointment-doctor"
+                        value={moveDoctorId}
+                        onChange={(event) => setMoveDoctorId(event.target.value)}
+                        className="mt-1.5 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium normal-case tracking-normal text-slate-800 shadow-sm focus:border-teal-600 focus:outline-none focus:ring-4 focus:ring-teal-600/10"
+                      >
+                        {medicos.map((doctor) => (
+                          <option key={doctor.id} value={doctor.id}>
+                            {doctor.nombre} · {doctor.especialidad_nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label
+                      htmlFor="move-appointment-date"
+                      className="block text-xs font-bold uppercase tracking-wider text-slate-700"
+                    >
+                      Fecha nueva
+                      <input
+                        id="move-appointment-date"
+                        type="date"
+                        min={todayStr}
+                        value={moveDate}
+                        onChange={(event) => setMoveDate(event.target.value)}
+                        className="mt-1.5 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 font-mono text-sm font-medium normal-case tracking-normal text-slate-800 shadow-sm focus:border-teal-600 focus:outline-none focus:ring-4 focus:ring-teal-600/10"
+                      />
+                    </label>
+
+                    <label
+                      htmlFor="move-appointment-slot"
+                      className="block text-xs font-bold uppercase tracking-wider text-slate-700 sm:col-span-2"
+                    >
+                      Horario disponible
+                      <select
+                        id="move-appointment-slot"
+                        value={moveAgendaId}
+                        onChange={(event) => setMoveAgendaId(event.target.value)}
+                        disabled={moveSlotsLoading || moveSlots.length === 0}
+                        className="mt-1.5 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium normal-case tracking-normal text-slate-800 shadow-sm focus:border-teal-600 focus:outline-none focus:ring-4 focus:ring-teal-600/10 disabled:bg-slate-100"
+                      >
+                        <option value="">
+                          {moveSlotsLoading ? 'Buscando horarios…' : 'Selecciona un horario'}
+                        </option>
+                        {moveSlots.map((slot) => (
+                          <option key={slot.agenda_id} value={slot.agenda_id}>
+                            {slot.fecha} · {slot.hora_inicio}–{slot.hora_fin} · {slot.medico_nombre}
+                            {slot.box_atencion ? ` · ${slot.box_atencion}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {moveSlotsError ? (
+                        <span role="alert" className="mt-1 block text-xs font-medium text-rose-700">
+                          {moveSlotsError}
+                        </span>
+                      ) : !moveSlotsLoading && moveSlots.length === 0 ? (
+                        <span className="mt-1 block text-xs font-normal normal-case tracking-normal text-slate-500">
+                          No hay horarios futuros disponibles para esta selección.
+                        </span>
+                      ) : null}
+                    </label>
+                  </div>
+                )}
+
+                <label
+                  htmlFor="appointment-action-reason"
+                  className="block text-xs font-bold uppercase tracking-wider text-slate-700"
+                >
+                  Motivo de la gestión
+                  <input
+                    id="appointment-action-reason"
+                    type="text"
+                    required
+                    maxLength={255}
+                    value={appointmentReason}
+                    onChange={(event) => setAppointmentReason(event.target.value)}
+                    placeholder="Ej.: emergencia médica"
+                    className="mt-1.5 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal normal-case tracking-normal text-slate-900 shadow-sm focus:border-teal-600 focus:outline-none focus:ring-4 focus:ring-teal-600/10"
+                  />
+                </label>
+
+                {appointmentError && (
+                  <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+                    {appointmentError}
+                  </p>
+                )}
+
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={closeAppointmentDialog}
+                    disabled={appointmentSubmitting}
+                    className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Volver
+                  </button>
+                  <button
+                    type="button"
+                    onClick={submitAppointmentAction}
+                    disabled={
+                      appointmentSubmitting ||
+                      !appointmentReason.trim() ||
+                      (appointmentAction.action === 'MOVER' &&
+                        (moveSlotsLoading || !moveAgendaId || moveSlots.length === 0))
+                    }
+                    className={`min-h-11 rounded-xl px-4 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                      appointmentAction.action === 'CANCELAR'
+                        ? 'bg-rose-700 hover:bg-rose-800'
+                        : 'bg-teal-800 hover:bg-teal-900'
+                    }`}
+                  >
+                    {appointmentSubmitting
+                      ? 'Procesando…'
+                      : appointmentAction.action === 'CANCELAR'
+                        ? 'Cancelar cita y avisar'
+                        : 'Mover cita y avisar'}
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
