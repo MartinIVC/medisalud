@@ -55,21 +55,33 @@ Confirma la fecha y el alcance antes de guardar un bloqueo. Los horarios reserva
 2. Selecciona **Reservar recepción** en un bloque disponible o **Nueva reserva** para abrir la primera hora disponible.
 3. Indica si la solicitud fue presencial o telefónica, completa los datos de la persona y selecciona **Reservar**.
 4. Comprueba que el bloque cambie a **Reservado** y que la cita aparezca en la agenda.
-5. La confirmación se prepara por correo. El enlace para confirmar o cancelar está en el recordatorio, programado 24 horas antes, si el proveedor está configurado. Pide a la persona usar ese enlace; el panel de secretaría no tiene una acción directa para cancelar una cita. Si se requiere cancelar antes y la persona no tiene un enlace vigente, informa al responsable de soporte.
+5. La confirmación se prepara por correo. El enlace para que el paciente confirme o cancele está en el recordatorio, programado 24 horas antes. Para cancelar o mover una cita desde recepción, sigue la sección siguiente.
 
 Si el cupo dejó de estar disponible, el sistema informa el conflicto. Selecciona otro bloque antes de registrar la cita.
 
 **Captura 6 pendiente:** formulario de reserva de recepción y cita registrada.
 
-## 6. Confirmaciones y recordatorios
+## 6. Cancelar o mover una cita ante una contingencia
+
+1. En **Agenda del día**, busca la cita futura reservada y selecciona **Cancelar** o **Mover**.
+2. Para moverla, elige el profesional, la fecha y un horario disponible distinto del actual.
+3. Indica el motivo y revisa los datos antes de confirmar la acción. Una cita ya iniciada o cancelada no se puede modificar.
+4. Comprueba el mensaje de resultado y vuelve a revisar la agenda: al cancelar se libera el cupo; al mover se ocupa el nuevo y se libera el anterior. Un bloqueo vigente puede mantener bloqueado el cupo anterior.
+
+El aviso al paciente queda **pendiente** de envío por correo. Si el sistema indica que falta configurar SMTP o SendGrid, coordina el aviso por el procedimiento de contingencia acordado con el responsable del entorno. No informes al paciente que recibió el correo solo porque la operación se guardó.
+
+**Captura 7 pendiente:** diálogo de cancelación o cambio y mensaje de resultado.
+
+## 7. Confirmaciones y recordatorios
 
 La aplicación prepara confirmaciones por email y recordatorios por email y WhatsApp cuando el proveedor correspondiente está configurado. El recordatorio se programa para 24 horas antes e incluye un enlace para confirmar o cancelar la cita. La aceptación de un mensaje por el proveedor no garantiza su entrega final. Antes de usar estos avisos con pacientes, el responsable del entorno debe comprobar la configuración y el resultado del proveedor. No uses datos reales durante la capacitación o las pruebas.
 
-## 7. Errores y soporte
+## 8. Errores y soporte
 
 - **RUT inválido o duplicado:** corrige el dígito verificador o pide revisar el registro existente. No intentes cambiar el RUT para eludir el aviso.
 - **No carga el catálogo:** selecciona **Reintentar**. Si continúa, informa al responsable de soporte definido para la marcha blanca.
 - **Error de conexión:** espera unos segundos y vuelve a intentar. Antes de repetir una reserva, revisa si el bloque ya quedó reservado.
+- **Conflicto al mover una cita:** actualiza la agenda y elige otro horario. Comprueba que la cita original siga en su cupo antes de reintentar.
 - **Sesión expirada:** vuelve a iniciar sesión. El borrador de creación de médico se conserva temporalmente en la página; no se guarda en el navegador.
 - **Incidente que impide operar:** informa fecha, turno, pantalla, acción y texto del error al responsable designado. No incluyas datos de pacientes en mensajes o capturas.
 

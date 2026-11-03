@@ -32,9 +32,13 @@ Aplicación web académica para consultar disponibilidad y reservar horas médic
 
 El proveedor puede aceptar un mensaje sin confirmar su entrega final. El proyecto todavía no procesa callbacks de entrega. El panel actualiza su calendario cada dos segundos.
 
-### Registro de médicos (Sprint 3)
+### RF-06 / MED-19: Registro de médicos (Sprint 3)
 
 Secretaría puede crear médicos activos desde el panel. Cada registro valida el RUT chileno y su unicidad independientemente de puntos y guion. El alta no crea horarios: estos se configuran después desde «Configurar horarios». La cantidad de 15 médicos corresponde a los datos semilla de demostración, no a un límite del sistema.
+
+### RF-07 / MED-20: Gestión de citas ante contingencias
+
+El panel de secretaría permite cancelar o mover citas futuras con un motivo. La operación actualiza los cupos, recordatorios y avisos por correo en PostgreSQL; el resultado indica si el aviso está pendiente y si hay un proveedor configurado. Esta historia está registrada como **MED-20**, con las subtareas **MED-21** (pruebas) y **MED-22** (documentación y UAT), y pendiente de asignación a sprint. Sus criterios y el contrato del endpoint están descritos en [API_CONTRACT.md](API_CONTRACT.md).
 
 ---
 
@@ -232,11 +236,14 @@ docker compose -f docker-compose.test.yml down -v
 docker compose -f docker-compose.test.yml up -d --build
 docker compose -f docker-compose.test.yml exec -T backend-test npm run test:sprint1
 docker compose -f docker-compose.test.yml exec -T backend-test npm run test:sprint3
+docker compose -f docker-compose.test.yml exec -T backend-test npm run test:gestion-reservas
 docker compose -f docker-compose.test.yml down -v
 ```
 
 Para repetir la aceptación desde una base vacía, ejecuta `down -v` antes de volver a `up`. El servicio de prueba no tiene credenciales de proveedores: valida la cola local, pero no entrega correos ni mensajes reales. CI ejecuta las mismas suites sobre PostgreSQL 16 descartable.
 
 La prueba de aceptación Sprint 1 lanza 40 consultas de disponibilidad y 40 reservas sobre el mismo bloque en una carga mixta. Verifica el p95 observado por el cliente para ambos endpoints (<= 2,0 s), una única cita confirmada y 39 rechazos; también comprueba reservas simultáneas en bloques distintos. La reserva usa `SERIALIZABLE`, permite hasta cinco intentos totales ante abortos de serialización y limita cada espera de bloqueo a 1,5 s.
+
+La prueba de gestión de citas usa la base descartable y verifica acceso de secretaría, validaciones, rechazo de un cupo bloqueado, cambio de horario, cancelación y actualización de avisos y recordatorios. Limpia las citas y agendas que crea al terminar.
 
 El contrato de errores HTTP y la representación aceptada para RUT están descritos en [API_CONTRACT.md](API_CONTRACT.md).

@@ -56,14 +56,10 @@ async function omitObsoleteNotifications(client, citaId, types) {
   );
 }
 
-async function refreshReminderNotifications(client, {
-  citaId,
-  email,
-  telefono,
-  text,
-  fecha,
-  horaInicio,
-}) {
+async function refreshReminderNotifications(
+  client,
+  { citaId, email, telefono, text, fecha, horaInicio },
+) {
   const channels = [
     { canal: 'EMAIL', asunto: 'Recordatorio de cita — Medisalud' },
     { canal: 'WHATSAPP', asunto: null },
@@ -114,7 +110,11 @@ async function manageReservation({
 
   const reason = String(motivo || '').trim();
   if (!reason || reason.length > 255) {
-    throw new HttpError(400, 'INVALID_APPOINTMENT_REASON', 'Indica un motivo de hasta 255 caracteres.');
+    throw new HttpError(
+      400,
+      'INVALID_APPOINTMENT_REASON',
+      'Indica un motivo de hasta 255 caracteres.',
+    );
   }
 
   return withTransaction(database, async (client) => {
@@ -161,8 +161,7 @@ async function manageReservation({
        FOR UPDATE OF c`,
       [reservationId],
     );
-    if (!found.rowCount)
-      throw new HttpError(404, 'APPOINTMENT_NOT_FOUND', 'La cita ya no existe.');
+    if (!found.rowCount) throw new HttpError(404, 'APPOINTMENT_NOT_FOUND', 'La cita ya no existe.');
     const appointment = found.rows[0];
 
     if (
@@ -179,10 +178,18 @@ async function manageReservation({
       throw new HttpError(409, 'APPOINTMENT_NOT_ACTIVE', 'La cita ya fue cancelada o modificada.');
     }
     if (!appointment.futuro) {
-      throw new HttpError(409, 'APPOINTMENT_PAST', 'No se pueden modificar citas que ya comenzaron.');
+      throw new HttpError(
+        409,
+        'APPOINTMENT_PAST',
+        'No se pueden modificar citas que ya comenzaron.',
+      );
     }
     if (!appointment.paciente_email) {
-      throw new HttpError(409, 'PATIENT_EMAIL_MISSING', 'La cita no tiene un correo para avisar al paciente.');
+      throw new HttpError(
+        409,
+        'PATIENT_EMAIL_MISSING',
+        'La cita no tiene un correo para avisar al paciente.',
+      );
     }
 
     if (action === 'CANCELAR') {
@@ -231,7 +238,11 @@ async function manageReservation({
     }
 
     if (Number(agendaId) === Number(appointment.agenda_id)) {
-      throw new HttpError(400, 'SAME_APPOINTMENT_SLOT', 'Selecciona un horario diferente al actual.');
+      throw new HttpError(
+        400,
+        'SAME_APPOINTMENT_SLOT',
+        'Selecciona un horario diferente al actual.',
+      );
     }
 
     const targetResult = await client.query(
@@ -255,7 +266,11 @@ async function manageReservation({
       throw new HttpError(404, 'TARGET_SLOT_NOT_FOUND', 'El nuevo horario ya no existe.');
     const target = targetResult.rows[0];
     if (Number(target.medico_id) !== Number(targetCandidate.rows[0].medico_id)) {
-      throw new HttpError(409, 'TARGET_SLOT_CHANGED', 'El nuevo horario cambió. Actualiza la agenda.');
+      throw new HttpError(
+        409,
+        'TARGET_SLOT_CHANGED',
+        'El nuevo horario cambió. Actualiza la agenda.',
+      );
     }
     if (
       !target.medico_activo ||
@@ -287,7 +302,14 @@ async function manageReservation({
            token_respuesta_hash=$4, token_respuesta_expira=NOW() + INTERVAL '30 days',
            reminder_programado=((($5::date + $6::time) AT TIME ZONE 'America/Santiago') - INTERVAL '24 hours')
        WHERE id=$1`,
-      [reservationId, agendaId, target.medico_id, responseTokenHash, target.fecha, target.hora_inicio],
+      [
+        reservationId,
+        agendaId,
+        target.medico_id,
+        responseTokenHash,
+        target.fecha,
+        target.hora_inicio,
+      ],
     );
     await releaseReservedSlot(client, appointment.agenda_id);
     await omitObsoleteNotifications(client, reservationId, ['CONFIRMACION', 'REPROGRAMACION']);

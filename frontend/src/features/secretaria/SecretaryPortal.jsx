@@ -132,9 +132,7 @@ export default function SecretaryPortal({ state, actions }) {
     const currentDoctor = medicos.find((doctor) => String(doctor.id) === String(secMedicoId));
     if (String(currentDoctor?.especialidad_id) === value) return;
 
-    const firstMatchingDoctor = medicos.find(
-      (doctor) => String(doctor.especialidad_id) === value,
-    );
+    const firstMatchingDoctor = medicos.find((doctor) => String(doctor.especialidad_id) === value);
     if (firstMatchingDoctor) setSecMedicoId(String(firstMatchingDoctor.id));
   }
 
@@ -1466,7 +1464,8 @@ export default function SecretaryPortal({ state, actions }) {
         </details>
       </section>
 
-      {blockingTarget && typeof document !== 'undefined' &&
+      {blockingTarget &&
+        typeof document !== 'undefined' &&
         createPortal(
           <div
             className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6"
@@ -1486,7 +1485,9 @@ export default function SecretaryPortal({ state, actions }) {
                 <div>
                   <span className="inline-flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-wider text-amber-800">
                     <ShieldAlert className="h-4 w-4" aria-hidden="true" />
-                    {blockingTarget.type === 'slot' ? 'Bloqueo de horario' : 'Contingencia y feriados'}
+                    {blockingTarget.type === 'slot'
+                      ? 'Bloqueo de horario'
+                      : 'Contingencia y feriados'}
                   </span>
                   <h2
                     id="secretary-blocking-title"
@@ -1600,7 +1601,8 @@ export default function SecretaryPortal({ state, actions }) {
           document.body,
         )}
 
-      {appointmentAction && typeof document !== 'undefined' &&
+      {appointmentAction &&
+        typeof document !== 'undefined' &&
         createPortal(
           <div
             className="fixed inset-0 z-[90] flex items-center justify-center overflow-y-auto bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6"
@@ -1759,7 +1761,10 @@ export default function SecretaryPortal({ state, actions }) {
                 </label>
 
                 {appointmentError && (
-                  <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+                  <p
+                    role="alert"
+                    className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800"
+                  >
                     {appointmentError}
                   </p>
                 )}

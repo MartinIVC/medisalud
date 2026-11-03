@@ -278,20 +278,22 @@ export default function PatientPortal({ state, actions }) {
               return (
                 <li
                   key={step.label}
-                  className={`flex items-center gap-3 rounded-2xl border px-3.5 py-2 transition-all duration-200 ${isCurrent
+                  className={`flex items-center gap-3 rounded-2xl border px-3.5 py-2 transition-all duration-200 ${
+                    isCurrent
                       ? 'border-white bg-white text-teal-950 shadow-md shadow-teal-950/20'
                       : isCompleted
                         ? 'border-emerald-400/40 bg-emerald-500/20 text-emerald-100'
                         : 'border-white/15 bg-white/5 text-teal-100/80'
-                    }`}
+                  }`}
                 >
                   <span
-                    className={`grid h-7 w-7 place-items-center rounded-xl font-mono text-xs font-bold ${isCurrent
+                    className={`grid h-7 w-7 place-items-center rounded-xl font-mono text-xs font-bold ${
+                      isCurrent
                         ? 'bg-teal-800 text-white'
                         : isCompleted
                           ? 'bg-emerald-400 text-teal-950'
                           : 'bg-white/10 text-white'
-                      }`}
+                    }`}
                   >
                     {isCompleted ? (
                       <Check className="h-4 w-4" aria-hidden="true" />
@@ -302,8 +304,9 @@ export default function PatientPortal({ state, actions }) {
                   <div className="leading-tight">
                     <span className="block font-semibold">{step.label}</span>
                     <span
-                      className={`hidden text-[11px] sm:block ${isCurrent ? 'text-teal-700' : 'text-teal-200/70'
-                        }`}
+                      className={`hidden text-[11px] sm:block ${
+                        isCurrent ? 'text-teal-700' : 'text-teal-200/70'
+                      }`}
                     >
                       {step.sub}
                     </span>
@@ -330,10 +333,11 @@ export default function PatientPortal({ state, actions }) {
               setSelectedBloque(null);
               setReservaResult(null);
             }}
-            className={`inline-flex shrink-0 items-center gap-2 rounded-2xl border px-4 py-2 text-xs font-semibold transition-all ${selectedEsp === ''
+            className={`inline-flex shrink-0 items-center gap-2 rounded-2xl border px-4 py-2 text-xs font-semibold transition-all ${
+              selectedEsp === ''
                 ? 'border-teal-800 bg-teal-900 text-white shadow-sm'
                 : 'border-slate-200/90 bg-white text-slate-700 hover:border-teal-300 hover:bg-teal-50/50'
-              }`}
+            }`}
           >
             <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
             Todas las especialidades
@@ -351,16 +355,18 @@ export default function PatientPortal({ state, actions }) {
                   setSelectedBloque(null);
                   setReservaResult(null);
                 }}
-                className={`inline-flex shrink-0 items-center gap-2 rounded-2xl border px-3.5 py-2 text-xs font-semibold transition-all ${active
+                className={`inline-flex shrink-0 items-center gap-2 rounded-2xl border px-3.5 py-2 text-xs font-semibold transition-all ${
+                  active
                     ? 'border-teal-800 bg-teal-900 text-white shadow-sm'
                     : 'border-slate-200/90 bg-white text-slate-700 hover:border-teal-300 hover:bg-teal-50/50'
-                  }`}
+                }`}
               >
                 <Stethoscope className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>{esp.nombre}</span>
                 <span
-                  className={`rounded-full px-1.5 py-0.2 font-mono text-[10px] ${active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-                    }`}
+                  className={`rounded-full px-1.5 py-0.2 font-mono text-[10px] ${
+                    active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}
                 >
                   {esp.total_medicos}
                 </span>
@@ -539,12 +545,13 @@ export default function PatientPortal({ state, actions }) {
                   </div>
                 </div>
                 <div
-                  className={`inline-flex min-h-10 items-center gap-2 rounded-2xl border px-3.5 py-1.5 text-xs font-bold ${loadingDisp
+                  className={`inline-flex min-h-10 items-center gap-2 rounded-2xl border px-3.5 py-1.5 text-xs font-bold ${
+                    loadingDisp
                       ? 'border-slate-200 bg-slate-50 text-slate-500'
                       : (disponibilidad.total_cupos_libres || 0) > 0
                         ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
                         : 'border-amber-200 bg-amber-50 text-amber-900'
-                    }`}
+                  }`}
                 >
                   {loadingDisp ? (
                     <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-teal-600 border-r-transparent" />
@@ -572,14 +579,16 @@ export default function PatientPortal({ state, actions }) {
                           setSelectedBloque(null);
                           setReservaResult(null);
                         }}
-                        className={`flex flex-col items-center justify-center rounded-2xl border py-2 px-1 text-center transition-all ${isSelectedDate
+                        className={`flex flex-col items-center justify-center rounded-2xl border py-2 px-1 text-center transition-all ${
+                          isSelectedDate
                             ? 'border-teal-800 bg-teal-900 text-white shadow-md shadow-teal-950/15'
                             : 'border-slate-200/80 bg-white text-slate-600 hover:border-teal-300 hover:bg-teal-50/40'
-                          }`}
+                        }`}
                       >
                         <span
-                          className={`text-[10px] font-bold uppercase tracking-wider ${isSelectedDate ? 'text-emerald-300' : 'text-slate-400'
-                            }`}
+                          className={`text-[10px] font-bold uppercase tracking-wider ${
+                            isSelectedDate ? 'text-emerald-300' : 'text-slate-400'
+                          }`}
                         >
                           {d.isToday ? 'Hoy' : d.weekday}
                         </span>
@@ -587,8 +596,9 @@ export default function PatientPortal({ state, actions }) {
                           {d.dayNum}
                         </span>
                         <span
-                          className={`mt-0.5 text-[10px] capitalize ${isSelectedDate ? 'text-teal-100' : 'text-slate-400'
-                            }`}
+                          className={`mt-0.5 text-[10px] capitalize ${
+                            isSelectedDate ? 'text-teal-100' : 'text-slate-400'
+                          }`}
                         >
                           {d.monthShort}
                         </span>
@@ -700,10 +710,11 @@ export default function PatientPortal({ state, actions }) {
                         </div>
 
                         <span
-                          className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${period === 'Mañana'
+                          className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+                            period === 'Mañana'
                               ? 'bg-amber-50 text-amber-900 ring-1 ring-amber-200/80'
                               : 'bg-indigo-50 text-indigo-900 ring-1 ring-indigo-200/80'
-                            }`}
+                          }`}
                         >
                           {period === 'Mañana' ? (
                             <Sun className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
@@ -733,24 +744,27 @@ export default function PatientPortal({ state, actions }) {
                                 }
                                 setIsBookingOpen(true);
                               }}
-                              className={`group relative w-full overflow-hidden rounded-2xl border p-4 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-600/20 ${isSelected
+                              className={`group relative w-full overflow-hidden rounded-2xl border p-4 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-600/20 ${
+                                isSelected
                                   ? 'border-teal-700 bg-gradient-to-br from-teal-50/90 via-white to-emerald-50/60 shadow-md ring-2 ring-teal-700/20'
                                   : 'border-slate-200/90 bg-slate-50/40 hover:-translate-y-0.5 hover:border-teal-500 hover:bg-white hover:shadow-md'
-                                }`}
+                              }`}
                             >
                               <div
-                                className={`absolute inset-x-0 top-0 h-1 transition-colors ${isSelected
+                                className={`absolute inset-x-0 top-0 h-1 transition-colors ${
+                                  isSelected
                                     ? 'bg-gradient-to-r from-teal-600 to-emerald-500'
                                     : 'bg-transparent group-hover:bg-teal-500/60'
-                                  }`}
+                                }`}
                               />
                               <div className="flex items-center justify-between gap-2">
                                 <span className="flex items-center gap-2 font-mono text-base font-bold tabular-nums text-slate-900">
                                   <Clock
-                                    className={`h-4 w-4 shrink-0 ${isSelected
+                                    className={`h-4 w-4 shrink-0 ${
+                                      isSelected
                                         ? 'text-teal-700'
                                         : 'text-slate-400 group-hover:text-teal-600'
-                                      }`}
+                                    }`}
                                     aria-hidden="true"
                                   />
                                   {b.hora_inicio} – {b.hora_fin}
@@ -817,7 +831,9 @@ export default function PatientPortal({ state, actions }) {
             </div>
           )}
 
-          {selectedBloque && isBookingOpen && typeof document !== 'undefined' &&
+          {selectedBloque &&
+            isBookingOpen &&
+            typeof document !== 'undefined' &&
             createPortal(
               <div
                 className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-slate-950/55 p-3 backdrop-blur-sm sm:p-6"
@@ -834,550 +850,565 @@ export default function PatientPortal({ state, actions }) {
                   onKeyDown={handleBookingDialogKeyDown}
                   className="max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl overflow-y-auto overscroll-contain rounded-3xl border border-teal-900/15 bg-white shadow-2xl shadow-slate-950/30 focus:outline-none sm:max-h-[calc(100dvh-3rem)]"
                 >
-              {/* Encabezado estilo Boarding Pass Clínico */}
-              <div className="bg-hero-mesh relative overflow-hidden p-5 text-white sm:p-6">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="mb-1.5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 font-mono text-[11px] font-semibold uppercase tracking-wider text-emerald-300">
-                      <Ticket className="h-3.5 w-3.5" aria-hidden="true" />
-                      Pase de Atención Ambulatoria
-                    </div>
-                    <h3
-                      id="patient-booking-title"
-                      className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl"
-                    >
-                      {bookingStep === 'revision'
-                        ? 'Revisa tu reserva'
-                        : bookingStep === 'confirmacion'
-                          ? 'Reserva confirmada'
-                          : 'Tus datos'}
-                    </h3>
-                  </div>
+                  {/* Encabezado estilo Boarding Pass Clínico */}
+                  <div className="bg-hero-mesh relative overflow-hidden p-5 text-white sm:p-6">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="mb-1.5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 font-mono text-[11px] font-semibold uppercase tracking-wider text-emerald-300">
+                          <Ticket className="h-3.5 w-3.5" aria-hidden="true" />
+                          Pase de Atención Ambulatoria
+                        </div>
+                        <h3
+                          id="patient-booking-title"
+                          className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl"
+                        >
+                          {bookingStep === 'revision'
+                            ? 'Revisa tu reserva'
+                            : bookingStep === 'confirmacion'
+                              ? 'Reserva confirmada'
+                              : 'Tus datos'}
+                        </h3>
+                      </div>
 
-                  <div className="ml-auto flex items-center gap-2">
-                    <div className="rounded-2xl border border-white/15 bg-white/10 px-3.5 py-2 text-right backdrop-blur-md">
-                      <span className="block font-mono text-[10px] uppercase tracking-wider text-teal-200">
-                        Bloque Seleccionado
-                      </span>
-                      <span className="font-mono text-base font-bold text-white">
-                        {selectedBloque.hora_inicio} – {selectedBloque.hora_fin}
-                      </span>
-                    </div>
-                    <button
-                      ref={bookingCloseButtonRef}
-                      type="button"
-                      aria-label={
-                        reservaResult?.type === 'success'
-                          ? 'Cerrar comprobante'
-                          : 'Cerrar ficha y volver a los horarios'
-                      }
-                      title="Cerrar"
-                      disabled={submittingReserva}
-                      onClick={closeBookingDialog}
-                      className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/20 bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/30 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <X className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Resumen perforado del turno seleccionado */}
-                <div className="mt-4 grid grid-cols-1 gap-3 rounded-2xl border border-white/15 bg-teal-950/50 p-3.5 text-xs sm:grid-cols-3">
-                  <div className="min-w-0">
-                    <span className="block text-[10px] uppercase tracking-wider text-teal-300/80">
-                      Profesional
-                    </span>
-                    <strong className="mt-0.5 block truncate text-sm text-white">
-                      {selectedBloque.medico_nombre}
-                    </strong>
-                    <span className="text-teal-200/80">{selectedBloque.especialidad_nombre}</span>
-                  </div>
-                  <div className="min-w-0">
-                    <span className="block text-[10px] uppercase tracking-wider text-teal-300/80">
-                      Fecha programada
-                    </span>
-                    <strong className="mt-0.5 block capitalize text-sm text-white">
-                      {new Date(`${selectedBloque.fecha}T12:00:00`).toLocaleDateString('es-CL', {
-                        weekday: 'long',
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                      })}
-                    </strong>
-                    <span className="text-teal-200/80">
-                      Duración estimada: {selectedBloque.duracion_min} min
-                    </span>
-                  </div>
-                  <div className="min-w-0">
-                    <span className="block text-[10px] uppercase tracking-wider text-teal-300/80">
-                      Paciente Titular
-                    </span>
-                    <strong className="mt-0.5 block truncate text-sm text-emerald-300">
-                      {pacienteNombre.trim() || 'Pendiente de completar'}
-                    </strong>
-                    <span className="block min-w-0 break-all font-mono text-teal-200/80">
-                      {pacienteRut ? `RUT ${pacienteRut}` : 'Ingresa tu RUT abajo'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {bookingStep === 'revision' && (
-                <div className="mx-5 mt-5 rounded-2xl border border-teal-200 bg-gradient-to-br from-teal-50/90 to-emerald-50/50 p-5 text-sm text-teal-950 sm:mx-6">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="flex items-center gap-2 font-bold text-teal-900">
-                      <ShieldCheck className="h-5 w-5 text-teal-700" aria-hidden="true" />
-                      Comprueba tus datos antes de reservar
-                    </p>
-                    <span className="rounded-full bg-teal-900 px-2.5 py-0.5 font-mono text-[11px] font-semibold text-emerald-200">
-                      Verificación Final
-                    </span>
-                  </div>
-                  <div className="mt-3 grid grid-cols-1 gap-2 rounded-xl bg-white/80 p-3.5 ring-1 ring-teal-200/70 sm:grid-cols-2">
-                    <div>
-                      <span className="text-xs text-slate-500">Paciente y RUT</span>
-                      <p className="font-semibold text-slate-900">
-                        {pacienteNombre} · <span className="font-mono">RUT {pacienteRut}</span>
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-xs text-slate-500">Contacto de notificación</span>
-                      <p className="font-semibold text-slate-900">
-                        {pacienteEmail} · <span className="font-mono">{pacienteTelefono}</span>
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBookingStep('datos');
-                      setReservaResult(null);
-                    }}
-                    className="mt-3 inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-teal-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-teal-900 shadow-sm transition hover:bg-teal-50"
-                  >
-                    Editar mis datos
-                  </button>
-                </div>
-              )}
-
-              {bookingStep !== 'confirmacion' && (
-                <form
-                  onSubmit={handleReservarSubmit}
-                  className="grid grid-cols-1 gap-5 p-5 sm:grid-cols-2 sm:p-6"
-                >
-                  <div>
-                    <label
-                      htmlFor="patient-rut"
-                      className="mb-1.5 block text-sm font-semibold text-slate-700"
-                    >
-                      RUT *
-                    </label>
-                    <div className="relative">
-                      <ShieldCheck
-                        className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                        aria-hidden="true"
-                      />
-                      <input
-                        id="patient-rut"
-                        type="text"
-                        required
-                        autoComplete="off"
-                        aria-invalid={Boolean(
-                          (fieldTouched.rut && rutCheck && !rutCheck.valid) ||
-                          reservationFieldErrors.paciente_rut,
-                        )}
-                        aria-describedby={
-                          [
-                            fieldTouched.rut && rutCheck && !rutCheck.valid
-                              ? 'patient-rut-local-error'
-                              : null,
-                            reservationFieldErrors.paciente_rut ? 'patient-rut-server-error' : null,
-                          ]
-                            .filter(Boolean)
-                            .join(' ') || undefined
-                        }
-                        placeholder="Ej: 12.345.678-5"
-                        value={pacienteRut}
-                        readOnly={bookingStep === 'revision'}
-                        onBlur={() => setFieldTouched({ ...fieldTouched, rut: true })}
-                        onChange={(e) => {
-                          setPacienteRut(formatRutInput(e.target.value));
-                          setFieldTouched({ ...fieldTouched, rut: true });
-                          setReservaResult(null);
-                        }}
-                        className={`min-h-12 w-full rounded-xl border bg-white py-2 pl-10 pr-3 font-mono text-sm shadow-sm transition focus:outline-none focus:ring-4 focus:ring-teal-600/10 ${rutCheck
-                            ? rutCheck.valid
-                              ? 'border-emerald-500 bg-emerald-50/20 focus:border-emerald-500'
-                              : 'border-rose-500 bg-rose-50/20 focus:border-rose-500 focus:ring-rose-500/10'
-                            : 'border-slate-200 focus:border-teal-600'
-                          }`}
-                      />
-                    </div>
-                    {rutCheck && fieldTouched.rut && !rutCheck.valid && (
-                      <p
-                        id="patient-rut-local-error"
-                        className="mt-1 text-[11px] font-medium text-rose-700"
-                      >
-                        {rutCheck.message}
-                      </p>
-                    )}
-                    {reservationFieldErrors.paciente_rut && (
-                      <p
-                        id="patient-rut-server-error"
-                        role="alert"
-                        className="mt-1 text-xs font-medium text-rose-800"
-                      >
-                        {reservationFieldErrors.paciente_rut}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="patient-name"
-                      className="mb-1.5 block text-sm font-semibold text-slate-700"
-                    >
-                      Nombre completo *
-                    </label>
-                    <div className="relative">
-                      <User
-                        className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                        aria-hidden="true"
-                      />
-                      <input
-                        id="patient-name"
-                        type="text"
-                        required
-                        aria-invalid={Boolean(reservationFieldErrors.paciente_nombre)}
-                        aria-describedby={
-                          reservationFieldErrors.paciente_nombre ? 'patient-name-error' : undefined
-                        }
-                        placeholder="Nombre y Apellidos"
-                        value={pacienteNombre}
-                        readOnly={bookingStep === 'revision'}
-                        onChange={(e) => {
-                          setPacienteNombre(e.target.value);
-                          setReservaResult(null);
-                        }}
-                        className="min-h-12 w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-3 text-sm shadow-sm transition focus:border-teal-600 focus:outline-none focus:ring-4 focus:ring-teal-600/10"
-                      />
-                    </div>
-                    {reservationFieldErrors.paciente_nombre && (
-                      <p
-                        id="patient-name-error"
-                        role="alert"
-                        className="mt-1 text-xs text-rose-800"
-                      >
-                        {reservationFieldErrors.paciente_nombre}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="patient-email"
-                      className="mb-1.5 block text-sm font-semibold text-slate-700"
-                    >
-                      Correo electrónico *
-                    </label>
-                    <div className="relative">
-                      <Mail
-                        className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                        aria-hidden="true"
-                      />
-                      <input
-                        id="patient-email"
-                        type="email"
-                        required
-                        autoComplete="email"
-                        aria-invalid={Boolean(reservationFieldErrors.paciente_email)}
-                        aria-describedby={
-                          reservationFieldErrors.paciente_email ? 'patient-email-error' : undefined
-                        }
-                        placeholder="nombre@ejemplo.cl"
-                        value={pacienteEmail}
-                        readOnly={bookingStep === 'revision'}
-                        onChange={(e) => {
-                          setPacienteEmail(e.target.value);
-                          setReservaResult(null);
-                        }}
-                        className="min-h-12 w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-3 text-sm shadow-sm transition focus:border-teal-600 focus:outline-none focus:ring-4 focus:ring-teal-600/10"
-                      />
-                    </div>
-                    {reservationFieldErrors.paciente_email && (
-                      <p
-                        id="patient-email-error"
-                        role="alert"
-                        className="mt-1 text-xs text-rose-800"
-                      >
-                        {reservationFieldErrors.paciente_email}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="patient-phone"
-                      className="mb-1.5 block text-sm font-semibold text-slate-700"
-                    >
-                      Teléfono móvil *
-                    </label>
-                    <div className="relative mt-1 flex min-h-12 items-center rounded-xl border border-slate-200 bg-white shadow-sm transition focus-within:border-teal-600 focus-within:ring-4 focus-within:ring-teal-600/10">
-                      <Phone
-                        className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                        aria-hidden="true"
-                      />
-                      <span className="ml-10 border-r border-slate-200 px-3 py-1 font-mono text-sm font-semibold text-slate-600">
-                        +569
-                      </span>
-                      <input
-                        id="patient-phone"
-                        type="tel"
-                        required
-                        autoComplete="tel"
-                        inputMode="numeric"
-                        maxLength={8}
-                        pattern="[0-9]{8}"
-                        title="Ingresa exactamente 8 dígitos después del prefijo +569."
-                        aria-invalid={Boolean(reservationFieldErrors.paciente_telefono)}
-                        aria-describedby={
-                          reservationFieldErrors.paciente_telefono
-                            ? 'patient-phone-error'
-                            : undefined
-                        }
-                        placeholder="12345678"
-                        value={
-                          pacienteTelefono.startsWith('+569')
-                            ? pacienteTelefono.slice(4)
-                            : onlyMobileSubscriberDigits(pacienteTelefono)
-                        }
-                        readOnly={bookingStep === 'revision'}
-                        onChange={(e) => {
-                          setPacienteTelefono(`+569${onlyMobileSubscriberDigits(e.target.value)}`);
-                          setReservaResult(null);
-                        }}
-                        onPaste={(e) => {
-                          e.preventDefault();
-                          setPacienteTelefono(
-                            `+569${parseChileanMobileDigits(e.clipboardData.getData('text'))}`,
-                          );
-                          setReservaResult(null);
-                        }}
-                        className="min-h-12 min-w-0 flex-1 rounded-r-xl bg-transparent px-3 py-2 font-mono text-sm tracking-wide focus:outline-none"
-                      />
-                    </div>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Prefijo +569 fijo · ingresa los 8 dígitos restantes.
-                    </p>
-                    {reservationFieldErrors.paciente_telefono && (
-                      <p
-                        id="patient-phone-error"
-                        role="alert"
-                        className="mt-1 text-xs text-rose-800"
-                      >
-                        {reservationFieldErrors.paciente_telefono}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="flex flex-col-reverse items-stretch justify-end gap-3 border-t border-slate-100 pt-4 sm:col-span-2 sm:flex-row sm:items-center">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        resetRequestKey();
-                        setSelectedBloque(null);
-                        setReservaResult(null);
-                        setBookingStep('datos');
-                      }}
-                      className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                    >
-                      Cambiar hora
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={submittingReserva}
-                      className="min-h-11 rounded-xl bg-teal-800 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-teal-950/15 transition hover:bg-teal-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-600/20 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {submittingReserva
-                        ? 'Procesando reserva…'
-                        : bookingStep === 'revision'
-                          ? 'Reservar'
-                          : 'Continuar'}
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              {/* Resultado A-05 (Éxito - Pase Clínico Perforado) o A-06 (Rechazo) */}
-              {reservaResult && (
-                <div
-                  className={`mx-5 mb-6 overflow-hidden rounded-2xl border sm:mx-6 ${reservaResult.type === 'success'
-                      ? 'mt-5 border-emerald-300/80 bg-gradient-to-br from-emerald-50/90 via-white to-teal-50/60 text-slate-900 shadow-md'
-                      : 'border-rose-200 bg-rose-50 text-rose-950'
-                    }`}
-                >
-                  {reservaResult.type === 'success' ? (
-                    <div className="p-5 sm:p-6">
-                      <div className="flex flex-wrap items-start justify-between gap-4">
-                        <div className="flex items-start gap-3.5">
-                          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20">
-                            <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
+                      <div className="ml-auto flex items-center gap-2">
+                        <div className="rounded-2xl border border-white/15 bg-white/10 px-3.5 py-2 text-right backdrop-blur-md">
+                          <span className="block font-mono text-[10px] uppercase tracking-wider text-teal-200">
+                            Bloque Seleccionado
                           </span>
-                          <div>
-                            <span className="font-mono text-[11px] font-bold uppercase tracking-widest text-emerald-700">
-                              Comprobante Oficial · Medisalud
-                            </span>
-                            <h4 className="font-display text-2xl font-bold tracking-tight text-slate-900">
-                              Tu hora está reservada
-                            </h4>
-                            <p className="mt-0.5 text-sm text-slate-600">
-                              Presenta este pase digital al llegar al centro médico.
-                            </p>
-                          </div>
+                          <span className="font-mono text-base font-bold text-white">
+                            {selectedBloque.hora_inicio} – {selectedBloque.hora_fin}
+                          </span>
                         </div>
-
-                        {/* Código de reserva con botón copiar */}
-                        <div className="flex items-center gap-2 rounded-2xl border border-emerald-300 bg-white px-4 py-2.5 shadow-sm">
-                          <div>
-                            <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                              Código de reserva
-                            </span>
-                            <strong className="font-mono text-base font-bold tracking-wider text-teal-900">
-                              {reservaResult.data.reserva.codigo_reserva}
-                            </strong>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleCopyCode(reservaResult.data.reserva.codigo_reserva)
-                            }
-                            title="Copiar código"
-                            className="no-print ml-2 inline-flex h-9 items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-xs font-semibold text-slate-700 transition hover:bg-teal-50 hover:text-teal-800"
-                          >
-                            {copiedCode ? (
-                              <>
-                                <Check
-                                  className="h-3.5 w-3.5 text-emerald-600"
-                                  aria-hidden="true"
-                                />
-                                Copiado
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-                                Copiar
-                              </>
-                            )}
-                          </button>
-                        </div>
+                        <button
+                          ref={bookingCloseButtonRef}
+                          type="button"
+                          aria-label={
+                            reservaResult?.type === 'success'
+                              ? 'Cerrar comprobante'
+                              : 'Cerrar ficha y volver a los horarios'
+                          }
+                          title="Cerrar"
+                          disabled={submittingReserva}
+                          onClick={closeBookingDialog}
+                          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/20 bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/30 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <X className="h-4 w-4" aria-hidden="true" />
+                        </button>
                       </div>
+                    </div>
 
-                      <div className="ticket-divider my-5 pt-5">
-                        <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                          <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
-                            <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                              Profesional
-                            </dt>
-                            <dd className="mt-1 font-bold text-slate-900">
-                              {reservaResult.data.reserva.medico_nombre}
-                            </dd>
-                          </div>
-                          <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
-                            <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                              Especialidad
-                            </dt>
-                            <dd className="mt-1 font-bold text-teal-800">
-                              {reservaResult.data.reserva.especialidad_nombre}
-                            </dd>
-                          </div>
-                          <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
-                            <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                              Fecha y hora
-                            </dt>
-                            <dd className="mt-1 font-mono font-bold text-slate-900">
-                              {reservaResult.data.reserva.fecha} ·{' '}
-                              {reservaResult.data.reserva.hora_inicio}–
-                              {reservaResult.data.reserva.hora_fin}
-                            </dd>
-                          </div>
-                          <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
-                            <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                              Lugar / Box
-                            </dt>
-                            <dd className="mt-1 font-bold text-slate-900">
-                              {reservaResult.data.reserva.box_atencion}
-                            </dd>
-                          </div>
-                        </dl>
-                      </div>
-
-                      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-emerald-100/60 px-4 py-3 text-xs text-emerald-950">
-                        <p>
-                          El comprobante quedó en cola para enviarse a{' '}
-                          <strong>{pacienteEmail}</strong>.
-                        </p>
-                        <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-emerald-800">
-                          ESTADO: CONFIRMADA
+                    {/* Resumen perforado del turno seleccionado */}
+                    <div className="mt-4 grid grid-cols-1 gap-3 rounded-2xl border border-white/15 bg-teal-950/50 p-3.5 text-xs sm:grid-cols-3">
+                      <div className="min-w-0">
+                        <span className="block text-[10px] uppercase tracking-wider text-teal-300/80">
+                          Profesional
+                        </span>
+                        <strong className="mt-0.5 block truncate text-sm text-white">
+                          {selectedBloque.medico_nombre}
+                        </strong>
+                        <span className="text-teal-200/80">
+                          {selectedBloque.especialidad_nombre}
                         </span>
                       </div>
-
-                      <div className="no-print mt-5 flex flex-wrap items-center justify-end gap-3">
-                        <button
-                          type="button"
-                          onClick={() => window.print?.()}
-                          className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-                        >
-                          <Printer className="h-4 w-4" aria-hidden="true" />
-                          Imprimir comprobante
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            resetRequestKey();
-                            setSelectedBloque(null);
-                            setReservaResult(null);
-                            setBookingStep('datos');
-                            setPacienteRut('');
-                            setPacienteNombre('');
-                            setPacienteEmail('');
-                            setPacienteTelefono('+569');
-                          }}
-                          className="min-h-11 rounded-xl bg-teal-800 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-900"
-                        >
-                          Reservar otra hora
-                        </button>
+                      <div className="min-w-0">
+                        <span className="block text-[10px] uppercase tracking-wider text-teal-300/80">
+                          Fecha programada
+                        </span>
+                        <strong className="mt-0.5 block capitalize text-sm text-white">
+                          {new Date(`${selectedBloque.fecha}T12:00:00`).toLocaleDateString(
+                            'es-CL',
+                            {
+                              weekday: 'long',
+                              day: 'numeric',
+                              month: 'long',
+                              year: 'numeric',
+                            },
+                          )}
+                        </strong>
+                        <span className="text-teal-200/80">
+                          Duración estimada: {selectedBloque.duracion_min} min
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <span className="block text-[10px] uppercase tracking-wider text-teal-300/80">
+                          Paciente Titular
+                        </span>
+                        <strong className="mt-0.5 block truncate text-sm text-emerald-300">
+                          {pacienteNombre.trim() || 'Pendiente de completar'}
+                        </strong>
+                        <span className="block min-w-0 break-all font-mono text-teal-200/80">
+                          {pacienteRut ? `RUT ${pacienteRut}` : 'Ingresa tu RUT abajo'}
+                        </span>
                       </div>
                     </div>
-                  ) : (
-                    <div className="p-5 sm:p-6">
-                      <h4 className="flex items-center gap-2 font-bold">
-                        <AlertCircle className="h-5 w-5" aria-hidden="true" />
-                        No se pudo completar la reserva
-                      </h4>
-                      <p role="alert" className="mt-1 text-sm">
-                        {reservaResult.data.mensaje ||
-                          reservaResult.data.error ||
-                          'Revisa la información e intenta nuevamente.'}
-                      </p>
-                      {reservaResult.status === 409 && (
+                  </div>
+
+                  {bookingStep === 'revision' && (
+                    <div className="mx-5 mt-5 rounded-2xl border border-teal-200 bg-gradient-to-br from-teal-50/90 to-emerald-50/50 p-5 text-sm text-teal-950 sm:mx-6">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="flex items-center gap-2 font-bold text-teal-900">
+                          <ShieldCheck className="h-5 w-5 text-teal-700" aria-hidden="true" />
+                          Comprueba tus datos antes de reservar
+                        </p>
+                        <span className="rounded-full bg-teal-900 px-2.5 py-0.5 font-mono text-[11px] font-semibold text-emerald-200">
+                          Verificación Final
+                        </span>
+                      </div>
+                      <div className="mt-3 grid grid-cols-1 gap-2 rounded-xl bg-white/80 p-3.5 ring-1 ring-teal-200/70 sm:grid-cols-2">
+                        <div>
+                          <span className="text-xs text-slate-500">Paciente y RUT</span>
+                          <p className="font-semibold text-slate-900">
+                            {pacienteNombre} · <span className="font-mono">RUT {pacienteRut}</span>
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-xs text-slate-500">Contacto de notificación</span>
+                          <p className="font-semibold text-slate-900">
+                            {pacienteEmail} · <span className="font-mono">{pacienteTelefono}</span>
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBookingStep('datos');
+                          setReservaResult(null);
+                        }}
+                        className="mt-3 inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-teal-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-teal-900 shadow-sm transition hover:bg-teal-50"
+                      >
+                        Editar mis datos
+                      </button>
+                    </div>
+                  )}
+
+                  {bookingStep !== 'confirmacion' && (
+                    <form
+                      onSubmit={handleReservarSubmit}
+                      className="grid grid-cols-1 gap-5 p-5 sm:grid-cols-2 sm:p-6"
+                    >
+                      <div>
+                        <label
+                          htmlFor="patient-rut"
+                          className="mb-1.5 block text-sm font-semibold text-slate-700"
+                        >
+                          RUT *
+                        </label>
+                        <div className="relative">
+                          <ShieldCheck
+                            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                            aria-hidden="true"
+                          />
+                          <input
+                            id="patient-rut"
+                            type="text"
+                            required
+                            autoComplete="off"
+                            aria-invalid={Boolean(
+                              (fieldTouched.rut && rutCheck && !rutCheck.valid) ||
+                              reservationFieldErrors.paciente_rut,
+                            )}
+                            aria-describedby={
+                              [
+                                fieldTouched.rut && rutCheck && !rutCheck.valid
+                                  ? 'patient-rut-local-error'
+                                  : null,
+                                reservationFieldErrors.paciente_rut
+                                  ? 'patient-rut-server-error'
+                                  : null,
+                              ]
+                                .filter(Boolean)
+                                .join(' ') || undefined
+                            }
+                            placeholder="Ej: 12.345.678-5"
+                            value={pacienteRut}
+                            readOnly={bookingStep === 'revision'}
+                            onBlur={() => setFieldTouched({ ...fieldTouched, rut: true })}
+                            onChange={(e) => {
+                              setPacienteRut(formatRutInput(e.target.value));
+                              setFieldTouched({ ...fieldTouched, rut: true });
+                              setReservaResult(null);
+                            }}
+                            className={`min-h-12 w-full rounded-xl border bg-white py-2 pl-10 pr-3 font-mono text-sm shadow-sm transition focus:outline-none focus:ring-4 focus:ring-teal-600/10 ${
+                              rutCheck
+                                ? rutCheck.valid
+                                  ? 'border-emerald-500 bg-emerald-50/20 focus:border-emerald-500'
+                                  : 'border-rose-500 bg-rose-50/20 focus:border-rose-500 focus:ring-rose-500/10'
+                                : 'border-slate-200 focus:border-teal-600'
+                            }`}
+                          />
+                        </div>
+                        {rutCheck && fieldTouched.rut && !rutCheck.valid && (
+                          <p
+                            id="patient-rut-local-error"
+                            className="mt-1 text-[11px] font-medium text-rose-700"
+                          >
+                            {rutCheck.message}
+                          </p>
+                        )}
+                        {reservationFieldErrors.paciente_rut && (
+                          <p
+                            id="patient-rut-server-error"
+                            role="alert"
+                            className="mt-1 text-xs font-medium text-rose-800"
+                          >
+                            {reservationFieldErrors.paciente_rut}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label
+                          htmlFor="patient-name"
+                          className="mb-1.5 block text-sm font-semibold text-slate-700"
+                        >
+                          Nombre completo *
+                        </label>
+                        <div className="relative">
+                          <User
+                            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                            aria-hidden="true"
+                          />
+                          <input
+                            id="patient-name"
+                            type="text"
+                            required
+                            aria-invalid={Boolean(reservationFieldErrors.paciente_nombre)}
+                            aria-describedby={
+                              reservationFieldErrors.paciente_nombre
+                                ? 'patient-name-error'
+                                : undefined
+                            }
+                            placeholder="Nombre y Apellidos"
+                            value={pacienteNombre}
+                            readOnly={bookingStep === 'revision'}
+                            onChange={(e) => {
+                              setPacienteNombre(e.target.value);
+                              setReservaResult(null);
+                            }}
+                            className="min-h-12 w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-3 text-sm shadow-sm transition focus:border-teal-600 focus:outline-none focus:ring-4 focus:ring-teal-600/10"
+                          />
+                        </div>
+                        {reservationFieldErrors.paciente_nombre && (
+                          <p
+                            id="patient-name-error"
+                            role="alert"
+                            className="mt-1 text-xs text-rose-800"
+                          >
+                            {reservationFieldErrors.paciente_nombre}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label
+                          htmlFor="patient-email"
+                          className="mb-1.5 block text-sm font-semibold text-slate-700"
+                        >
+                          Correo electrónico *
+                        </label>
+                        <div className="relative">
+                          <Mail
+                            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                            aria-hidden="true"
+                          />
+                          <input
+                            id="patient-email"
+                            type="email"
+                            required
+                            autoComplete="email"
+                            aria-invalid={Boolean(reservationFieldErrors.paciente_email)}
+                            aria-describedby={
+                              reservationFieldErrors.paciente_email
+                                ? 'patient-email-error'
+                                : undefined
+                            }
+                            placeholder="nombre@ejemplo.cl"
+                            value={pacienteEmail}
+                            readOnly={bookingStep === 'revision'}
+                            onChange={(e) => {
+                              setPacienteEmail(e.target.value);
+                              setReservaResult(null);
+                            }}
+                            className="min-h-12 w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-3 text-sm shadow-sm transition focus:border-teal-600 focus:outline-none focus:ring-4 focus:ring-teal-600/10"
+                          />
+                        </div>
+                        {reservationFieldErrors.paciente_email && (
+                          <p
+                            id="patient-email-error"
+                            role="alert"
+                            className="mt-1 text-xs text-rose-800"
+                          >
+                            {reservationFieldErrors.paciente_email}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label
+                          htmlFor="patient-phone"
+                          className="mb-1.5 block text-sm font-semibold text-slate-700"
+                        >
+                          Teléfono móvil *
+                        </label>
+                        <div className="relative mt-1 flex min-h-12 items-center rounded-xl border border-slate-200 bg-white shadow-sm transition focus-within:border-teal-600 focus-within:ring-4 focus-within:ring-teal-600/10">
+                          <Phone
+                            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                            aria-hidden="true"
+                          />
+                          <span className="ml-10 border-r border-slate-200 px-3 py-1 font-mono text-sm font-semibold text-slate-600">
+                            +569
+                          </span>
+                          <input
+                            id="patient-phone"
+                            type="tel"
+                            required
+                            autoComplete="tel"
+                            inputMode="numeric"
+                            maxLength={8}
+                            pattern="[0-9]{8}"
+                            title="Ingresa exactamente 8 dígitos después del prefijo +569."
+                            aria-invalid={Boolean(reservationFieldErrors.paciente_telefono)}
+                            aria-describedby={
+                              reservationFieldErrors.paciente_telefono
+                                ? 'patient-phone-error'
+                                : undefined
+                            }
+                            placeholder="12345678"
+                            value={
+                              pacienteTelefono.startsWith('+569')
+                                ? pacienteTelefono.slice(4)
+                                : onlyMobileSubscriberDigits(pacienteTelefono)
+                            }
+                            readOnly={bookingStep === 'revision'}
+                            onChange={(e) => {
+                              setPacienteTelefono(
+                                `+569${onlyMobileSubscriberDigits(e.target.value)}`,
+                              );
+                              setReservaResult(null);
+                            }}
+                            onPaste={(e) => {
+                              e.preventDefault();
+                              setPacienteTelefono(
+                                `+569${parseChileanMobileDigits(e.clipboardData.getData('text'))}`,
+                              );
+                              setReservaResult(null);
+                            }}
+                            className="min-h-12 min-w-0 flex-1 rounded-r-xl bg-transparent px-3 py-2 font-mono text-sm tracking-wide focus:outline-none"
+                          />
+                        </div>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Prefijo +569 fijo · ingresa los 8 dígitos restantes.
+                        </p>
+                        {reservationFieldErrors.paciente_telefono && (
+                          <p
+                            id="patient-phone-error"
+                            role="alert"
+                            className="mt-1 text-xs text-rose-800"
+                          >
+                            {reservationFieldErrors.paciente_telefono}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex flex-col-reverse items-stretch justify-end gap-3 border-t border-slate-100 pt-4 sm:col-span-2 sm:flex-row sm:items-center">
                         <button
                           type="button"
                           onClick={() => {
                             resetRequestKey();
-                            setReservaResult(null);
                             setSelectedBloque(null);
+                            setReservaResult(null);
                             setBookingStep('datos');
-                            fetchDisponibilidad();
                           }}
-                          className="mt-3 min-h-11 rounded-xl border border-rose-300 bg-white px-4 py-2 text-sm font-semibold text-rose-800 transition hover:bg-rose-100"
+                          className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                         >
-                          Elegir otra hora
+                          Cambiar hora
                         </button>
+                        <button
+                          type="submit"
+                          disabled={submittingReserva}
+                          className="min-h-11 rounded-xl bg-teal-800 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-teal-950/15 transition hover:bg-teal-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-600/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {submittingReserva
+                            ? 'Procesando reserva…'
+                            : bookingStep === 'revision'
+                              ? 'Reservar'
+                              : 'Continuar'}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* Resultado A-05 (Éxito - Pase Clínico Perforado) o A-06 (Rechazo) */}
+                  {reservaResult && (
+                    <div
+                      className={`mx-5 mb-6 overflow-hidden rounded-2xl border sm:mx-6 ${
+                        reservaResult.type === 'success'
+                          ? 'mt-5 border-emerald-300/80 bg-gradient-to-br from-emerald-50/90 via-white to-teal-50/60 text-slate-900 shadow-md'
+                          : 'border-rose-200 bg-rose-50 text-rose-950'
+                      }`}
+                    >
+                      {reservaResult.type === 'success' ? (
+                        <div className="p-5 sm:p-6">
+                          <div className="flex flex-wrap items-start justify-between gap-4">
+                            <div className="flex items-start gap-3.5">
+                              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20">
+                                <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
+                              </span>
+                              <div>
+                                <span className="font-mono text-[11px] font-bold uppercase tracking-widest text-emerald-700">
+                                  Comprobante Oficial · Medisalud
+                                </span>
+                                <h4 className="font-display text-2xl font-bold tracking-tight text-slate-900">
+                                  Tu hora está reservada
+                                </h4>
+                                <p className="mt-0.5 text-sm text-slate-600">
+                                  Presenta este pase digital al llegar al centro médico.
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Código de reserva con botón copiar */}
+                            <div className="flex items-center gap-2 rounded-2xl border border-emerald-300 bg-white px-4 py-2.5 shadow-sm">
+                              <div>
+                                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                  Código de reserva
+                                </span>
+                                <strong className="font-mono text-base font-bold tracking-wider text-teal-900">
+                                  {reservaResult.data.reserva.codigo_reserva}
+                                </strong>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleCopyCode(reservaResult.data.reserva.codigo_reserva)
+                                }
+                                title="Copiar código"
+                                className="no-print ml-2 inline-flex h-9 items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-xs font-semibold text-slate-700 transition hover:bg-teal-50 hover:text-teal-800"
+                              >
+                                {copiedCode ? (
+                                  <>
+                                    <Check
+                                      className="h-3.5 w-3.5 text-emerald-600"
+                                      aria-hidden="true"
+                                    />
+                                    Copiado
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                                    Copiar
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="ticket-divider my-5 pt-5">
+                            <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                              <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
+                                <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                  Profesional
+                                </dt>
+                                <dd className="mt-1 font-bold text-slate-900">
+                                  {reservaResult.data.reserva.medico_nombre}
+                                </dd>
+                              </div>
+                              <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
+                                <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                  Especialidad
+                                </dt>
+                                <dd className="mt-1 font-bold text-teal-800">
+                                  {reservaResult.data.reserva.especialidad_nombre}
+                                </dd>
+                              </div>
+                              <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
+                                <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                  Fecha y hora
+                                </dt>
+                                <dd className="mt-1 font-mono font-bold text-slate-900">
+                                  {reservaResult.data.reserva.fecha} ·{' '}
+                                  {reservaResult.data.reserva.hora_inicio}–
+                                  {reservaResult.data.reserva.hora_fin}
+                                </dd>
+                              </div>
+                              <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
+                                <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                  Lugar / Box
+                                </dt>
+                                <dd className="mt-1 font-bold text-slate-900">
+                                  {reservaResult.data.reserva.box_atencion}
+                                </dd>
+                              </div>
+                            </dl>
+                          </div>
+
+                          <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-emerald-100/60 px-4 py-3 text-xs text-emerald-950">
+                            <p>
+                              El comprobante quedó en cola para enviarse a{' '}
+                              <strong>{pacienteEmail}</strong>.
+                            </p>
+                            <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-emerald-800">
+                              ESTADO: CONFIRMADA
+                            </span>
+                          </div>
+
+                          <div className="no-print mt-5 flex flex-wrap items-center justify-end gap-3">
+                            <button
+                              type="button"
+                              onClick={() => window.print?.()}
+                              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                            >
+                              <Printer className="h-4 w-4" aria-hidden="true" />
+                              Imprimir comprobante
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                resetRequestKey();
+                                setSelectedBloque(null);
+                                setReservaResult(null);
+                                setBookingStep('datos');
+                                setPacienteRut('');
+                                setPacienteNombre('');
+                                setPacienteEmail('');
+                                setPacienteTelefono('+569');
+                              }}
+                              className="min-h-11 rounded-xl bg-teal-800 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-900"
+                            >
+                              Reservar otra hora
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-5 sm:p-6">
+                          <h4 className="flex items-center gap-2 font-bold">
+                            <AlertCircle className="h-5 w-5" aria-hidden="true" />
+                            No se pudo completar la reserva
+                          </h4>
+                          <p role="alert" className="mt-1 text-sm">
+                            {reservaResult.data.mensaje ||
+                              reservaResult.data.error ||
+                              'Revisa la información e intenta nuevamente.'}
+                          </p>
+                          {reservaResult.status === 409 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                resetRequestKey();
+                                setReservaResult(null);
+                                setSelectedBloque(null);
+                                setBookingStep('datos');
+                                fetchDisponibilidad();
+                              }}
+                              className="mt-3 min-h-11 rounded-xl border border-rose-300 bg-white px-4 py-2 text-sm font-semibold text-rose-800 transition hover:bg-rose-100"
+                            >
+                              Elegir otra hora
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}
-                </div>
-              )}
                 </div>
               </div>,
               document.body,
