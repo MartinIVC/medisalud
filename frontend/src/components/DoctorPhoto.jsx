@@ -64,9 +64,7 @@ export default function DoctorPhoto({ url, name, className = '' }) {
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-200/90">
                     Perfil profesional
                   </p>
-                  <h2 className="truncate text-sm font-semibold text-white sm:text-base">
-                    {name}
-                  </h2>
+                  <h2 className="truncate text-sm font-semibold text-white sm:text-base">{name}</h2>
                 </div>
               </div>
               <button
