@@ -34,7 +34,7 @@ Mantén las responsabilidades en sus módulos actuales. Usa consultas SQL parame
 
 ## Comandos habituales
 
-Usa Node.js `22.13` (de acuerdo con `.nvmrc`; los paquetes admiten Node `>=22.13 <27`). Desde la raíz:
+Usa Node.js `22.22.2` (de acuerdo con `.nvmrc`; los paquetes admiten Node `>=22.22.2 <27`). Desde la raíz:
 
 ```bash
 npm ci

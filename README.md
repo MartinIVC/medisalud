@@ -233,7 +233,7 @@ Las fotos se guardan en PostgreSQL y persisten en el volumen existente `medisalu
 
 ## Verificación automatizada
 
-Para ejecutar las comprobaciones de calidad localmente necesitas Node.js 22.13.0 o posterior, mientras sea menor que la versión 27. Instala dependencias desde los tres lockfiles y ejecuta el conjunto habitual:
+Para ejecutar las comprobaciones de calidad localmente necesitas Node.js 22.22.2 o posterior, mientras sea menor que la versión 27. Esta versión mínima mantiene las pruebas de frontend compatibles con las dependencias fijadas en `frontend/package-lock.json`. Instala dependencias desde los tres lockfiles y ejecuta el conjunto habitual:
 
 ```bash
 npm ci
