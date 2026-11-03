@@ -25,15 +25,8 @@ import {
   X,
 } from 'lucide-react';
 import { formatRutInput } from '../../utils/rut.js';
+import DoctorPhoto from '../../components/DoctorPhoto.jsx';
 import { onlyMobileSubscriberDigits, parseChileanMobileDigits } from '../../utils/phone.js';
-
-function getDoctorInitials(name = '') {
-  const clean = name.replace(/^(dr\.?|dra\.?)\s+/i, '').trim();
-  const parts = clean.split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return 'MD';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-}
 
 function buildQuickDates(baseDateStr) {
   const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(
@@ -671,7 +664,6 @@ export default function PatientPortal({ state, actions }) {
                   const period = group.endsWith('· Mañana') ? 'Mañana' : 'Tarde';
                   const doctorName = group.replace(/ · (Mañana|Tarde)$/, '');
                   const sampleBlock = blocks[0];
-                  const initials = getDoctorInitials(doctorName);
 
                   return (
                     <section
@@ -681,9 +673,11 @@ export default function PatientPortal({ state, actions }) {
                     >
                       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
                         <div className="flex min-w-0 items-center gap-3">
-                          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-teal-800 to-emerald-900 font-mono text-xs font-bold tracking-wider text-teal-100 shadow-sm">
-                            {initials}
-                          </span>
+                          <DoctorPhoto
+                            url={sampleBlock?.foto_url}
+                            name={doctorName}
+                            className="h-11 w-11 rounded-2xl"
+                          />
                           <div className="min-w-0">
                             <h3 className="truncate text-base font-bold text-slate-900">
                               {doctorName}
@@ -903,9 +897,16 @@ export default function PatientPortal({ state, actions }) {
                         <span className="block text-[10px] uppercase tracking-wider text-teal-300/80">
                           Profesional
                         </span>
-                        <strong className="mt-0.5 block truncate text-sm text-white">
-                          {selectedBloque.medico_nombre}
-                        </strong>
+                        <div className="mt-1 flex items-center gap-2">
+                          <DoctorPhoto
+                            url={selectedBloque.foto_url}
+                            name={selectedBloque.medico_nombre}
+                            className="h-9 w-9 rounded-lg"
+                          />
+                          <strong className="block truncate text-sm text-white">
+                            {selectedBloque.medico_nombre}
+                          </strong>
+                        </div>
                         <span className="text-teal-200/80">
                           {selectedBloque.especialidad_nombre}
                         </span>

@@ -35,6 +35,9 @@ function errorHandler(error, _req, res, _next) {
       'El cuerpo de la solicitud no contiene JSON válido.',
     );
   }
+  if (error.type === 'entity.too.large') {
+    return sendError(res, 413, 'PHOTO_TOO_LARGE', 'La foto no puede superar 2 MiB.');
+  }
 
   const status =
     error.status || (['ECONNREFUSED', 'ETIMEDOUT', '53300'].includes(error.code) ? 503 : 500);

@@ -28,6 +28,10 @@ El alta crea un médico activo, pero **no crea horarios**. Hasta configurar una 
 
 **Capturas 2 y 3 pendientes:** formulario nuevo, error de validación y confirmación de alta.
 
+### Foto de un profesional existente
+
+En **Agenda del día**, selecciona al profesional. En su ficha, elige **Añadir foto** o **Reemplazar foto**. Se admiten archivos PNG o JPEG de hasta 2 MiB. Revisa la vista previa y selecciona **Guardar foto**. Si la carga falla, la ficha y el catálogo muestran una imagen genérica y puedes volver a intentarlo; las reservas siguen disponibles. Solo una sesión de secretaría vigente permite guardar la foto.
+
 ## 3. Configurar horarios
 
 1. Desde la confirmación del médico, selecciona **Configurar horarios**. También puedes volver al panel y usar el selector **Profesional**.

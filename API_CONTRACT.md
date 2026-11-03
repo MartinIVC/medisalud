@@ -41,6 +41,14 @@ Solo se pueden gestionar citas activas cuya hora de inicio aún no haya pasado. 
 
 La respuesta exitosa incluye `estado`, `codigo_reserva`, `mensaje` y `correo_aviso`. `correo_aviso.estado: "PENDIENTE"` significa que el aviso quedó en cola; `proveedor_configurado` indica si hay SMTP o SendGrid configurado, pero no acredita envío ni entrega. La cancelación encola un aviso por correo y omite confirmaciones y recordatorios obsoletos. La reprogramación encola un aviso por correo con el horario anterior y el nuevo, y sustituye el enlace de respuesta del paciente.
 
+## Foto de profesionales (MED-23)
+
+`GET /api/medicos` y `GET /api/disponibilidad` incluyen `foto_url` para cada profesional o bloque. El valor es `null` cuando no hay foto. La URL apunta a `GET /api/medicos/:id/foto`, que devuelve la imagen PNG/JPEG del profesional activo con `Content-Type` y `X-Content-Type-Options: nosniff`; si no existe, responde `404 PHOTO_NOT_FOUND`. El portal muestra una imagen genérica si `foto_url` es nulo o la imagen no carga. La foto no bloquea la reserva.
+
+`PUT /api/medicos/:id/foto` requiere `Authorization: Bearer <token>` de secretaría. Recibe el archivo binario como cuerpo, con `Content-Type: image/png` o `image/jpeg`, hasta 2 MiB. El servidor comprueba los bytes del formato y que coincidan con el tipo declarado. Responde `{ "ok": true, "foto_url": "..." }`; una imagen inválida devuelve `400 INVALID_PHOTO`, una demasiado grande `413 PHOTO_TOO_LARGE`, y un profesional inexistente o inactivo `404 DOCTOR_NOT_FOUND`. Un visitante o paciente sin token de secretaría recibe `401 UNAUTHORIZED`. No hay endpoint público de escritura.
+
+La imagen se guarda en `medicos.foto_datos` (`BYTEA`) junto con su tipo y fecha de actualización. Cada reemplazo sobrescribe el valor anterior en PostgreSQL, por lo que no quedan archivos en el sistema. La base persiste en el volumen `medisalud_pgdata` de Compose. Se permite volver a cargar una foto si la vista previa falla.
+
 ## Notificaciones
 
 `ACEPTADO` significa que el proveedor aceptó la solicitud, no que el destinatario la recibió. Los errores del proveedor pueden reintentarse; una caída después de la aceptación puede producir duplicados si el proveedor no ofrece deduplicación. Las pruebas no envían mensajes a proveedores reales.
@@ -54,5 +62,6 @@ Las instalaciones nuevas reciben el esquema actual desde `database/01_init.sql`.
 3. `20261028_notifications_leases.sql`
 4. `20261028_idempotency_response.sql`
 5. `20261030_gestion_reservas.sql`
+6. `20261103_medicos_foto.sql`
 
 La migración Sprint 2 no se puede repetir y requiere resolver solapamientos de agenda antes de ejecutarla.

@@ -2,6 +2,7 @@ const express = require('express');
 const { pool } = require('../db');
 const { asyncHandler, sendError } = require('../middleware/errors');
 const { isValidDate, positiveInteger } = require('../schemas/inputs');
+const { photoUrl } = require('../services/foto-medico');
 
 const router = express.Router();
 
@@ -62,6 +63,7 @@ router.get(
         m.email,
         m.box_atencion,
         m.especialidad_id,
+        m.foto_actualizada_en,
         e.nombre AS especialidad_nombre
       FROM medicos m
       INNER JOIN especialidades e ON e.id = m.especialidad_id
@@ -70,7 +72,13 @@ router.get(
       `,
       params,
     );
-    res.json({ ok: true, medicos: result.rows });
+    res.json({
+      ok: true,
+      medicos: result.rows.map(({ foto_actualizada_en, ...medico }) => ({
+        ...medico,
+        foto_url: photoUrl(medico.id, foto_actualizada_en),
+      })),
+    });
   }),
 );
 
@@ -155,6 +163,7 @@ router.get(
         a.id AS agenda_id,
         a.medico_id,
         m.nombre AS medico_nombre,
+        m.foto_actualizada_en,
         m.rut AS medico_rut,
         m.box_atencion,
         e.id AS especialidad_id,
@@ -181,7 +190,10 @@ router.get(
       latencia_ms: Number(elapsedMs.toFixed(2)),
       cumple_umbral_2s: elapsedMs < 2000,
       total_cupos_libres: result.rows.length,
-      bloques: result.rows,
+      bloques: result.rows.map(({ foto_actualizada_en, ...bloque }) => ({
+        ...bloque,
+        foto_url: photoUrl(bloque.medico_id, foto_actualizada_en),
+      })),
     });
   }),
 );

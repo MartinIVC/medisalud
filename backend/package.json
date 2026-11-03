@@ -13,7 +13,8 @@
     "check": "node --check src/app.js && node --check src/index.js",
     "test:sprint1": "node tests/verify-sprint1.js",
     "test:sprint3": "node tests/verify-sprint3-medicos.js",
-    "test:gestion-reservas": "node tests/verify-gestion-reservas.js"
+    "test:gestion-reservas": "node tests/verify-gestion-reservas.js",
+    "test:fotos-medicos": "node tests/verify-fotos-medicos.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

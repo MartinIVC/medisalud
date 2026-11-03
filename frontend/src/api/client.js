@@ -31,7 +31,8 @@ export async function requestApi(url, options = {}) {
     body !== undefined &&
     body !== null &&
     typeof body === 'object' &&
-    !(body instanceof FormData)
+    !(body instanceof FormData) &&
+    !(body instanceof Blob)
   ) {
     headers.set('Content-Type', 'application/json');
     body = JSON.stringify(body);

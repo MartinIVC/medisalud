@@ -25,14 +25,7 @@ import { requestApi } from '../../api/client.js';
 import { formatRutInput } from '../../utils/rut';
 import { onlyMobileSubscriberDigits, parseChileanMobileDigits } from '../../utils/phone.js';
 import CrearMedico from '../../components/CrearMedico';
-
-function getDoctorInitials(name = '') {
-  const clean = name.replace(/^(dr\.?|dra\.?)\s+/i, '').trim();
-  const parts = clean.split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return 'MD';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-}
+import DoctorPhotoEditor from '../../components/DoctorPhotoEditor.jsx';
 
 export default function SecretaryPortal({ state, actions }) {
   const {
@@ -678,9 +671,12 @@ export default function SecretaryPortal({ state, actions }) {
           {selectedDoctor && (
             <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
               <div className="flex items-center gap-3">
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-teal-800 to-emerald-900 font-mono text-xs font-bold text-teal-100">
-                  {getDoctorInitials(selectedDoctor.nombre)}
-                </span>
+                <DoctorPhotoEditor
+                  doctor={selectedDoctor}
+                  token={secretaryToken}
+                  onSaved={refreshDoctorCatalogs}
+                  onUnauthorized={handleSecretaryUnauthorized}
+                />
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">{selectedDoctor.nombre}</h3>
                   <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">

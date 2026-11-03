@@ -57,3 +57,24 @@ test('la clave de idempotencia se mantiene al repetir el contenido y cambia al e
   assert.equal(idempotencyKeyFor(reference, { agenda_id: 3, nombre: 'Ana' }), first);
   assert.notEqual(idempotencyKeyFor(reference, { agenda_id: 4, nombre: 'Ana' }), first);
 });
+
+test('requestApi envía una foto binaria sin convertirla a JSON', async () => {
+  const originalFetch = globalThis.fetch;
+  const photo = new Blob(['imagen'], { type: 'image/png' });
+  let sent;
+  globalThis.fetch = async (_url, options) => {
+    sent = options;
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  };
+  try {
+    await requestApi('/api/medicos/1/foto', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'image/png' },
+      body: photo,
+    });
+    assert.equal(sent.body, photo);
+    assert.equal(sent.headers.get('Content-Type'), 'image/png');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

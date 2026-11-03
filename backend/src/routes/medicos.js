@@ -3,6 +3,8 @@ const { pool } = require('../db');
 const { requireSecretary } = require('../middleware/auth');
 const { validateRut } = require('../utils/rutValidator');
 const { asyncHandler, sendError } = require('../middleware/errors');
+const { MAX_PHOTO_BYTES, imageMime, photoUrl } = require('../services/foto-medico');
+const { positiveInteger } = require('../schemas/inputs');
 
 const router = express.Router();
 const allowedFields = new Set(['rut', 'nombre', 'email', 'especialidad_id', 'box_atencion']);
@@ -113,6 +115,48 @@ router.post(
 
       throw error;
     }
+  }),
+);
+
+router.get(
+  '/medicos/:id/foto',
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!positiveInteger(id))
+      return sendError(res, 400, 'VALIDATION_ERROR', 'Indica un profesional válido.');
+    const result = await pool.query(
+      'SELECT foto_mime, foto_datos FROM medicos WHERE id = $1 AND activo = TRUE',
+      [id],
+    );
+    if (!result.rowCount || !result.rows[0].foto_datos)
+      return sendError(res, 404, 'PHOTO_NOT_FOUND', 'Este profesional no tiene foto disponible.');
+    res.set('Content-Type', result.rows[0].foto_mime);
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.set('Cache-Control', 'private, no-store');
+    return res.send(result.rows[0].foto_datos);
+  }),
+);
+
+router.put(
+  '/medicos/:id/foto',
+  requireSecretary,
+  express.raw({ type: ['image/png', 'image/jpeg'], limit: MAX_PHOTO_BYTES }),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!positiveInteger(id))
+      return sendError(res, 400, 'VALIDATION_ERROR', 'Indica un profesional válido.');
+    const bytes = req.body;
+    const detected = imageMime(bytes);
+    if (!detected || detected !== req.get('Content-Type')?.split(';')[0].trim().toLowerCase())
+      return sendError(res, 400, 'INVALID_PHOTO', 'Selecciona una imagen PNG o JPEG válida.');
+    const result = await pool.query(
+      `UPDATE medicos SET foto_mime = $1, foto_datos = $2, foto_actualizada_en = clock_timestamp()
+       WHERE id = $3 AND activo = TRUE RETURNING id, foto_actualizada_en`,
+      [detected, bytes, id],
+    );
+    if (!result.rowCount)
+      return sendError(res, 404, 'DOCTOR_NOT_FOUND', 'El profesional no está disponible.');
+    return res.json({ ok: true, foto_url: photoUrl(id, result.rows[0].foto_actualizada_en) });
   }),
 );
 

@@ -216,6 +216,21 @@ Get-Content -Raw .\database\migrations\20261030_gestion_reservas.sql |
 docker compose exec -T db psql -U medisalud -d medisalud_db < database/migrations/20261030_gestion_reservas.sql
 ```
 
+Después de las migraciones anteriores, para habilitar las fotos de profesionales en una base existente aplica una sola vez `20261103_medicos_foto.sql`, tras revisar la migración y respaldar la base:
+
+```bash
+docker compose exec -T db psql -U medisalud -d medisalud_db < database/migrations/20261103_medicos_foto.sql
+```
+
+En PowerShell, usa:
+
+```powershell
+Get-Content -Raw .\database\migrations\20261103_medicos_foto.sql |
+  docker compose exec -T db psql -U medisalud -d medisalud_db
+```
+
+Las fotos se guardan en PostgreSQL y persisten en el volumen existente `medisalud_pgdata`; no se necesita un volumen de archivos ni almacenamiento externo. En una base nueva, `01_init.sql` ya incluye las columnas.
+
 ## Verificación automatizada
 
 Para ejecutar las comprobaciones de calidad localmente necesitas Node.js 22.13.0 o posterior, mientras sea menor que la versión 27. Instala dependencias desde los tres lockfiles y ejecuta el conjunto habitual:
@@ -237,6 +252,7 @@ docker compose -f docker-compose.test.yml up -d --build
 docker compose -f docker-compose.test.yml exec -T backend-test npm run test:sprint1
 docker compose -f docker-compose.test.yml exec -T backend-test npm run test:sprint3
 docker compose -f docker-compose.test.yml exec -T backend-test npm run test:gestion-reservas
+docker compose -f docker-compose.test.yml exec -T backend-test npm run test:fotos-medicos
 docker compose -f docker-compose.test.yml down -v
 ```
 
