@@ -676,7 +676,7 @@ export default function PatientPortal({ state, actions }) {
                           <DoctorPhoto
                             url={sampleBlock?.foto_url}
                             name={doctorName}
-                            className="h-11 w-11 rounded-2xl"
+                            className="h-16 w-16 sm:h-20 sm:w-20"
                           />
                           <div className="min-w-0">
                             <h3 className="truncate text-base font-bold text-slate-900">
@@ -892,54 +892,64 @@ export default function PatientPortal({ state, actions }) {
                     </div>
 
                     {/* Resumen perforado del turno seleccionado */}
-                    <div className="mt-4 grid grid-cols-1 gap-3 rounded-2xl border border-white/15 bg-teal-950/50 p-3.5 text-xs sm:grid-cols-3">
-                      <div className="min-w-0">
+                    <div className="mt-4 grid grid-cols-1 gap-3 rounded-2xl border border-white/15 bg-teal-950/50 p-3.5 text-xs sm:grid-cols-[1.15fr_1fr_1fr]">
+                      <div className="relative min-w-0 sm:border-r sm:border-emerald-200/40 sm:pr-3">
                         <span className="block text-[10px] uppercase tracking-wider text-teal-300/80">
                           Profesional
                         </span>
-                        <div className="mt-1 flex items-center gap-2">
+                        <div className="mt-0.5 flex items-center gap-3">
                           <DoctorPhoto
                             url={selectedBloque.foto_url}
                             name={selectedBloque.medico_nombre}
-                            className="h-9 w-9 rounded-lg"
+                            className="h-16 w-16 sm:h-20 sm:w-20"
                           />
-                          <strong className="block truncate text-sm text-white">
-                            {selectedBloque.medico_nombre}
-                          </strong>
+                          <div className="min-w-0">
+                            <strong className="block truncate text-sm text-white">
+                              {selectedBloque.medico_nombre}
+                            </strong>
+                            <span className="mt-0.5 block text-teal-200/80">
+                              {selectedBloque.especialidad_nombre}
+                            </span>
+                          </div>
                         </div>
-                        <span className="text-teal-200/80">
-                          {selectedBloque.especialidad_nombre}
-                        </span>
                       </div>
-                      <div className="min-w-0">
+                      <div aria-hidden="true" className="relative h-px sm:hidden">
+                        <span className="absolute inset-0 bg-gradient-to-r from-transparent via-emerald-300/60 to-transparent" />
+                        <span className="absolute left-1/2 top-1/2 h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-300/80 ring-2 ring-teal-950/60" />
+                      </div>
+                      <div className="min-w-0 sm:flex sm:flex-col">
                         <span className="block text-[10px] uppercase tracking-wider text-teal-300/80">
                           Fecha programada
                         </span>
-                        <strong className="mt-0.5 block capitalize text-sm text-white">
-                          {new Date(`${selectedBloque.fecha}T12:00:00`).toLocaleDateString(
-                            'es-CL',
-                            {
-                              weekday: 'long',
-                              day: 'numeric',
-                              month: 'long',
-                              year: 'numeric',
-                            },
-                          )}
-                        </strong>
-                        <span className="text-teal-200/80">
-                          Duración estimada: {selectedBloque.duracion_min} min
-                        </span>
+                        <div className="mt-0.5 sm:flex sm:flex-1 sm:flex-col sm:justify-center">
+                          <strong className="block capitalize text-sm text-white">
+                            {new Date(`${selectedBloque.fecha}T12:00:00`).toLocaleDateString(
+                              'es-CL',
+                              {
+                                weekday: 'long',
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric',
+                              },
+                            )}
+                          </strong>
+                          <span className="text-teal-200/80">
+                            Duración estimada: {selectedBloque.duracion_min} min
+                          </span>
+                        </div>
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 sm:flex sm:flex-col">
                         <span className="block text-[10px] uppercase tracking-wider text-teal-300/80">
                           Paciente Titular
                         </span>
-                        <strong className="mt-0.5 block truncate text-sm text-emerald-300">
-                          {pacienteNombre.trim() || 'Pendiente de completar'}
-                        </strong>
-                        <span className="block min-w-0 break-all font-mono text-teal-200/80">
-                          {pacienteRut ? `RUT ${pacienteRut}` : 'Ingresa tu RUT abajo'}
-                        </span>
+                        <div className="mt-0.5 sm:flex sm:flex-1 sm:flex-col sm:justify-center">
+                          <strong className="block truncate text-sm text-emerald-300">
+                            {pacienteNombre.trim() || 'Pendiente de completar'}
+                          </strong>
+                          <span className="block min-w-0 break-all font-mono text-teal-200/80">
+                            {pacienteRut ? `RUT ${pacienteRut}` : 'Ingresa tu RUT abajo'}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
