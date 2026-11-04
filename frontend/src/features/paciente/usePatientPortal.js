@@ -6,7 +6,13 @@ function localToday() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date());
 }
 
-export default function usePatientPortal({ medicos, especialidades }) {
+export default function usePatientPortal({
+  medicos,
+  especialidades,
+  catalogosLoading = false,
+  catalogosError = '',
+  retryCatalogos = () => {},
+}) {
   const [selectedEsp, setSelectedEsp] = useState('');
   const [selectedMedico, setSelectedMedico] = useState('');
   const [selectedFecha, setSelectedFecha] = useState(localToday);
@@ -141,7 +147,19 @@ export default function usePatientPortal({ medicos, especialidades }) {
     }
   }
 
+  function changeFilter(setter, value, resetDoctor = false) {
+    setter(value);
+    if (resetDoctor) setSelectedMedico('');
+    setSelectedBloque(null);
+    setReservaResult(null);
+    setBookingStep('datos');
+    resetRequestKey();
+  }
+
   const state = {
+    catalogosLoading,
+    catalogosError,
+    today: localToday(),
     availabilityError,
     bookingStep,
     disponibilidad,
@@ -164,6 +182,7 @@ export default function usePatientPortal({ medicos, especialidades }) {
     reservationFieldErrors,
   };
   const actions = {
+    retryCatalogos,
     fetchDisponibilidad,
     handleReservarSubmit,
     resetRequestKey,
@@ -175,9 +194,9 @@ export default function usePatientPortal({ medicos, especialidades }) {
     setPacienteTelefono,
     setReservaResult,
     setSelectedBloque,
-    setSelectedEsp,
-    setSelectedFecha,
-    setSelectedMedico,
+    setSelectedEsp: (value) => changeFilter(setSelectedEsp, value, true),
+    setSelectedFecha: (value) => changeFilter(setSelectedFecha, value),
+    setSelectedMedico: (value) => changeFilter(setSelectedMedico, value),
   };
   return { state, actions };
 }

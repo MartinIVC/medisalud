@@ -30,7 +30,7 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
   const [submittingReception, setSubmittingReception] = useState(false);
   const [especialidades, setEspecialidades] = useState([]);
   const [medicos, setMedicos] = useState([]);
-  const [catalogosLoading, setCatalogosLoading] = useState(false);
+  const [catalogosLoading, setCatalogosLoading] = useState(true);
   const [catalogosError, setCatalogosError] = useState('');
   const [pendingMedicoDraft, setPendingMedicoDraft] = useState(null);
   const [secMedicoId, setSecMedicoId] = useState('1');
@@ -40,40 +40,11 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
   const [secDuracion, setSecDuracion] = useState('30');
   const [secMotivoBloqueo, setSecMotivoBloqueo] = useState('Licencia médica profesional');
   const [secAgendas, setSecAgendas] = useState([]);
+  const [secAgendasKey, setSecAgendasKey] = useState('');
   const secretaryRequestRef = useRef(0);
   const [secFeedback, setSecFeedback] = useState(null);
   const [secError, setSecError] = useState('');
   const [scheduleDetailsOpen, setScheduleDetailsOpen] = useState(false);
-
-  useEffect(() => {
-    if (!receptionBlock) return undefined;
-    const dialog = receptionDialogRef.current;
-    if (!dialog) return undefined;
-    const selector =
-      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-    dialog.querySelector(selector)?.focus();
-    const trapFocus = (event) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        closeReceptionBooking();
-        return;
-      }
-      if (event.key !== 'Tab') return;
-      const elements = [...dialog.querySelectorAll(selector)];
-      if (!elements.length) return;
-      const first = elements[0];
-      const last = elements.at(-1);
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    dialog.addEventListener('keydown', trapFocus);
-    return () => dialog.removeEventListener('keydown', trapFocus);
-  }, [receptionBlock]);
 
   const fetchCatalogos = useCallback(async () => {
     setCatalogosLoading(true);
@@ -88,6 +59,11 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
       }
       setEspecialidades(specialties.data.especialidades);
       setMedicos(doctors.data.medicos);
+      setSecMedicoId((current) =>
+        doctors.data.medicos.some((doctor) => String(doctor.id) === String(current))
+          ? current
+          : String(doctors.data.medicos[0]?.id || ''),
+      );
       return true;
     } catch {
       setCatalogosError(
@@ -108,7 +84,7 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
 
   const fetchSecAgendas = useCallback(
     async ({ signal } = {}) => {
-      if (!secretaryToken) return;
+      if (!secretaryToken || !secMedicoId || !secFecha) return;
       const requestId = ++secretaryRequestRef.current;
       const params = new URLSearchParams();
       if (secMedicoId) params.set('medico_id', secMedicoId);
@@ -122,12 +98,18 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
         if (signal?.aborted || requestId !== secretaryRequestRef.current) return;
         if (response.status === 401) return;
         if (response.ok && response.data.ok) {
+          setSecAgendasKey(`${secMedicoId}:${secFecha}`);
           setSecAgendas(response.data.bloques);
           setSecError('');
-        } else
+        } else {
+          setSecAgendasKey(`${secMedicoId}:${secFecha}`);
+          setSecAgendas([]);
           setSecError(response.data.error || 'No pudimos cargar la agenda. Intenta nuevamente.');
+        }
       } catch {
         if (!signal?.aborted && requestId === secretaryRequestRef.current) {
+          setSecAgendasKey(`${secMedicoId}:${secFecha}`);
+          setSecAgendas([]);
           setSecError('No pudimos cargar la agenda. Revisa tu conexión e intenta nuevamente.');
         }
       }
@@ -245,6 +227,7 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
       });
       if (response.ok) {
         closeReceptionBooking();
+        setSecFeedback({ ok: true, mensaje: 'La cita quedó reservada.' });
         setReceptionData({
           nombre: '',
           rut: '',
@@ -347,6 +330,7 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
         setSecFeedback(result.data);
         return false;
       }
+      setSecFeedback(result.data);
       fetchSecAgendas();
       refreshAvailability();
       return true;
@@ -399,9 +383,10 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
     secHoraFin,
     secDuracion,
     secMotivoBloqueo,
-    secAgendas,
+    secAgendas: secAgendasKey === `${secMedicoId}:${secFecha}` ? secAgendas : [],
+    secAgendasLoading: Boolean(secMedicoId) && secAgendasKey !== `${secMedicoId}:${secFecha}`,
     secFeedback,
-    secError,
+    secError: secAgendasKey === `${secMedicoId}:${secFecha}` ? secError : '',
     scheduleDetailsOpen,
     todayStr,
   };

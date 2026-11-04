@@ -86,7 +86,11 @@ test('an expired secretary session preserves the doctor draft for the next login
   globalThis.fetch = async (url) => {
     requests.push(url);
     if (url === '/api/especialidades') return jsonResponse({ ok: true, especialidades: [] });
-    if (url === '/api/medicos') return jsonResponse({ ok: true, medicos: [] });
+    if (url === '/api/medicos')
+      return jsonResponse({
+        ok: true,
+        medicos: [{ id: 1, nombre: 'Médico de prueba', especialidad_id: 1 }],
+      });
     if (url === '/api/auth/secretaria') return jsonResponse({ ok: true, token: 'temporary-token' });
     if (url.startsWith('/api/agendas')) return jsonResponse({ error: 'Sesión vencida' }, 401);
     throw new Error(`Unexpected request: ${url}`);
@@ -94,7 +98,7 @@ test('an expired secretary session preserves the doctor draft for the next login
   const { result } = renderHook(() =>
     useSecretaryPortal({ activeTab: 'secretaria', refreshAvailability: async () => {} }),
   );
-  await waitFor(() => assert.deepEqual(result.current.state.medicos, []));
+  await waitFor(() => assert.equal(result.current.state.catalogosLoading, false));
   act(() => {
     result.current.actions.setSecretaryView('agenda');
     result.current.actions.setPendingMedicoDraft({
@@ -124,4 +128,130 @@ test('an expired secretary session preserves the doctor draft for the next login
     email: 'borrador@example.cl',
   });
   assert.equal(sessionStorage.getItem('medisalud-secretaria-token'), null);
+});
+
+test('a reservation conflict refreshes availability and preserves patient data for another slot', async () => {
+  let availabilityCalls = 0;
+  const keys = [];
+  globalThis.fetch = async (url, options) => {
+    if (url.startsWith('/api/disponibilidad')) {
+      availabilityCalls += 1;
+      return jsonResponse({
+        ok: true,
+        bloques:
+          availabilityCalls === 1
+            ? [{ agenda_id: 1, medico_nombre: 'Dra. Prueba', hora_inicio: '09:00' }]
+            : [],
+      });
+    }
+    if (url === '/api/reservas') {
+      keys.push(options.headers.get('Idempotency-Key'));
+      return keys.length === 1
+        ? jsonResponse({ mensaje: 'El horario ya fue reservado.' }, 409)
+        : jsonResponse({ ok: true, reserva: { codigo_reserva: 'MED-RETRY' } });
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  };
+  const { result } = renderHook(() => usePatientPortal({ medicos: [], especialidades: [] }));
+  await waitFor(() => assert.equal(result.current.state.loadingDisp, false));
+  act(() => {
+    result.current.actions.setSelectedBloque({ agenda_id: 1 });
+    result.current.actions.setPacienteRut('12.345.678-5');
+    result.current.actions.setPacienteNombre('Paciente conservado');
+    result.current.actions.setPacienteEmail('paciente@example.cl');
+    result.current.actions.setPacienteTelefono('+56912345678');
+    result.current.actions.setBookingStep('revision');
+  });
+  await act(async () => result.current.actions.handleReservarSubmit({ preventDefault() {} }));
+  await waitFor(() => assert.equal(availabilityCalls, 2));
+  assert.equal(result.current.state.reservaResult.status, 409);
+  assert.equal(result.current.state.pacienteNombre, 'Paciente conservado');
+  assert.equal(result.current.state.pacienteRut, '12.345.678-5');
+  assert.equal(result.current.state.pacienteEmail, 'paciente@example.cl');
+  assert.equal(result.current.state.pacienteTelefono, '+56912345678');
+  act(() => {
+    result.current.actions.setSelectedBloque({ agenda_id: 2 });
+    result.current.actions.setReservaResult(null);
+  });
+  await act(async () => result.current.actions.handleReservarSubmit({ preventDefault() {} }));
+  assert.equal(result.current.state.reservaResult.type, 'success');
+  assert.notEqual(keys[0], keys[1]);
+});
+
+test('changing a filter invalidates the selected time without clearing patient data', async () => {
+  globalThis.fetch = async () => jsonResponse({ ok: true, bloques: [] });
+  const { result } = renderHook(() => usePatientPortal({ medicos: [], especialidades: [] }));
+  await waitFor(() => assert.equal(result.current.state.loadingDisp, false));
+  act(() => {
+    result.current.actions.setSelectedMedico('2');
+    result.current.actions.setSelectedBloque({ agenda_id: 8 });
+    result.current.actions.setPacienteNombre('Paciente');
+  });
+  act(() => result.current.actions.setSelectedEsp('3'));
+  assert.equal(result.current.state.selectedBloque, null);
+  assert.equal(result.current.state.selectedMedico, '');
+  assert.equal(result.current.state.pacienteNombre, 'Paciente');
+});
+
+test('catalog failure is distinguishable from an empty catalog and can be retried', async () => {
+  sessionStorage.clear();
+  let fail = true;
+  let refreshes = 0;
+  globalThis.fetch = async (url) => {
+    if (fail) throw new TypeError('offline');
+    return url === '/api/especialidades'
+      ? jsonResponse({ ok: true, especialidades: [{ id: 1, nombre: 'Medicina General' }] })
+      : jsonResponse({ ok: true, medicos: [{ id: 1, especialidad_id: 1, nombre: 'Dra. Prueba' }] });
+  };
+  const { result } = renderHook(() =>
+    useSecretaryPortal({
+      activeTab: 'paciente',
+      refreshAvailability: async () => {
+        refreshes += 1;
+      },
+    }),
+  );
+  assert.equal(result.current.state.catalogosLoading, true);
+  await waitFor(() => assert.equal(result.current.state.catalogosLoading, false));
+  assert.match(result.current.state.catalogosError, /conexión/);
+  assert.deepEqual(result.current.state.especialidades, []);
+  fail = false;
+  await act(async () => result.current.actions.refreshDoctorCatalogs());
+  assert.equal(result.current.state.catalogosError, '');
+  assert.equal(result.current.state.especialidades[0].nombre, 'Medicina General');
+  assert.equal(result.current.state.medicos[0].nombre, 'Dra. Prueba');
+  assert.equal(refreshes, 1);
+});
+
+test('a transient concurrency conflict can be retried with the same idempotency key', async () => {
+  const keys = [];
+  const slot = { agenda_id: 7, medico_nombre: 'Dra. Prueba', hora_inicio: '09:00' };
+  globalThis.fetch = async (url, options) => {
+    if (url.startsWith('/api/disponibilidad')) return jsonResponse({ ok: true, bloques: [slot] });
+    if (url === '/api/reservas') {
+      keys.push(options.headers.get('Idempotency-Key'));
+      return keys.length === 1
+        ? jsonResponse({ code: 'CONCURRENT_RESERVATION', mensaje: 'Intenta nuevamente.' }, 409)
+        : jsonResponse({ ok: true, reserva: { codigo_reserva: 'MED-TRANSIENT' } });
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  };
+  const { result } = renderHook(() => usePatientPortal({ medicos: [], especialidades: [] }));
+  await waitFor(() => assert.equal(result.current.state.loadingDisp, false));
+  act(() => {
+    result.current.actions.setSelectedBloque(slot);
+    result.current.actions.setPacienteRut('12.345.678-5');
+    result.current.actions.setPacienteNombre('Paciente');
+    result.current.actions.setPacienteEmail('paciente@example.cl');
+    result.current.actions.setPacienteTelefono('+56912345678');
+    result.current.actions.setBookingStep('revision');
+  });
+  await act(async () => result.current.actions.handleReservarSubmit({ preventDefault() {} }));
+  assert.equal(result.current.state.reservaResult.data.code, 'CONCURRENT_RESERVATION');
+  await waitFor(() => assert.equal(result.current.state.loadingDisp, false));
+  assert.equal(result.current.state.disponibilidad.bloques[0].agenda_id, 7);
+  await act(async () => result.current.actions.handleReservarSubmit({ preventDefault() {} }));
+  assert.equal(keys.length, 2);
+  assert.equal(keys[0], keys[1]);
+  assert.equal(result.current.state.reservaResult.type, 'success');
 });
