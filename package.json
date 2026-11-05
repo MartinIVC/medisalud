@@ -2,7 +2,7 @@
   "name": "medisalud-tooling",
   "private": true,
   "engines": {
-    "node": ">=22.13 <27"
+    "node": ">=22.22.2 <27"
   },
   "scripts": {
     "format": "prettier --write \"backend/src/**/*.{js,cjs}\" \"backend/tests/**/*.{js,cjs}\" \"frontend/src/**/*.{js,jsx,css}\" \"frontend/tests/**/*.{js,mjs}\" \"shared/**/*.json\" package.json backend/package.json frontend/package.json eslint.config.mjs frontend/tailwind.config.cjs frontend/postcss.config.cjs docker-compose.test.yml .github/workflows/ci.yml",

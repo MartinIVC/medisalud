@@ -24,6 +24,13 @@ CREATE TABLE IF NOT EXISTS medicos (
     box_atencion VARCHAR(20) NOT NULL,
     especialidad_id INTEGER NOT NULL REFERENCES especialidades(id) ON DELETE RESTRICT,
     activo BOOLEAN NOT NULL DEFAULT TRUE,
+    foto_mime VARCHAR(10),
+    foto_datos BYTEA,
+    foto_actualizada_en TIMESTAMPTZ,
+    CONSTRAINT ck_medicos_foto_completa CHECK (
+      (foto_mime IS NULL AND foto_datos IS NULL AND foto_actualizada_en IS NULL)
+      OR (foto_mime IN ('image/png', 'image/jpeg') AND foto_datos IS NOT NULL AND foto_actualizada_en IS NOT NULL)
+    ),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

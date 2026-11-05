@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { requestApi } from '../../api/client.js';
 import { validateRutClient } from '../../utils/rut.js';
 import CrearMedico from '../../components/CrearMedico';
+import DoctorPhotoEditor from '../../components/DoctorPhotoEditor.jsx';
 import {
   Alert,
   Button,
@@ -408,10 +409,18 @@ export default function SecretaryPortal({ state, actions }) {
       </div>
       {selectedDoctor && (
         <div className="agenda-caption">
-          <strong>{selectedDoctor.nombre}</strong>
-          <span>
-            {selectedDoctor.especialidad_nombre} · {selectedDoctor.box_atencion}
-          </span>
+          <DoctorPhotoEditor
+            doctor={selectedDoctor}
+            token={secretaryToken}
+            onSaved={refreshDoctorCatalogs}
+            onUnauthorized={handleSecretaryUnauthorized}
+          />
+          <div className="agenda-doctor-meta">
+            <strong>{selectedDoctor.nombre}</strong>
+            <span>
+              {selectedDoctor.especialidad_nombre} · {selectedDoctor.box_atencion}
+            </span>
+          </div>
         </div>
       )}
       {secFeedback && !scheduleDetailsOpen && !blockingTarget && (

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Copy, Printer } from 'lucide-react';
+import DoctorPhoto from '../../components/DoctorPhoto.jsx';
 import {
   Alert,
   AppointmentDetails,
@@ -222,9 +223,16 @@ export default function PatientPortal({ state, actions }) {
                   </Field>
                   {currentDoctor ? (
                     <div className="professional-caption">
-                      <h3>{currentDoctor.nombre}</h3>
-                      <p>{currentDoctor.especialidad_nombre}</p>
-                      <p>{currentDoctor.box_atencion}</p>
+                      <DoctorPhoto
+                        url={currentDoctor.foto_url}
+                        name={currentDoctor.nombre}
+                        className="doctor-photo-md"
+                      />
+                      <div>
+                        <h3>{currentDoctor.nombre}</h3>
+                        <p>{currentDoctor.especialidad_nombre}</p>
+                        <p>{currentDoctor.box_atencion}</p>
+                      </div>
                     </div>
                   ) : (
                     <p className="muted">Compara los horarios de los profesionales disponibles.</p>
@@ -291,12 +299,19 @@ export default function PatientPortal({ state, actions }) {
                       {Object.entries(groupedBlocks).map(([group, blocks]) => (
                         <section className="slot-group" key={group} aria-label={group}>
                           <div className="slot-group-heading">
-                            <div>
-                              <h3>{blocks[0].medico_nombre}</h3>
-                              <p>
-                                {blocks[0].especialidad_nombre}
-                                {blocks[0].box_atencion ? ` · ${blocks[0].box_atencion}` : ''}
-                              </p>
+                            <div className="slot-doctor-info">
+                              <DoctorPhoto
+                                url={blocks[0].foto_url}
+                                name={blocks[0].medico_nombre}
+                                className="doctor-photo-md"
+                              />
+                              <div>
+                                <h3>{blocks[0].medico_nombre}</h3>
+                                <p>
+                                  {blocks[0].especialidad_nombre}
+                                  {blocks[0].box_atencion ? ` · ${blocks[0].box_atencion}` : ''}
+                                </p>
+                              </div>
                             </div>
                             <span className="muted">
                               {group.endsWith('· Mañana') ? 'Mañana' : 'Tarde'}
@@ -337,18 +352,25 @@ export default function PatientPortal({ state, actions }) {
                 <h2>Tu selección</h2>
                 <div aria-live="polite">
                   {selectedBloque ? (
-                    <>
-                      <strong>{selectedBloque.medico_nombre}</strong>
-                      <p>
-                        {formatDate(selectedBloque.fecha || selectedFecha)} ·{' '}
-                        <span className="numeric">
-                          {selectedBloque.hora_inicio}–{selectedBloque.hora_fin}
-                        </span>
-                      </p>
-                      <p className="muted">
-                        {selectedBloque.box_atencion} · {selectedBloque.duracion_min} minutos
-                      </p>
-                    </>
+                    <div className="booking-summary-selection">
+                      <DoctorPhoto
+                        url={selectedBloque.foto_url}
+                        name={selectedBloque.medico_nombre}
+                        className="doctor-photo-md"
+                      />
+                      <div>
+                        <strong>{selectedBloque.medico_nombre}</strong>
+                        <p>
+                          {formatDate(selectedBloque.fecha || selectedFecha)} ·{' '}
+                          <span className="numeric">
+                            {selectedBloque.hora_inicio}–{selectedBloque.hora_fin}
+                          </span>
+                        </p>
+                        <p className="muted">
+                          {selectedBloque.box_atencion} · {selectedBloque.duracion_min} minutos
+                        </p>
+                      </div>
+                    </div>
                   ) : (
                     <p className="muted">Selecciona un horario para continuar.</p>
                   )}
@@ -422,6 +444,7 @@ export default function PatientPortal({ state, actions }) {
           {selectedBloque && (
             <AppointmentDetails
               appointment={{ ...selectedBloque, fecha: selectedBloque.fecha || selectedFecha }}
+              showPhoto
             />
           )}
           <form onSubmit={handleReservarSubmit}>

@@ -2,6 +2,7 @@ import React, { useEffect, useId, useRef } from 'react';
 import { AlertCircle, CheckCircle2, Circle, Lock, User, X } from 'lucide-react';
 import { formatRutInput } from '../../utils/rut.js';
 import { onlyMobileSubscriberDigits, parseChileanMobileDigits } from '../../utils/phone.js';
+import DoctorPhoto from '../DoctorPhoto.jsx';
 
 export function Button({ variant = 'secondary', className = '', type = 'button', ...props }) {
   return <button type={type} className={`button button-${variant} ${className}`} {...props} />;
@@ -123,12 +124,21 @@ export function formatDate(value, options = {}) {
   }).format(new Date(`${value}T12:00:00`));
 }
 
-export function AppointmentDetails({ appointment }) {
+export function AppointmentDetails({ appointment, showPhoto = false }) {
   return (
     <dl className="appointment-details">
       <div>
         <dt>Profesional</dt>
-        <dd>{appointment.medico_nombre}</dd>
+        <dd className={showPhoto ? 'appointment-doctor' : undefined}>
+          {showPhoto && (
+            <DoctorPhoto
+              url={appointment.foto_url}
+              name={appointment.medico_nombre}
+              className="doctor-photo-sm"
+            />
+          )}
+          <span>{appointment.medico_nombre}</span>
+        </dd>
       </div>
       <div>
         <dt>Especialidad</dt>

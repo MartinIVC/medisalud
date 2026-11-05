@@ -477,14 +477,96 @@ strong {
   font-size: 14px;
 }
 .professional-caption {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
   margin-top: 32px;
   padding-top: 20px;
   border-top: 1px solid var(--border);
 }
 .professional-caption p {
-  margin-top: 8px;
+  margin-top: 6px;
   color: var(--muted);
   font-size: 14px;
+}
+.doctor-photo {
+  position: relative;
+  display: block;
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+.doctor-photo:disabled {
+  cursor: default;
+  opacity: 1;
+}
+.doctor-photo-sm {
+  width: 48px;
+  height: 48px;
+}
+.doctor-photo-md {
+  width: 56px;
+  height: 56px;
+}
+.doctor-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.doctor-photo-zoomable {
+  cursor: zoom-in;
+}
+.doctor-photo-zoomable:hover {
+  border-color: var(--primary);
+}
+.doctor-photo-badge {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius);
+  color: var(--primary);
+  background: #ffffffee;
+  border: 1px solid var(--border);
+}
+.doctor-photo-dialog {
+  width: min(440px, calc(100% - 32px));
+}
+.doctor-photo-dialog-body {
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+}
+.doctor-photo-dialog-body img {
+  display: block;
+  max-width: 100%;
+  max-height: 64dvh;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.doctor-photo-editor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.doctor-photo-upload {
+  cursor: pointer;
+}
+.doctor-photo-status {
+  width: 100%;
+  font-size: 13px;
+  color: var(--muted);
 }
 .date-heading {
   display: flex;
@@ -547,6 +629,12 @@ strong {
   gap: 16px;
   margin-bottom: 16px;
 }
+.slot-doctor-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
 .slot-group-heading p {
   color: var(--muted);
   font-size: 13px;
@@ -593,6 +681,12 @@ strong {
 .booking-summary h2 {
   font-size: 18px;
 }
+.booking-summary-selection {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
 .booking-summary p {
   margin-top: 4px;
 }
@@ -626,6 +720,11 @@ strong {
   font-size: 16px;
   font-weight: 500;
   overflow-wrap: anywhere;
+}
+.appointment-doctor {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 .reservation-code {
   display: flex;
@@ -702,6 +801,12 @@ strong {
   gap: 16px;
   margin: 24px 0;
   font-size: 14px;
+}
+.agenda-doctor-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 .agenda-caption span {
   color: var(--muted);

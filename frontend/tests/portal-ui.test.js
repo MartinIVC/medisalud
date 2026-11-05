@@ -250,3 +250,78 @@ for (const outcome of ['success', 'error']) {
     }
   });
 }
+
+test('portals render doctor photos with zoom dialog and secretary photo upload controls', async () => {
+  const { default: PatientPortal } = await server.ssrLoadModule(
+    '/src/features/paciente/PatientPortal.jsx',
+  );
+  const prototype = dom.window.HTMLDialogElement.prototype;
+  const originalShow = prototype.showModal;
+  const originalClose = prototype.close;
+  prototype.showModal = function () {
+    this.setAttribute('open', '');
+  };
+  prototype.close = function () {
+    this.removeAttribute('open');
+  };
+  try {
+    const slot = {
+      agenda_id: 7,
+      medico_nombre: 'Dra. Prueba',
+      especialidad_nombre: 'General',
+      box_atencion: 'Box 1',
+      fecha: '2027-01-15',
+      hora_inicio: '09:00',
+      hora_fin: '09:30',
+      duracion_min: 30,
+      foto_url: '/api/medicos/1/foto?v=1',
+    };
+    const patientScreen = render(
+      React.createElement(PatientPortal, {
+        state: {
+          selectedFecha: '2027-01-15',
+          today: '2027-01-15',
+          selectedEsp: '',
+          selectedMedico: '1',
+          selectedBloque: slot,
+          especialidades: [{ id: 1, nombre: 'General' }],
+          medicosFiltrados: [
+            {
+              id: 1,
+              nombre: 'Dra. Prueba',
+              especialidad_nombre: 'General',
+              box_atencion: 'Box 1',
+              foto_url: '/api/medicos/1/foto?v=1',
+            },
+          ],
+          disponibilidad: { bloques: [slot] },
+          groupedBlocks: { 'Dra. Prueba · Mañana': [slot] },
+          fieldTouched: {},
+          pacienteRut: '',
+          pacienteNombre: '',
+          pacienteEmail: '',
+          pacienteTelefono: '+569',
+          bookingStep: 'datos',
+          reservationFieldErrors: {},
+          reservaResult: null,
+        },
+        actions: {},
+      }),
+    );
+    const zoomButtons = patientScreen.getAllByRole('button', {
+      name: 'Ampliar foto de Dra. Prueba',
+      exact: true,
+    });
+    assert.ok(zoomButtons.length >= 2);
+    fireEvent.click(zoomButtons[0]);
+    assert.ok(patientScreen.getByRole('dialog', { name: 'Foto ampliada de Dra. Prueba' }));
+    cleanup();
+
+    const secretaryScreen = render(React.createElement(SecretaryHarness));
+    assert.ok(secretaryScreen.getByLabelText('Foto de Dra. Prueba'));
+    assert.ok(secretaryScreen.getByText('Añadir foto'));
+  } finally {
+    prototype.showModal = originalShow;
+    prototype.close = originalClose;
+  }
+});

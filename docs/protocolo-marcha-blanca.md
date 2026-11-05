@@ -24,7 +24,7 @@ Antes de convocar:
 | 10 min | Objetivo, acceso y navegación del panel |
 | 20 min | Crear un médico y corregir errores o duplicados |
 | 25 min | Configurar horarios y registrar bloqueos |
-| 25 min | Registrar, consultar y cancelar reservas de recepción |
+| 25 min | Registrar, consultar, cancelar y mover reservas de recepción |
 | 15 min | Confirmaciones, recordatorios e incidencias |
 | 20 min | Ejercicios individuales de aceptación con lista de verificación |
 | 5 min | Cierre, dudas y entrega de canales de apoyo |
@@ -79,6 +79,7 @@ La práctica de capacitación prepara estos ejercicios; la aprobación final deb
 | UAT-05 | Registrar una cita de recepción y consultar el mismo cupo desde el portal | Reserva registrada y cupo ocupado | ____________________ | ____________________ | ____________________ |
 | UAT-06 | Cancelar una cita y volver a consultar | Estado y disponibilidad coherentes con bloqueos vigentes | ____________________ | ____________________ | ____________________ |
 | UAT-07 | Resolver una sesión expirada y comunicar una incidencia | Se aplica el procedimiento del manual | ____________________ | ____________________ | ____________________ |
+| UAT-08 | Mover una cita futura a otro cupo y revisar ambos horarios | Nuevo cupo reservado, anterior disponible o bloqueado según corresponda y aviso por correo pendiente | ____________________ | ____________________ | ____________________ |
 
 Para cada ejecución, conservar fecha, participante, resultado esperado y real, evidencia sin datos personales y aprobación del PO.
 
