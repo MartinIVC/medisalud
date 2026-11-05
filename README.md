@@ -11,6 +11,28 @@ Aplicación web académica que reúne la reserva de horas médicas y la gestión
 | [`develop`](https://github.com/MartinIVC/medisalud/tree/develop) | Desarrollo actual: portales de paciente y secretaría, gestión de citas y médicos, fotos y notificaciones en cola. |
 | [`main`](https://github.com/MartinIVC/medisalud/tree/main) | Implementación inicial del núcleo de agendamiento. No incluye las ampliaciones actuales de esta rama. |
 
+## Vista previa
+
+Capturas de la versión funcional en desarrollo, tomadas el 5 de noviembre de 2026 en un entorno local aislado con datos ficticios. Muestran la consulta de horarios, una reserva completada y su gestión desde secretaría. El envío real de notificaciones no está habilitado en esta demo.
+
+### 1. Elegir profesional y horario
+
+El portal del paciente permite consultar la disponibilidad por profesional y fecha antes de iniciar la reserva.
+
+![Portal del paciente con selección de profesional, fecha y horarios disponibles](docs/images/portal-paciente.jpg)
+
+### 2. Obtener el comprobante
+
+Al confirmar la reserva, se muestra el código y el detalle de la atención. El aviso por correo queda en cola; la captura no representa una entrega de email confirmada.
+
+![Comprobante de una reserva de demostración confirmada con fecha, horario y código](docs/images/comprobante-reserva.jpg)
+
+### 3. Gestionar la cita desde secretaría
+
+La misma reserva aparece en la agenda, con acciones para cambiarla o cancelarla. Esta captura muestra el panel en una pantalla estrecha, con el filtro de citas reservadas activo.
+
+![Vista adaptable de secretaría con la reserva de demostración y las acciones Cambiar cita y Cancelar cita](docs/images/panel-secretaria.jpg)
+
 ## Funcionalidades disponibles
 
 ### Portal de pacientes
