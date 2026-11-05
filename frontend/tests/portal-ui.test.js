@@ -174,6 +174,9 @@ for (const outcome of ['success', 'error']) {
     globalThis.sessionStorage = dom.window.sessionStorage;
     sessionStorage.clear();
     const originalFetch = globalThis.fetch;
+    const dialogPrototype = dom.window.HTMLDialogElement.prototype;
+    const originalShowModal = dialogPrototype.showModal;
+    const originalDialogClose = dialogPrototype.close;
     let finishReservation;
     const slot = {
       agenda_id: 7,
@@ -200,17 +203,33 @@ for (const outcome of ['success', 'error']) {
         });
       throw new Error(`Unexpected request: ${url}`);
     };
+    dialogPrototype.showModal = function () {
+      this.setAttribute('open', '');
+      this.querySelector('button')?.focus();
+    };
+    dialogPrototype.close = function () {
+      this.removeAttribute('open');
+    };
     try {
       const { default: App } = await server.ssrLoadModule('/src/App.jsx');
       const screen = render(React.createElement(App));
-      fireEvent.click(
-        await screen.findByRole('button', { name: '09:00, Dra. Prueba, 30 minutos', exact: true }),
-      );
-      fireEvent.click(screen.getByRole('button', { name: 'Continuar', exact: true }));
+      const slotButton = await screen.findByRole('button', {
+        name: '09:00, Dra. Prueba, 30 minutos',
+        exact: true,
+      });
+      fireEvent.click(slotButton);
+      assert.ok(screen.getByRole('dialog', { name: 'Completa tus datos' }));
       fireEvent.change(screen.getByLabelText('RUT'), { target: { value: '12.345.678-5' } });
       fireEvent.change(screen.getByLabelText('Nombre completo'), {
         target: { value: 'Paciente de prueba' },
       });
+      fireEvent.click(screen.getByRole('button', { name: 'Cerrar diálogo', exact: true }));
+      assert.equal(slotButton.getAttribute('aria-pressed'), 'true');
+      assert.equal(screen.getByRole('button', { name: 'Continuar', exact: true }).disabled, false);
+      fireEvent.click(screen.getByRole('button', { name: 'Continuar', exact: true }));
+      assert.ok(screen.getByRole('dialog', { name: 'Completa tus datos' }));
+      assert.equal(screen.getByLabelText('RUT').value, '12.345.678-5');
+      assert.equal(screen.getByLabelText('Nombre completo').value, 'Paciente de prueba');
       fireEvent.change(screen.getByLabelText('Correo electrónico'), {
         target: { value: 'paciente@example.cl' },
       });
@@ -246,6 +265,9 @@ for (const outcome of ['success', 'error']) {
       cleanup();
     } finally {
       globalThis.fetch = originalFetch;
+      dialogPrototype.showModal = originalShowModal;
+      dialogPrototype.close = originalDialogClose;
+      cleanup();
       sessionStorage.clear();
     }
   });

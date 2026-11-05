@@ -5,6 +5,7 @@ import {
   Alert,
   AppointmentDetails,
   Button,
+  Dialog,
   EmptyState,
   Field,
   PatientFields,
@@ -73,6 +74,7 @@ export default function PatientPortal({ state, actions }) {
   const [view, setView] = useState(() =>
     submittingReserva || reservaResult || bookingStep === 'revision' ? 'reserva' : 'horarios',
   );
+  const [bookingOpen, setBookingOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState('');
   const headingRef = useRef(null);
@@ -101,6 +103,7 @@ export default function PatientPortal({ state, actions }) {
     setSelectedBloque(null);
     setReservaResult(null);
     setBookingStep('datos');
+    setBookingOpen(false);
     setView('horarios');
     window.requestAnimationFrame(() =>
       document.getElementById('patient-date')?.focus({ preventScroll: true }),
@@ -119,6 +122,14 @@ export default function PatientPortal({ state, actions }) {
     if (key === 'rut') setFieldTouched((current) => ({ ...current, rut: true }));
   }
 
+  function submitBooking(event) {
+    if (bookingStep === 'datos') {
+      setView('reserva');
+      setBookingOpen(false);
+    }
+    handleReservarSubmit(event);
+  }
+
   async function copyCode(code) {
     try {
       await navigator.clipboard.writeText(code);
@@ -128,6 +139,61 @@ export default function PatientPortal({ state, actions }) {
       setCopyError('No pudimos copiar el código. Puedes seleccionarlo en el comprobante.');
     }
   }
+
+  const bookingForm = (
+    <form onSubmit={submitBooking}>
+      <PatientFields
+        prefix="patient"
+        values={{
+          rut: pacienteRut,
+          nombre: pacienteNombre,
+          email: pacienteEmail,
+          telefono: pacienteTelefono,
+        }}
+        onChange={updatePatient}
+        errors={reservationFieldErrors}
+        rutError={rutError}
+        readOnly={bookingStep === 'revision'}
+      />
+      {reservaResult?.type === 'error' && (
+        <Alert>
+          {retryableConflict
+            ? 'No pudimos confirmar este horario. Puedes reintentar sin volver a ingresar tus datos.'
+            : reservaResult.data.mensaje ||
+              reservaResult.data.error ||
+              'No pudimos completar la reserva.'}
+          {needsAnotherSlot && (
+            <>
+              <p>Elige otro horario. Conservamos tus datos.</p>
+              <Button onClick={changeHour}>Elegir otra hora</Button>
+            </>
+          )}
+        </Alert>
+      )}
+      <div className="form-actions">
+        {bookingStep === 'revision' && (
+          <Button
+            disabled={submittingReserva}
+            onClick={() => {
+              setBookingStep('datos');
+              setReservaResult(null);
+            }}
+          >
+            Editar datos
+          </Button>
+        )}
+        <Button variant="primary" type="submit" disabled={submittingReserva || needsAnotherSlot}>
+          {submittingReserva
+            ? 'Reservando…'
+            : retryableConflict
+              ? 'Reintentar reserva'
+              : bookingStep === 'revision'
+                ? 'Confirmar reserva'
+                : 'Revisar reserva'}
+        </Button>
+      </div>
+    </form>
+  );
 
   return (
     <div className="patient-portal">
@@ -325,11 +391,15 @@ export default function PatientPortal({ state, actions }) {
                                 className="time-slot"
                                 aria-pressed={selectedBloque?.agenda_id === block.agenda_id}
                                 aria-label={`${block.hora_inicio}, ${block.medico_nombre}, ${block.duracion_min} minutos`}
+                                aria-haspopup="dialog"
                                 onClick={() => {
-                                  resetRequestKey();
-                                  setSelectedBloque(block);
-                                  setReservaResult(null);
-                                  setBookingStep('datos');
+                                  if (selectedBloque?.agenda_id !== block.agenda_id) {
+                                    resetRequestKey();
+                                    setSelectedBloque(block);
+                                    setReservaResult(null);
+                                    setBookingStep('datos');
+                                  }
+                                  setBookingOpen(true);
                                 }}
                               >
                                 <span>{block.hora_inicio}</span>
@@ -378,7 +448,8 @@ export default function PatientPortal({ state, actions }) {
                 <Button
                   variant="primary"
                   disabled={!selectedBloque || loadingDisp}
-                  onClick={() => setView('reserva')}
+                  aria-haspopup="dialog"
+                  onClick={() => setBookingOpen(true)}
                 >
                   Continuar
                 </Button>
@@ -447,64 +518,26 @@ export default function PatientPortal({ state, actions }) {
               showPhoto
             />
           )}
-          <form onSubmit={handleReservarSubmit}>
-            <PatientFields
-              prefix="patient"
-              values={{
-                rut: pacienteRut,
-                nombre: pacienteNombre,
-                email: pacienteEmail,
-                telefono: pacienteTelefono,
-              }}
-              onChange={updatePatient}
-              errors={reservationFieldErrors}
-              rutError={rutError}
-              readOnly={bookingStep === 'revision'}
-            />
-            {reservaResult?.type === 'error' && (
-              <Alert>
-                {retryableConflict
-                  ? 'No pudimos confirmar este horario. Puedes reintentar sin volver a ingresar tus datos.'
-                  : reservaResult.data.mensaje ||
-                    reservaResult.data.error ||
-                    'No pudimos completar la reserva.'}
-                {needsAnotherSlot && (
-                  <>
-                    <p>Elige otro horario. Conservamos tus datos.</p>
-                    <Button onClick={changeHour}>Elegir otra hora</Button>
-                  </>
-                )}
-              </Alert>
-            )}
-            <div className="form-actions">
-              {bookingStep === 'revision' && (
-                <Button
-                  disabled={submittingReserva}
-                  onClick={() => {
-                    setBookingStep('datos');
-                    setReservaResult(null);
-                  }}
-                >
-                  Editar datos
-                </Button>
-              )}
-              <Button
-                variant="primary"
-                type="submit"
-                disabled={submittingReserva || needsAnotherSlot}
-              >
-                {submittingReserva
-                  ? 'Reservando…'
-                  : retryableConflict
-                    ? 'Reintentar reserva'
-                    : bookingStep === 'revision'
-                      ? 'Confirmar reserva'
-                      : 'Revisar reserva'}
-              </Button>
-            </div>
-          </form>
+          {bookingForm}
         </section>
       )}
+      <Dialog
+        open={bookingOpen && activeView === 'horarios' && Boolean(selectedBloque)}
+        title="Completa tus datos"
+        onClose={() => setBookingOpen(false)}
+        busy={submittingReserva}
+      >
+        {selectedBloque && (
+          <AppointmentDetails
+            appointment={{ ...selectedBloque, fecha: selectedBloque.fecha || selectedFecha }}
+            showPhoto
+          />
+        )}
+        <p className="muted booking-dialog-note">
+          Revisa el horario seleccionado y completa tus datos para continuar con la reserva.
+        </p>
+        {bookingForm}
+      </Dialog>
     </div>
   );
 }
