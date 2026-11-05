@@ -1,30 +1,81 @@
-# Sistema Medisalud — Gestión de Citas Médicas y Recordatorios en Tiempo Real (`MED`)
+# Medisalud — Gestión de citas médicas
 
-Plataforma web modular desarrollada para el **Centro Médico Medisalud** (15 profesionales médicos especialistas distribuidos en *Medicina General, Pediatría, Traumatología y Dermatología*), orientada a reducir el tiempo medio de agendamiento a menos de 60 segundos y erradicar el *overbooking* mediante control transaccional en PostgreSQL.
+Aplicación web académica para consultar disponibilidad, reservar horas médicas y configurar agendas desde un panel de secretaría. Combina React/Vite, Node.js/Express y PostgreSQL 16 en un entorno local con Docker Compose.
 
----
+> **Esta rama contiene la implementación inicial del proyecto (Sprint 1).** Para explorar la versión funcional más actual, todavía en desarrollo, visita [`develop`](https://github.com/MartinIVC/medisalud/tree/develop). `main` no debe interpretarse como una versión final o validada para producción.
 
-## Alcance Implementado — Sprint 1 (*"Núcleo de agendamiento y disponibilidad"*)
+## Estado de las ramas
 
-| Clave JIRA | Requisito / HU | Descripción |
-| :--- | :--- | :--- |
-| **`MED-15`** | `RNF-02` | Configuración de ambiente Staging (Docker) y base de datos relacional PostgreSQL (`especialidades`, `medicos`, `agendas`, `citas_medicas` + índices). |
-| **`MED-9`** | `RF-01` (`HU01`) | Consulta pública de disponibilidad de horas médicas por especialidad, profesional y fecha en `< 2,0 s` (`CU-01`: `A-01`, `A-02`). |
-| **`MED-10`** | `RF-03` (`HU02`) | Configuración de bloques horarios (15, 20 y 30 minutos) y bloqueo de feriados/licencias médicas para secretarias. |
-| **`MED-16`** | `RNF-01` (`Riesgo R01`) | Implementación de bloqueo pesimista a nivel de fila (`SELECT ... FOR UPDATE`) en PostgreSQL garantizando `0 %` de sobreventa (*overbooking*) y `p95 <= 2,0 s`. |
-| **`MED-11`** | `RF-02` (`HU03`) | Reserva de cita web con validación algorítmica de RUT chileno (Módulo 11), confirmación con código único + correo (`A-05`) y manejo de rechazos (`A-06`) (`CU-02`). |
+| Rama | Alcance |
+| --- | --- |
+| [`main`](https://github.com/MartinIVC/medisalud/tree/main) | Núcleo inicial: disponibilidad, agendas, reservas y comprobantes. |
+| [`develop`](https://github.com/MartinIVC/medisalud/tree/develop) | Versión ampliada con acceso de secretaría, registro de médicos, fotos, gestión de cambios de citas y notificaciones en cola. |
 
----
+El proyecto es una demostración académica con datos ficticios; no está conectado a una clínica real.
 
-## Ejecución del Entorno Staging con Docker Compose
+## Qué incluye esta rama
+
+- Consulta de disponibilidad por especialidad, médico y fecha.
+- Configuración de bloques de 15, 20 o 30 minutos.
+- Bloqueo y rehabilitación de horarios por profesional o fecha.
+- Reserva de citas con validación de RUT chileno mediante Módulo 11.
+- Generación de un código de reserva y un comprobante de confirmación.
+- Transacciones y bloqueo de filas de PostgreSQL para controlar solicitudes sobre un mismo cupo.
+- Datos iniciales de demostración con cuatro especialidades y 15 médicos.
+
+## Límites de esta versión
+
+- El panel y las rutas administrativas de esta rama no incorporan autenticación. Ejecuta esta versión únicamente como demo local con datos ficticios.
+- El Compose incluido no configura un proveedor de correo. Sin SMTP, el comprobante se registra en memoria: los indicadores de envío del prototipo no prueban que se haya entregado un email.
+- Esta rama no incluye el worker de recordatorios, las fotografías, el registro de médicos ni la cancelación y reprogramación disponibles en `develop`.
+- La revisión del código permite identificar el alcance, pero no certifica su funcionamiento completo. Los objetivos de latencia y concurrencia deben verificarse en el entorno de prueba; no son garantías de producción.
+
+## Ejecutar la demo local
+
+Necesitas Git, Docker en ejecución y Docker Compose v2. Los puertos 5173, 4000 y 5432 deben estar libres. En Windows y macOS puedes utilizar Docker Desktop; en Linux, Docker Engine con el complemento Compose.
 
 ```bash
-# 1. Levantar PostgreSQL 16, Backend API (Node.js/Express) y Frontend (React/Vite/Tailwind)
+git clone --branch main --single-branch https://github.com/MartinIVC/medisalud.git medisalud-main
+cd medisalud-main
 docker compose up -d --build
-
-# 2. Ejecutar suite de verificación del Sprint 1 (Latencia < 2s, Validación RUT y 40 usuarios concurrentes)
-docker exec medisalud-backend npm run test:sprint1
+docker compose ps
 ```
 
-* **Portal Web (Paciente y Panel Secretaría):** `http://localhost:5173`
-* **API Healthcheck (`MED-15`):** `http://localhost:4000/api/health`
+| Servicio | Dirección |
+| --- | --- |
+| Portal de pacientes y secretaría | [http://localhost:5173](http://localhost:5173) |
+| Estado de la API y conexión a la base | [http://localhost:4000/api/health](http://localhost:4000/api/health) |
+
+El Compose define credenciales locales de demostración y crea el esquema y los datos semilla al inicializar un volumen vacío. No necesitas instalar Node.js o PostgreSQL en el equipo para usar este flujo. La interfaz de esta rama carga Tailwind desde un CDN, por lo que requiere acceso a internet.
+
+Para revisar registros y detener los servicios conservando los datos:
+
+```bash
+docker compose logs -f backend
+docker compose down
+```
+
+No ejecutes ambas ramas simultáneamente con sus configuraciones predeterminadas: comparten nombres de contenedor y puertos. Detén una antes de iniciar la otra. No reutilices una base de `develop` en esta versión inicial; al pasar de `main` a `develop`, consulta sus instrucciones de migración.
+
+## Verificación disponible
+
+La suite [`backend/tests/verify-sprint1.js`](backend/tests/verify-sprint1.js) comprueba datos semilla, configuración y bloqueo de agendas, validación de RUT y 40 solicitudes simultáneas sobre un mismo cupo.
+
+**La prueba modifica agendas y crea reservas en la base configurada.** Esta rama no tiene el entorno aislado ni las protecciones de pruebas de `develop`. Ejecútala solamente en una copia local descartable, sin datos que necesites conservar:
+
+```bash
+docker compose exec -T backend npm run test:sprint1
+```
+
+El script utiliza la fecha fija `2026-11-15` y presupone cuatro especialidades y 15 médicos. Esas condiciones pueden afectar su resultado y su vigencia. Para las suites actuales y el entorno de PostgreSQL descartable, consulta el [README de `develop`](https://github.com/MartinIVC/medisalud/blob/develop/README.md#verificación-automatizada).
+
+## Estructura
+
+- [`frontend/`](frontend/): interfaz React, Vite y validación de RUT.
+- [`backend/src/routes/`](backend/src/routes/): disponibilidad, agendas y reservas.
+- [`backend/src/utils/`](backend/src/utils/): validación de RUT y comprobantes de correo.
+- [`backend/tests/`](backend/tests/): verificación del Sprint 1.
+- [`database/`](database/): esquema SQL y datos iniciales.
+- [`docker-compose.yml`](docker-compose.yml): servicios de frontend, backend y PostgreSQL.
+
+Los scripts SQL de inicialización se ejecutan solo al crear un volumen vacío. Detener los servicios con `docker compose down` conserva la base; añadir `-v` elimina el volumen y sus datos.
