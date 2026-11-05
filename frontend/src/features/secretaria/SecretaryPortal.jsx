@@ -99,6 +99,7 @@ export default function SecretaryPortal({ state, actions }) {
     [medicos, specialtyFilter],
   );
   const selectedDoctor = medicos.find((doctor) => String(doctor.id) === String(secMedicoId));
+  const isPastDate = Boolean(secFecha && todayStr && secFecha < todayStr);
   const selectedBlock =
     selection?.key === `${secMedicoId}:${secFecha}`
       ? secAgendas.find((block) => block.agenda_id === selection.id)
@@ -323,7 +324,7 @@ export default function SecretaryPortal({ state, actions }) {
           <Button onClick={() => setSecretaryView('create-medico')}>Registrar médico</Button>
           <Button
             variant="primary"
-            disabled={!selectedDoctor}
+            disabled={!selectedDoctor || isPastDate}
             onClick={() => {
               setSecFeedback(null);
               setConfigReview(false);
@@ -479,18 +480,22 @@ export default function SecretaryPortal({ state, actions }) {
         <EmptyState
           title="No hay horarios configurados"
           action={
-            <Button
-              onClick={() => {
-                setConfigReview(false);
-                setSecFeedback(null);
-                setScheduleDetailsOpen(true);
-              }}
-            >
-              Configurar horarios
-            </Button>
+            isPastDate ? null : (
+              <Button
+                onClick={() => {
+                  setConfigReview(false);
+                  setSecFeedback(null);
+                  setScheduleDetailsOpen(true);
+                }}
+              >
+                Configurar horarios
+              </Button>
+            )
           }
         >
-          Crea los bloques de atención para este profesional y fecha.
+          {isPastDate
+            ? 'No se registraron horarios de atención para esta fecha.'
+            : 'Crea los bloques de atención para este profesional y fecha.'}
         </EmptyState>
       ) : !filteredAgendas.length ? (
         <EmptyState
@@ -553,7 +558,7 @@ export default function SecretaryPortal({ state, actions }) {
               {selectedBlock?.agenda_id === block.agenda_id && (
                 <section className="agenda-context" aria-label="Acciones del horario seleccionado">
                   <div className="button-group">
-                    {selectedBlock.estado === 'DISPONIBLE' && (
+                    {selectedBlock.estado === 'DISPONIBLE' && selectedBlock.futuro !== false && (
                       <Button
                         variant="primary"
                         onClick={(event) => {
@@ -564,7 +569,7 @@ export default function SecretaryPortal({ state, actions }) {
                         Registrar cita
                       </Button>
                     )}
-                    {selectedBlock.estado !== 'RESERVADO' && (
+                    {selectedBlock.estado !== 'RESERVADO' && selectedBlock.futuro !== false && (
                       <Button onClick={() => openBlocking({ type: 'slot', block: selectedBlock })}>
                         {selectedBlock.estado === 'BLOQUEADO'
                           ? 'Desbloquear horario'
@@ -587,6 +592,11 @@ export default function SecretaryPortal({ state, actions }) {
                         </>
                       )}
                   </div>
+                  {selectedBlock.estado !== 'RESERVADO' && selectedBlock.futuro === false && (
+                    <p className="muted">
+                      No se puede modificar ni reservar un horario cuya hora ya pasó.
+                    </p>
+                  )}
                   {selectedBlock.estado === 'RESERVADO' &&
                     (!selectedBlock.futuro || !selectedBlock.cita_id) && (
                       <p className="muted">
@@ -602,10 +612,14 @@ export default function SecretaryPortal({ state, actions }) {
         </div>
       )}
       <div className="admin-footnote">
-        <span className="muted">La agenda se actualiza automáticamente.</span>
+        <span className="muted">
+          {isPastDate
+            ? 'Fecha pasada en modo de consulta.'
+            : 'La agenda se actualiza automáticamente.'}
+        </span>
         <Button
           variant="text"
-          disabled={!selectedDoctor}
+          disabled={!selectedDoctor || isPastDate}
           onClick={() => openBlocking({ type: 'day' })}
         >
           Registrar ausencia o feriado

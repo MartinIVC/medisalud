@@ -20,6 +20,16 @@ function generateIntervals(start, end, duration) {
   return intervals;
 }
 
+async function assertFutureOrCurrentDate(client, fecha, message) {
+  const result = await client.query(
+    "SELECT ($1::date >= (NOW() AT TIME ZONE 'America/Santiago')::date) AS vigente",
+    [fecha],
+  );
+  if (!result.rows[0]?.vigente) {
+    throw new HttpError(409, 'AGENDA_DATE_PAST', message);
+  }
+}
+
 async function configureAgenda(pool, { medicoId, fecha, horaInicio, horaFin, duracion }) {
   const intervals = generateIntervals(horaInicio, horaFin, duracion);
   const startTimes = intervals.map(({ start }) => start);
@@ -32,6 +42,17 @@ async function configureAgenda(pool, { medicoId, fecha, horaInicio, horaFin, dur
     );
     if (!doctor.rowCount)
       throw new HttpError(404, 'DOCTOR_NOT_FOUND', 'El médico no existe o está inactivo.');
+
+    const timing = await client.query(
+      "SELECT (($1::date + $2::time) AT TIME ZONE 'America/Santiago') > NOW() AS futuro",
+      [fecha, horaInicio],
+    );
+    if (!timing.rows[0]?.futuro)
+      throw new HttpError(
+        409,
+        'AGENDA_PAST',
+        'Indica una fecha y hora de inicio futuras para configurar horarios.',
+      );
 
     const blocked = await client.query(
       'SELECT 1 FROM bloqueos_agenda WHERE fecha=$1::date AND (medico_id IS NULL OR medico_id=$2) LIMIT 1',
@@ -56,6 +77,7 @@ async function configureAgenda(pool, { medicoId, fecha, horaInicio, horaFin, dur
       `DELETE FROM agendas a
        WHERE a.medico_id=$1 AND a.fecha=$2::date
          AND a.hora_inicio >= $3::time AND a.hora_fin <= $4::time AND a.estado='DISPONIBLE'
+         AND ((a.fecha + a.hora_inicio) AT TIME ZONE 'America/Santiago') > NOW()
          AND NOT EXISTS (SELECT 1 FROM citas_medicas c WHERE c.agenda_id=a.id)
        RETURNING a.id`,
       [medicoId, fecha, horaInicio, horaFin],
@@ -104,21 +126,35 @@ async function blockAgenda(pool, { agendaId, medicoId, fecha, global, motivo }) 
       if (!target.rowCount)
         throw new HttpError(404, 'SLOT_NOT_FOUND', 'El bloque horario no existe.');
       await lockDoctor(client, target.rows[0].medico_id);
-      const result = await client.query(
-        `UPDATE agendas SET estado='BLOQUEADO', motivo_bloqueo=$2, updated_at=NOW()
-         WHERE id=$1 AND estado='DISPONIBLE' RETURNING id`,
-        [agendaId, motivo],
+      const slot = await client.query(
+        `SELECT estado, ((fecha + hora_inicio) AT TIME ZONE 'America/Santiago') > NOW() AS futuro
+         FROM agendas WHERE id=$1 FOR UPDATE`,
+        [agendaId],
       );
-      if (!result.rowCount)
+      if (!slot.rowCount)
+        throw new HttpError(404, 'SLOT_NOT_FOUND', 'El bloque horario no existe.');
+      if (!slot.rows[0].futuro)
+        throw new HttpError(409, 'SLOT_PAST', 'No se puede bloquear un horario cuya hora ya pasó.');
+      if (slot.rows[0].estado !== 'DISPONIBLE')
         throw new HttpError(
           409,
           'SLOT_NOT_AVAILABLE',
           'Solo se pueden bloquear horarios disponibles.',
         );
+      const result = await client.query(
+        `UPDATE agendas SET estado='BLOQUEADO', motivo_bloqueo=$2, updated_at=NOW()
+         WHERE id=$1 AND estado='DISPONIBLE' RETURNING id`,
+        [agendaId, motivo],
+      );
       return { affected: result.rowCount };
     }
 
     if (global) {
+      await assertFutureOrCurrentDate(
+        client,
+        fecha,
+        'No se pueden bloquear fechas que ya pasaron.',
+      );
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1)::bigint)', [
         `agenda-global:${fecha}`,
       ]);
@@ -131,13 +167,16 @@ async function blockAgenda(pool, { agendaId, medicoId, fecha, global, motivo }) 
       );
       const updated = await client.query(
         `UPDATE agendas SET estado='BLOQUEADO', motivo_bloqueo=$2, updated_at=NOW()
-         WHERE fecha=$1::date AND estado='DISPONIBLE' RETURNING id`,
+         WHERE fecha=$1::date AND estado='DISPONIBLE'
+           AND ((fecha + hora_inicio) AT TIME ZONE 'America/Santiago') > NOW()
+         RETURNING id`,
         [fecha, motivo],
       );
       return { affected: updated.rowCount };
     }
 
     await lockDoctor(client, medicoId);
+    await assertFutureOrCurrentDate(client, fecha, 'No se pueden bloquear fechas que ya pasaron.');
     await client.query(
       `INSERT INTO bloqueos_agenda (medico_id, fecha, motivo)
        SELECT $1, $2::date, $3
@@ -146,7 +185,9 @@ async function blockAgenda(pool, { agendaId, medicoId, fecha, global, motivo }) 
     );
     const updated = await client.query(
       `UPDATE agendas SET estado='BLOQUEADO', motivo_bloqueo=$3, updated_at=NOW()
-       WHERE medico_id=$1 AND fecha=$2::date AND estado='DISPONIBLE' RETURNING id`,
+       WHERE medico_id=$1 AND fecha=$2::date AND estado='DISPONIBLE'
+         AND ((fecha + hora_inicio) AT TIME ZONE 'America/Santiago') > NOW()
+       RETURNING id`,
       [medicoId, fecha, motivo],
     );
     return { affected: updated.rowCount };
@@ -162,9 +203,22 @@ async function unblockAgenda(pool, { agendaId, medicoId, fecha, global }) {
       if (!target.rowCount)
         throw new HttpError(404, 'SLOT_NOT_FOUND', 'El bloque horario no existe.');
       await lockDoctor(client, target.rows[0].medico_id);
+      const slot = await client.query(
+        `SELECT fecha, estado, ((fecha + hora_inicio) AT TIME ZONE 'America/Santiago') > NOW() AS futuro
+         FROM agendas WHERE id=$1 FOR UPDATE`,
+        [agendaId],
+      );
+      if (!slot.rowCount)
+        throw new HttpError(404, 'SLOT_NOT_FOUND', 'El bloque horario no existe.');
+      if (!slot.rows[0].futuro)
+        throw new HttpError(
+          409,
+          'SLOT_PAST',
+          'No se puede desbloquear un horario cuya hora ya pasó.',
+        );
       const dayLock = await client.query(
         'SELECT 1 FROM bloqueos_agenda WHERE fecha=$1::date AND (medico_id IS NULL OR medico_id=$2) LIMIT 1',
-        [target.rows[0].fecha, target.rows[0].medico_id],
+        [slot.rows[0].fecha, target.rows[0].medico_id],
       );
       if (dayLock.rowCount)
         throw new HttpError(
@@ -172,17 +226,22 @@ async function unblockAgenda(pool, { agendaId, medicoId, fecha, global }) {
           'AGENDA_BLOCKED',
           'Primero levanta el bloqueo de la fecha para habilitar este horario.',
         );
+      if (slot.rows[0].estado !== 'BLOQUEADO')
+        throw new HttpError(409, 'SLOT_NOT_BLOCKED', 'El bloque no está bloqueado.');
       const updated = await client.query(
         `UPDATE agendas SET estado='DISPONIBLE', motivo_bloqueo=NULL, updated_at=NOW()
          WHERE id=$1 AND estado='BLOQUEADO' RETURNING id`,
         [agendaId],
       );
-      if (!updated.rowCount)
-        throw new HttpError(409, 'SLOT_NOT_BLOCKED', 'El bloque no está bloqueado.');
       return { affected: updated.rowCount };
     }
 
     if (global) {
+      await assertFutureOrCurrentDate(
+        client,
+        fecha,
+        'No se pueden desbloquear fechas que ya pasaron.',
+      );
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1)::bigint)', [
         `agenda-global:${fecha}`,
       ]);
@@ -200,13 +259,20 @@ async function unblockAgenda(pool, { agendaId, medicoId, fecha, global }) {
                WHERE ba.fecha=a.fecha AND (ba.medico_id IS NULL OR ba.medico_id=a.medico_id)
                ORDER BY ba.medico_id NULLS FIRST LIMIT 1),
              updated_at=NOW()
-         WHERE a.fecha=$1::date AND a.estado='BLOQUEADO' RETURNING a.id`,
+         WHERE a.fecha=$1::date AND a.estado='BLOQUEADO'
+           AND ((a.fecha + a.hora_inicio) AT TIME ZONE 'America/Santiago') > NOW()
+         RETURNING a.id`,
         [fecha],
       );
       return { affected: updated.rowCount };
     }
 
     await lockDoctor(client, medicoId);
+    await assertFutureOrCurrentDate(
+      client,
+      fecha,
+      'No se pueden desbloquear fechas que ya pasaron.',
+    );
     await client.query('DELETE FROM bloqueos_agenda WHERE medico_id=$1 AND fecha=$2::date', [
       medicoId,
       fecha,
@@ -221,7 +287,9 @@ async function unblockAgenda(pool, { agendaId, medicoId, fecha, global }) {
              WHERE ba.fecha=a.fecha AND (ba.medico_id IS NULL OR ba.medico_id=a.medico_id)
              ORDER BY ba.medico_id NULLS FIRST LIMIT 1),
            updated_at=NOW()
-       WHERE a.medico_id=$1 AND a.fecha=$2::date AND a.estado='BLOQUEADO' RETURNING a.id`,
+       WHERE a.medico_id=$1 AND a.fecha=$2::date AND a.estado='BLOQUEADO'
+         AND ((a.fecha + a.hora_inicio) AT TIME ZONE 'America/Santiago') > NOW()
+       RETURNING a.id`,
       [medicoId, fecha],
     );
     return { affected: updated.rowCount };

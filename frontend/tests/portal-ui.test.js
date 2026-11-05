@@ -32,7 +32,7 @@ after(async () => {
 });
 afterEach(cleanup);
 
-function SecretaryHarness({ agendas = [] }) {
+function SecretaryHarness({ agendas = [], secFecha = '2027-01-15', todayStr = '2027-01-15' }) {
   const [doctorId, setDoctorId] = useState('1');
   const state = {
     secretaryView: 'agenda',
@@ -51,8 +51,8 @@ function SecretaryHarness({ agendas = [] }) {
       },
     ],
     secMedicoId: doctorId,
-    secFecha: '2027-01-15',
-    todayStr: '2027-01-15',
+    secFecha,
+    todayStr,
     secAgendas: agendas,
     secMotivoBloqueo: 'Motivo de prueba',
     secHoraInicio: '09:00',
@@ -89,6 +89,7 @@ test('secretary actions expand beside the selected schedule and follow its statu
       estado: 'DISPONIBLE',
       duracion_min: 30,
       box_atencion: 'Box 1',
+      futuro: true,
     },
     {
       agenda_id: 2,
@@ -108,6 +109,7 @@ test('secretary actions expand beside the selected schedule and follow its statu
       estado: 'BLOQUEADO',
       duracion_min: 30,
       box_atencion: 'Box 1',
+      futuro: true,
     },
     {
       agenda_id: 4,
@@ -125,6 +127,24 @@ test('secretary actions expand beside the selected schedule and follow its statu
       estado: 'RESERVADO',
       paciente_nombre: 'Paciente ficticio',
       futuro: true,
+    },
+    {
+      agenda_id: 6,
+      hora_inicio: '08:00',
+      hora_fin: '08:30',
+      estado: 'DISPONIBLE',
+      duracion_min: 30,
+      box_atencion: 'Box 1',
+      futuro: false,
+    },
+    {
+      agenda_id: 7,
+      hora_inicio: '08:30',
+      hora_fin: '09:00',
+      estado: 'BLOQUEADO',
+      duracion_min: 30,
+      box_atencion: 'Box 1',
+      futuro: false,
     },
   ];
   const screen = render(React.createElement(SecretaryHarness, { agendas }));
@@ -162,6 +182,37 @@ test('secretary actions expand beside the selected schedule and follow its statu
     screen.getByLabelText('Acciones del horario seleccionado').textContent,
     /datos no están disponibles/,
   );
+  fireEvent.click(rows[5]);
+  panel = screen.getByLabelText('Acciones del horario seleccionado');
+  assert.equal(screen.queryByRole('button', { name: 'Registrar cita' }), null);
+  assert.equal(screen.queryByRole('button', { name: 'Bloquear horario' }), null);
+  assert.match(panel.textContent, /No se puede modificar ni reservar un horario cuya hora ya pasó/);
+  fireEvent.click(rows[6]);
+  panel = screen.getByLabelText('Acciones del horario seleccionado');
+  assert.equal(screen.queryByRole('button', { name: 'Desbloquear horario' }), null);
+  assert.match(panel.textContent, /No se puede modificar ni reservar un horario cuya hora ya pasó/);
+});
+
+test('past dates disable day-level scheduling and blocking actions in read-only mode', () => {
+  const screen = render(
+    React.createElement(SecretaryHarness, {
+      agendas: [],
+      secFecha: '2027-01-14',
+      todayStr: '2027-01-15',
+    }),
+  );
+  const configureButtons = screen.getAllByRole('button', {
+    name: 'Configurar horarios',
+    exact: true,
+  });
+  assert.equal(configureButtons.length, 1);
+  assert.equal(configureButtons[0].disabled, true);
+  assert.equal(
+    screen.getByRole('button', { name: 'Registrar ausencia o feriado', exact: true }).disabled,
+    true,
+  );
+  assert.ok(screen.getByText('Fecha pasada en modo de consulta.'));
+  assert.ok(screen.getByText('No se registraron horarios de atención para esta fecha.'));
 });
 
 test('a dialog recovers focus when disabling submission moves it outside', async () => {

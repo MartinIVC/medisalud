@@ -33,6 +33,14 @@ Los casos de aceptación compartidos están en [shared/rut-cases.json](shared/ru
 
 Las reservas se ejecutan en PostgreSQL con aislamiento `SERIALIZABLE`, bloqueo pesimista y un límite de 1,5 s por espera de bloqueo. Los abortos de serialización se reintentan hasta cinco veces en total; si el conflicto persiste o vence la espera de bloqueo, la API devuelve `409 CONCURRENT_RESERVATION`.
 
+## Configuración y bloqueo de agendas (MED-10)
+
+`POST /api/agendas/configurar`, `POST /api/agendas/bloquear` y `POST /api/agendas/desbloquear` requieren una sesión de secretaría vigente y evalúan la vigencia temporal en `America/Santiago`:
+
+- `POST /api/agendas/configurar` exige que `((fecha + hora_inicio) AT TIME ZONE 'America/Santiago') > NOW()`; si la fecha u hora de inicio ya transcurrió, responde `409 AGENDA_PAST`.
+- `POST /api/agendas/bloquear` y `POST /api/agendas/desbloquear` sobre un `agenda_id` exigen que la hora de inicio del bloque sea futura (`> NOW()`); si ya pasó, responden `409 SLOT_PAST`.
+- Cuando se bloquea o desbloquea una jornada por `fecha` (para un médico o como feriado global), las fechas anteriores al día actual en `America/Santiago` responden `409 AGENDA_DATE_PAST`. Si la fecha corresponde al día actual, la actualización sobre `agendas` modifica únicamente los bloques futuros (`> NOW()`), preservando el estado histórico de los bloques cuya hora ya pasó.
+
 ## Gestión de citas por secretaría
 
 `POST /api/reservas/:id/gestionar` requiere una sesión de secretaría vigente. Recibe un objeto JSON con `accion` (`CANCELAR` o `MOVER`) y `motivo` obligatorio de hasta 255 caracteres. `MOVER` requiere además `agenda_id` de un bloque distinto y disponible; `CANCELAR` no acepta `agenda_id`.
