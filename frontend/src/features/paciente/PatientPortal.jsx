@@ -99,9 +99,9 @@ export default function PatientPortal({ state, actions }) {
     if (activeView === 'reserva') headingRef.current?.focus({ preventScroll: true });
   }, [activeView, bookingStep]);
 
-  function changeHour() {
+  function changeHour(preserveSelectedSlot = false) {
     resetRequestKey();
-    setSelectedBloque(null);
+    if (!preserveSelectedSlot) setSelectedBloque(null);
     setReservaResult(null);
     setBookingStep('datos');
     setBookingOpen(false);
@@ -502,7 +502,7 @@ export default function PatientPortal({ state, actions }) {
             <h2 id="patient-data-title" ref={headingRef} tabIndex={-1}>
               {bookingStep === 'revision' ? 'Revisión de la reserva' : 'Datos del paciente'}
             </h2>
-            <Button disabled={submittingReserva} onClick={changeHour}>
+            <Button disabled={submittingReserva} onClick={() => changeHour(true)}>
               Cambiar hora
             </Button>
           </div>
