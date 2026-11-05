@@ -335,6 +335,15 @@ strong {
   width: 0;
   font-variant-numeric: tabular-nums;
 }
+.password-input:focus-within,
+.phone-input:focus-within {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+.password-input :focus-visible,
+.phone-input :focus-visible {
+  outline: none;
+}
 .password-input {
   display: flex;
   border: 1px solid var(--control-border);
