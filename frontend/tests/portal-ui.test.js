@@ -32,7 +32,7 @@ after(async () => {
 });
 afterEach(cleanup);
 
-function SecretaryHarness() {
+function SecretaryHarness({ agendas = [] }) {
   const [doctorId, setDoctorId] = useState('1');
   const state = {
     secretaryView: 'agenda',
@@ -53,7 +53,7 @@ function SecretaryHarness() {
     secMedicoId: doctorId,
     secFecha: '2027-01-15',
     todayStr: '2027-01-15',
-    secAgendas: [],
+    secAgendas: agendas,
     secMotivoBloqueo: 'Motivo de prueba',
     secHoraInicio: '09:00',
     secHoraFin: '13:00',
@@ -78,6 +78,90 @@ test('returning from an empty specialty restores a usable doctor selection', () 
   assert.equal(doctor.value, '1');
   assert.equal(doctor.disabled, false);
   assert.equal(configure.disabled, false);
+});
+
+test('secretary actions expand beside the selected schedule and follow its status', () => {
+  const agendas = [
+    {
+      agenda_id: 1,
+      hora_inicio: '09:00',
+      hora_fin: '09:30',
+      estado: 'DISPONIBLE',
+      duracion_min: 30,
+      box_atencion: 'Box 1',
+    },
+    {
+      agenda_id: 2,
+      hora_inicio: '09:30',
+      hora_fin: '10:00',
+      estado: 'RESERVADO',
+      paciente_nombre: 'Paciente ficticio',
+      paciente_rut: 'RUT ficticio',
+      codigo_reserva: 'DEMO',
+      futuro: true,
+      cita_id: 2,
+    },
+    {
+      agenda_id: 3,
+      hora_inicio: '10:00',
+      hora_fin: '10:30',
+      estado: 'BLOQUEADO',
+      duracion_min: 30,
+      box_atencion: 'Box 1',
+    },
+    {
+      agenda_id: 4,
+      hora_inicio: '11:00',
+      hora_fin: '11:30',
+      estado: 'RESERVADO',
+      paciente_nombre: 'Paciente ficticio',
+      futuro: false,
+      cita_id: 4,
+    },
+    {
+      agenda_id: 5,
+      hora_inicio: '11:30',
+      hora_fin: '12:00',
+      estado: 'RESERVADO',
+      paciente_nombre: 'Paciente ficticio',
+      futuro: true,
+    },
+  ];
+  const screen = render(React.createElement(SecretaryHarness, { agendas }));
+  const rows = [...screen.container.querySelectorAll('.agenda-row')];
+  assert.equal(screen.queryByLabelText('Acciones del horario seleccionado'), null);
+  fireEvent.click(rows[0]);
+  let panel = screen.getByLabelText('Acciones del horario seleccionado');
+  assert.equal(rows[0].getAttribute('aria-expanded'), 'true');
+  assert.equal(rows[0].nextElementSibling, panel);
+  assert.equal(panel.parentElement, rows[0].parentElement);
+  assert.ok(panel.parentElement.classList.contains('is-expanded'));
+  assert.ok(screen.getByRole('button', { name: 'Registrar cita' }));
+  assert.ok(screen.getByRole('button', { name: 'Bloquear horario' }));
+  fireEvent.click(rows[1]);
+  panel = screen.getByLabelText('Acciones del horario seleccionado');
+  assert.equal(rows[1].nextElementSibling, panel);
+  assert.ok(screen.getByRole('button', { name: 'Cambiar cita' }));
+  assert.ok(screen.getByRole('button', { name: 'Cancelar cita' }));
+  assert.equal(screen.queryByRole('button', { name: 'Registrar cita' }), null);
+  fireEvent.click(rows[2]);
+  assert.equal(
+    rows[2].nextElementSibling,
+    screen.getByLabelText('Acciones del horario seleccionado'),
+  );
+  assert.ok(screen.getByRole('button', { name: 'Desbloquear horario' }));
+  fireEvent.click(rows[2]);
+  assert.equal(screen.queryByLabelText('Acciones del horario seleccionado'), null);
+  assert.equal(rows[2].getAttribute('aria-expanded'), 'false');
+  fireEvent.click(rows[3]);
+  panel = screen.getByLabelText('Acciones del horario seleccionado');
+  assert.match(panel.textContent, /hora ya pasó/);
+  assert.doesNotMatch(panel.textContent, /11:00|Paciente ficticio|Reservado/);
+  fireEvent.click(rows[4]);
+  assert.match(
+    screen.getByLabelText('Acciones del horario seleccionado').textContent,
+    /datos no están disponibles/,
+  );
 });
 
 test('a dialog recovers focus when disabling submission moves it outside', async () => {

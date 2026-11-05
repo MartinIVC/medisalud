@@ -516,79 +516,90 @@ export default function SecretaryPortal({ state, actions }) {
             <span>Estado</span>
           </div>
           {filteredAgendas.map((block) => (
-            <button
-              type="button"
+            <div
               key={block.agenda_id}
-              className="agenda-row"
-              aria-pressed={selectedBlock?.agenda_id === block.agenda_id}
-              onClick={() =>
-                setSelection({ key: `${secMedicoId}:${secFecha}`, id: block.agenda_id })
-              }
+              className={`agenda-entry${selectedBlock?.agenda_id === block.agenda_id ? ' is-expanded' : ''}`}
             >
-              <span className="agenda-time numeric">
-                {block.hora_inicio}
-                <small>{block.hora_fin}</small>
-              </span>
-              <span>
-                {block.estado === 'RESERVADO'
-                  ? block.paciente_nombre
-                  : block.estado === 'BLOQUEADO'
-                    ? block.motivo_bloqueo || 'Horario bloqueado'
-                    : 'Disponible para reservar'}
-                <small>
+              <button
+                type="button"
+                className="agenda-row"
+                aria-expanded={selectedBlock?.agenda_id === block.agenda_id}
+                onClick={() =>
+                  setSelection(
+                    selectedBlock?.agenda_id === block.agenda_id
+                      ? null
+                      : { key: `${secMedicoId}:${secFecha}`, id: block.agenda_id },
+                  )
+                }
+              >
+                <span className="agenda-time numeric">
+                  {block.hora_inicio}
+                  <small>{block.hora_fin}</small>
+                </span>
+                <span>
                   {block.estado === 'RESERVADO'
-                    ? `${block.paciente_rut} · ${block.codigo_reserva}`
-                    : `${block.duracion_min} minutos · ${block.box_atencion}`}
-                </small>
-              </span>
-              <StatusIndicator status={block.estado} />
-            </button>
+                    ? block.paciente_nombre
+                    : block.estado === 'BLOQUEADO'
+                      ? block.motivo_bloqueo || 'Horario bloqueado'
+                      : 'Disponible para reservar'}
+                  <small>
+                    {block.estado === 'RESERVADO'
+                      ? `${block.paciente_rut} · ${block.codigo_reserva}`
+                      : `${block.duracion_min} minutos · ${block.box_atencion}`}
+                  </small>
+                </span>
+                <StatusIndicator status={block.estado} />
+              </button>
+              {selectedBlock?.agenda_id === block.agenda_id && (
+                <section className="agenda-context" aria-label="Acciones del horario seleccionado">
+                  <div className="button-group">
+                    {selectedBlock.estado === 'DISPONIBLE' && (
+                      <Button
+                        variant="primary"
+                        onClick={(event) => {
+                          setReceptionRutError('');
+                          openReceptionBooking(selectedBlock, event);
+                        }}
+                      >
+                        Registrar cita
+                      </Button>
+                    )}
+                    {selectedBlock.estado !== 'RESERVADO' && (
+                      <Button onClick={() => openBlocking({ type: 'slot', block: selectedBlock })}>
+                        {selectedBlock.estado === 'BLOQUEADO'
+                          ? 'Desbloquear horario'
+                          : 'Bloquear horario'}
+                      </Button>
+                    )}
+                    {selectedBlock.estado === 'RESERVADO' &&
+                      selectedBlock.futuro &&
+                      selectedBlock.cita_id && (
+                        <>
+                          <Button onClick={() => openAppointment('MOVER', selectedBlock)}>
+                            Cambiar cita
+                          </Button>
+                          <Button
+                            variant="danger"
+                            onClick={() => openAppointment('CANCELAR', selectedBlock)}
+                          >
+                            Cancelar cita
+                          </Button>
+                        </>
+                      )}
+                  </div>
+                  {selectedBlock.estado === 'RESERVADO' &&
+                    (!selectedBlock.futuro || !selectedBlock.cita_id) && (
+                      <p className="muted">
+                        {selectedBlock.futuro === false
+                          ? 'No se puede cambiar ni cancelar una cita cuya hora ya pasó.'
+                          : 'No se puede gestionar esta cita porque sus datos no están disponibles.'}
+                      </p>
+                    )}
+                </section>
+              )}
+            </div>
           ))}
         </div>
-      )}
-      {selectedBlock && (
-        <section className="agenda-context" aria-label="Acciones del horario seleccionado">
-          <div>
-            <h2 className="numeric">
-              {selectedBlock.hora_inicio}–{selectedBlock.hora_fin}
-            </h2>
-            <p>{selectedBlock.paciente_nombre || selectedDoctor?.nombre}</p>
-            <StatusIndicator status={selectedBlock.estado} />
-          </div>
-          <div className="button-group">
-            {selectedBlock.estado === 'DISPONIBLE' && (
-              <Button
-                variant="primary"
-                onClick={(event) => {
-                  setReceptionRutError('');
-                  openReceptionBooking(selectedBlock, event);
-                }}
-              >
-                Registrar cita
-              </Button>
-            )}
-            {selectedBlock.estado !== 'RESERVADO' && (
-              <Button onClick={() => openBlocking({ type: 'slot', block: selectedBlock })}>
-                {selectedBlock.estado === 'BLOQUEADO' ? 'Desbloquear horario' : 'Bloquear horario'}
-              </Button>
-            )}
-            {selectedBlock.estado === 'RESERVADO' &&
-              selectedBlock.futuro &&
-              selectedBlock.cita_id && (
-                <>
-                  <Button onClick={() => openAppointment('MOVER', selectedBlock)}>
-                    Cambiar cita
-                  </Button>
-                  <Button
-                    variant="danger"
-                    onClick={() => openAppointment('CANCELAR', selectedBlock)}
-                  >
-                    Cancelar cita
-                  </Button>
-                </>
-              )}
-          </div>
-        </section>
       )}
       <div className="admin-footnote">
         <span className="muted">La agenda se actualiza automáticamente.</span>
