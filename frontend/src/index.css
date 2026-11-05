@@ -977,6 +977,44 @@ strong {
 .booking-dialog-note {
   margin: -8px 0;
 }
+.booking-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.booking-dialog .dialog-heading {
+  flex: 0 0 auto;
+}
+.booking-dialog .dialog-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-top: 0;
+}
+.booking-dialog .appointment-details {
+  align-items: start;
+  gap: 20px 24px;
+  padding: 20px 0;
+  border-top: 0;
+  margin: 0 0 20px;
+}
+.booking-dialog .appointment-details > div {
+  min-width: 0;
+}
+.booking-dialog .booking-dialog-note {
+  max-width: 64ch;
+  margin: 0 0 20px;
+  line-height: 1.5;
+}
+.booking-dialog .form-grid {
+  align-items: start;
+  gap: 20px 24px;
+  margin: 20px 0;
+}
+.booking-dialog .form-actions {
+  margin-top: 20px;
+}
 .dialog-content > form > .field {
   margin: 20px 0;
 }
@@ -1265,6 +1303,21 @@ strong {
   }
   .dialog-content {
     padding: 20px 16px;
+  }
+  .booking-dialog .dialog-content {
+    padding: 0 16px 16px;
+  }
+  .booking-dialog .appointment-details {
+    gap: 16px;
+    padding: 16px 0;
+    margin-bottom: 16px;
+  }
+  .booking-dialog .booking-dialog-note {
+    margin-bottom: 16px;
+  }
+  .booking-dialog .form-grid {
+    gap: 16px;
+    margin: 16px 0;
   }
   .doctor-registration h1,
   .response-page > h1 {

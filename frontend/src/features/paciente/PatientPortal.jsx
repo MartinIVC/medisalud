@@ -523,6 +523,7 @@ export default function PatientPortal({ state, actions }) {
       )}
       <Dialog
         open={bookingOpen && activeView === 'horarios' && Boolean(selectedBloque)}
+        className="booking-dialog"
         title="Completa tus datos"
         onClose={() => setBookingOpen(false)}
         busy={submittingReserva}

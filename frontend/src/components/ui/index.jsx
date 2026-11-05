@@ -62,7 +62,7 @@ export function StatusIndicator({ status }) {
   );
 }
 
-export function Dialog({ open, title, onClose, busy = false, children }) {
+export function Dialog({ open, title, onClose, busy = false, className = '', children }) {
   const ref = useRef(null);
   const titleId = useId();
   useEffect(() => {
@@ -89,7 +89,7 @@ export function Dialog({ open, title, onClose, busy = false, children }) {
   return (
     <dialog
       ref={ref}
-      className="dialog"
+      className={`dialog ${className}`.trim()}
       aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault();
