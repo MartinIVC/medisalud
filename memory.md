@@ -38,7 +38,7 @@ No sumar por segunda vez los puntos de las subtareas si el esfuerzo ya está inc
 
 ## Estado conocido del repositorio
 
-- Rama: `design/clinica-editorial` (con los cambios de `develop` integrados).
+- Rama: `develop` (diseño Swiss Signal integrado con cambios funcionales).
 - `dfaa4d3 feat(ui): redesign Medisalud with Swiss Signal` establece el diseño visual editorial («Swiss Signal») en los portales de paciente y secretaría.
 - `7a05953 feat(citas): gestionar reservas por secretaria` incorpora para MED-20 el servicio, flujo de secretaría, contrato API, manual/protocolo y prueba de aceptación `backend/tests/verify-gestion-reservas.js`.
 - `AGENTS.md` contiene convenciones y comandos del proyecto; leerlo antes de modificar código.
