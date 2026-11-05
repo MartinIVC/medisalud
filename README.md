@@ -1,50 +1,79 @@
-# Sistema Medisalud — Gestión de Citas Médicas y Recordatorios en Tiempo Real (`MED`)
+# Medisalud — Gestión de citas médicas
 
-Aplicación web académica para consultar disponibilidad y reservar horas médicas, con un panel de secretaría para configurar agendas y registrar citas presenciales o telefónicas. Usa React/Vite, Node.js/Express y PostgreSQL 16. El entorno de este README es para desarrollo y demostración.
+Aplicación web académica que reúne la reserva de horas médicas y la gestión de agendas en dos portales: pacientes y secretaría. Desarrollada con React, Node.js/Express y PostgreSQL, permite explorar disponibilidad, reservar citas y administrar cambios de horario desde una misma interfaz.
 
----
+> **Rama `develop`: versión funcional en desarrollo.** Es la versión recomendada para explorar el avance actual del proyecto; todavía no es una entrega final ni una instalación clínica en producción. Usa únicamente datos ficticios.
 
-## Equipo de Desarrollo (Equipo Astro — Ingeniería de Software I)
+## Estado de las ramas
 
-* **Diego Alcántara (`[DP]`)** — Frontend & Full-Stack Developer (`MED-9`, `MED-11`)
-* **Juan Ortiz (`[JC]`)** — Backend, Infraestructura & Database Lead (`MED-15`, `MED-16`)
-* **Martín Verdugo (`[MC]`)** — Full-Stack, Gestión de Agendas & QA (`MED-10`)
+| Rama | Alcance |
+| --- | --- |
+| [`develop`](https://github.com/MartinIVC/medisalud/tree/develop) | Desarrollo actual: portales de paciente y secretaría, gestión de citas y médicos, fotos y notificaciones en cola. |
+| [`main`](https://github.com/MartinIVC/medisalud/tree/main) | Implementación inicial del núcleo de agendamiento. No incluye las ampliaciones actuales de esta rama. |
 
----
+## Funcionalidades disponibles
 
-## Alcance Implementado — Sprint 1 (*"Núcleo de agendamiento y disponibilidad"*)
+### Portal de pacientes
 
-| Clave JIRA | Requisito / HU | Descripción | Responsable |
-| :--- | :--- | :--- | :--- |
-| **`MED-15`** | `RNF-02` | Configuración de ambiente Staging (Docker) y base de datos relacional PostgreSQL (`especialidades`, `medicos`, `agendas`, `citas_medicas` + índices). | Juan Ortiz (`[JC]`) |
-| **`MED-9`** | `RF-01` (`HU01`) | Consulta pública de disponibilidad de horas médicas por especialidad, profesional y fecha en `< 2,0 s` (`CU-01`: `A-01`, `A-02`). | Diego Alcántara (`[DP]`) |
-| **`MED-10`** | `RF-03` (`HU02`) | Configuración de bloques horarios (15, 20 y 30 minutos) y bloqueo de feriados/licencias médicas para secretarias. | Martín Verdugo (`[MC]`) |
-| **`MED-16`** | `RNF-01` (`Riesgo R01`) | Implementación de bloqueo pesimista a nivel de fila (`SELECT ... FOR UPDATE`) en PostgreSQL garantizando `0 %` de sobreventa (*overbooking*) y `p95 <= 2,0 s`. | Juan Ortiz (`[JC]`) |
-| **`MED-11`** | `RF-02` (`HU03`) | Reserva de cita web con validación algorítmica de RUT chileno (Módulo 11), confirmación con código único + correo (`A-05`) y manejo de rechazos (`A-06`) (`CU-02`). | Diego Alcántara (`[DP]`) |
+- Consulta de disponibilidad por especialidad, profesional y fecha.
+- Reserva con validación de RUT chileno y comprobante con código de reserva.
+- Catálogo de profesionales con fotografías e imagen alternativa.
+- Confirmación de asistencia o cancelación mediante un enlace con token.
 
-## Sprint 2 incorporado
+### Panel de secretaría
 
-| Clave JIRA | Función | Estado |
-| --- | --- | --- |
-| **`MED-12` / `RF-04`** | Registro rápido de citas presenciales o telefónicas desde el panel de secretaría. | Implementado; reutiliza validación RUT y control de concurrencia. |
-| **`MED-13` / `RF-05`** | Programación de recordatorios por email y WhatsApp 24 horas antes, con acciones para confirmar o cancelar. | Cola y worker implementados; requiere credenciales de proveedores para envíos reales. |
-| **`MED-18` / `RNF-03`** | Configuración de proveedor y estado persistente de notificaciones. | Preparado; SPF/DKIM/DMARC y la medición real de entrega >95 % siguen pendientes de dominio/proveedor. |
+- Acceso mediante contraseña configurada para la demo y sesión de ocho horas.
+- Configuración de agendas en bloques de 15, 20 o 30 minutos y bloqueo de horarios.
+- Registro de citas presenciales o telefónicas.
+- Cancelación y reprogramación de citas futuras con motivo, actualización de cupos y avisos en cola.
+- Registro de médicos con validación de RUT y prevención de duplicados.
+- Carga y reemplazo de fotografías PNG/JPEG, persistidas en PostgreSQL.
 
-El proveedor puede aceptar un mensaje sin confirmar su entrega final. El proyecto todavía no procesa callbacks de entrega. El panel actualiza su calendario cada dos segundos.
+### Reservas y notificaciones
 
-### RF-06 / MED-19: Registro de médicos (Sprint 3)
+- Transacciones con aislamiento `SERIALIZABLE`, bloqueos y reintentos para gestionar reservas concurrentes.
+- Idempotencia para evitar duplicar una reserva al repetir una solicitud con la misma clave.
+- Cola persistente y worker para confirmaciones, avisos y recordatorios por email y WhatsApp.
+- Integraciones con SendGrid/SMTP y Twilio, que requieren configuración externa para enviar mensajes reales.
 
-Secretaría puede crear médicos activos desde el panel. Cada registro valida el RUT chileno y su unicidad independientemente de puntos y guion. El alta no crea horarios: estos se configuran después desde «Configurar horarios». La cantidad de 15 médicos corresponde a los datos semilla de demostración, no a un límite del sistema.
+Una notificación encolada o aceptada por un proveedor **no equivale a una entrega confirmada**. El calendario de secretaría se actualiza por consultas periódicas cada dos segundos.
 
-### RF-07 / MED-20: Gestión de citas ante contingencias
+## En desarrollo y limitaciones
 
-El panel de secretaría permite cancelar o mover citas futuras con un motivo. La operación actualiza los cupos, recordatorios y avisos por correo en PostgreSQL; el resultado indica si el aviso está pendiente y si hay un proveedor configurado. Esta historia está registrada como **MED-20**, con las subtareas **MED-21** (pruebas) y **MED-22** (documentación y UAT), y pendiente de asignación a sprint. Sus criterios y el contrato del endpoint están descritos en [API_CONTRACT.md](API_CONTRACT.md).
+- Acceso individual por cuenta de secretaría y desvinculación de profesionales conservando el historial: pendientes de implementación.
+- Validación de entrega real de notificaciones, callbacks de entrega y configuración de dominio SPF/DKIM/DMARC: pendientes.
+- La existencia de pruebas automatizadas no implica que todas las historias hayan completado su aceptación funcional.
+- Los 15 médicos iniciales son datos semilla de demostración, no un límite del sistema.
+- El proyecto no está conectado a una clínica real. Los tiempos de respuesta se evalúan en pruebas; no son una garantía de rendimiento en producción.
 
----
+## Tecnologías y estructura
+
+| Capa | Tecnologías |
+| --- | --- |
+| Interfaz | React 18, Vite 6, Tailwind CSS 3 |
+| API | Node.js, Express 4 |
+| Persistencia | PostgreSQL 16 |
+| Notificaciones | Nodemailer, SendGrid/SMTP y Twilio |
+| Desarrollo y pruebas | Docker Compose v2, Node.js Test Runner, Testing Library, ESLint y Prettier |
+
+- [`frontend/src/features/`](frontend/src/features/): flujos de pacientes, secretaría y respuesta a citas.
+- [`backend/src/services/`](backend/src/services/): lógica de agendas, reservas y gestión de citas.
+- [`backend/src/notifications/`](backend/src/notifications/): cola y despacho de notificaciones.
+- [`database/`](database/): esquema, datos de demostración y migraciones.
+- [Contrato de la API](API_CONTRACT.md), [manual de secretaría](docs/manual-secretaria.md) y [protocolo de marcha blanca simulada](docs/protocolo-marcha-blanca.md).
+
+## Obtener esta versión
+
+```bash
+git clone --branch develop --single-branch https://github.com/MartinIVC/medisalud.git medisalud-develop
+cd medisalud-develop
+```
+
+Los comandos siguientes se ejecutan desde esa carpeta. Si ya utilizas `main`, detén sus contenedores antes de iniciar esta versión: ambas ramas usan los mismos nombres de contenedor y puertos. Para conservar una base anterior, revisa la sección de migraciones antes de reutilizarla.
 
 ## Requisitos
 
-Para levantar Medisalud en tu propio equipo, necesitas Docker instalado y en ejecución, junto con Docker Compose v2. Así no hace falta instalar Node.js ni PostgreSQL localmente. Cada integrante que ejecute el proyecto por separado necesita Docker en su computador. Si usarán una instancia compartida ya desplegada, basta con acceder a su URL y no necesitan Docker local.
+Para levantar Medisalud en tu propio equipo, necesitas Docker instalado y en ejecución, junto con Docker Compose v2. Así no hace falta instalar Node.js ni PostgreSQL localmente. Si accedes a una instancia de demostración ya desplegada, basta con abrir su URL.
 
 - **Windows 10/11:** Docker Desktop instalado y activo, con WSL 2 habilitado.
 - **Linux:** Docker Engine y el complemento Docker Compose v2; el usuario debe tener permiso para acceder al daemon.
