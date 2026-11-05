@@ -217,19 +217,27 @@ for (const outcome of ['success', 'error']) {
         name: '09:00, Dra. Prueba, 30 minutos',
         exact: true,
       });
+      assert.equal(screen.queryByRole('region', { name: 'Hora seleccionada' }), null);
       fireEvent.click(slotButton);
       assert.ok(screen.getByRole('dialog', { name: 'Completa tus datos' }));
+      assert.equal(screen.queryByRole('region', { name: 'Hora seleccionada' }), null);
       fireEvent.change(screen.getByLabelText('RUT'), { target: { value: '12.345.678-5' } });
       fireEvent.change(screen.getByLabelText('Nombre completo'), {
         target: { value: 'Paciente de prueba' },
       });
       fireEvent.click(screen.getByRole('button', { name: 'Cerrar diálogo', exact: true }));
       assert.equal(slotButton.getAttribute('aria-pressed'), 'true');
-      assert.equal(screen.getByRole('button', { name: 'Continuar', exact: true }).disabled, false);
-      fireEvent.click(screen.getByRole('button', { name: 'Continuar', exact: true }));
+      assert.equal(document.activeElement, slotButton);
+      const selection = screen.getByRole('region', { name: 'Hora seleccionada' });
+      assert.ok(slotButton.closest('section').contains(selection));
+      const resume = screen.getByRole('button', { name: 'Completar reserva', exact: true });
+      fireEvent.click(resume);
       assert.ok(screen.getByRole('dialog', { name: 'Completa tus datos' }));
       assert.equal(screen.getByLabelText('RUT').value, '12.345.678-5');
       assert.equal(screen.getByLabelText('Nombre completo').value, 'Paciente de prueba');
+      fireEvent.click(screen.getByRole('button', { name: 'Cerrar diálogo', exact: true }));
+      assert.equal(document.activeElement, resume);
+      fireEvent.click(resume);
       fireEvent.change(screen.getByLabelText('Correo electrónico'), {
         target: { value: 'paciente@example.cl' },
       });

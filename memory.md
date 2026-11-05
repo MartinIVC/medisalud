@@ -35,6 +35,7 @@ No sumar por segunda vez los puntos de las subtareas si el esfuerzo ya está inc
 - MED-23 guarda las imágenes en PostgreSQL (`BYTEA`); el volumen `medisalud_pgdata` de Docker Compose mantiene los datos al reiniciar los servicios. No requiere almacenamiento externo. La API valida PNG/JPEG, tamaño y contenido, permite reemplazo a secretaría autenticada y conserva el fallback genérico.
 - MED-25 debe dejar de depender de la contraseña compartida `SECRETARY_PASSWORD`; contempla hashes seguros, protección de intentos repetidos, sesiones con expiración/revocación, alta administrativa y transición documentada. La configuración compartida todavía existe en el código actual.
 - Mantener las respuestas de correo en estado «pendiente» cuando solo se encolan. La aceptación por un proveedor no prueba entrega.
+- En el portal de pacientes, el horario seleccionado abre el formulario en un diálogo; al cerrarlo, una franja junto a ese grupo permite retomar la reserva conservando los datos ingresados.
 
 ## Estado conocido del repositorio
 

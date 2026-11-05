@@ -78,6 +78,7 @@ export default function PatientPortal({ state, actions }) {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState('');
   const headingRef = useRef(null);
+  const bookingOpenerRef = useRef(null);
   const dates = useMemo(() => nextDates(selectedFecha, today), [selectedFecha, today]);
   const currentDoctor = medicosFiltrados.find((doctor) => String(doctor.id) === selectedMedico);
   // Reservation progress belongs to the persistent hook, including across portal navigation.
@@ -392,7 +393,8 @@ export default function PatientPortal({ state, actions }) {
                                 aria-pressed={selectedBloque?.agenda_id === block.agenda_id}
                                 aria-label={`${block.hora_inicio}, ${block.medico_nombre}, ${block.duracion_min} minutos`}
                                 aria-haspopup="dialog"
-                                onClick={() => {
+                                onClick={(event) => {
+                                  bookingOpenerRef.current = event.currentTarget;
                                   if (selectedBloque?.agenda_id !== block.agenda_id) {
                                     resetRequestKey();
                                     setSelectedBloque(block);
@@ -409,6 +411,35 @@ export default function PatientPortal({ state, actions }) {
                               </button>
                             ))}
                           </div>
+                          {selectedBloque &&
+                            blocks.some(
+                              (block) => block.agenda_id === selectedBloque.agenda_id,
+                            ) && (
+                              <div
+                                className="slot-selection"
+                                role="region"
+                                aria-label="Hora seleccionada"
+                                hidden={bookingOpen}
+                              >
+                                <div>
+                                  <strong>{selectedBloque.medico_nombre}</strong>
+                                  <p>
+                                    {formatDate(selectedBloque.fecha || selectedFecha)} ·{' '}
+                                    <span className="numeric">{selectedBloque.hora_inicio}</span>
+                                  </p>
+                                </div>
+                                <Button
+                                  variant="primary"
+                                  aria-haspopup="dialog"
+                                  onClick={(event) => {
+                                    bookingOpenerRef.current = event.currentTarget;
+                                    setBookingOpen(true);
+                                  }}
+                                >
+                                  Completar reserva
+                                </Button>
+                              </div>
+                            )}
                         </section>
                       ))}
                     </div>
@@ -418,43 +449,6 @@ export default function PatientPortal({ state, actions }) {
                   </p>
                 </section>
               </div>
-              <section className="booking-summary" aria-label="Resumen de selección">
-                <h2>Tu selección</h2>
-                <div aria-live="polite">
-                  {selectedBloque ? (
-                    <div className="booking-summary-selection">
-                      <DoctorPhoto
-                        url={selectedBloque.foto_url}
-                        name={selectedBloque.medico_nombre}
-                        className="doctor-photo-md"
-                      />
-                      <div>
-                        <strong>{selectedBloque.medico_nombre}</strong>
-                        <p>
-                          {formatDate(selectedBloque.fecha || selectedFecha)} ·{' '}
-                          <span className="numeric">
-                            {selectedBloque.hora_inicio}–{selectedBloque.hora_fin}
-                          </span>
-                        </p>
-                        <p className="muted">
-                          {selectedBloque.box_atencion} · {selectedBloque.duracion_min} minutos
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="muted">Selecciona un horario para continuar.</p>
-                  )}
-                </div>
-                <Button
-                  variant="primary"
-                  disabled={!selectedBloque || loadingDisp}
-                  aria-haspopup="dialog"
-                  onClick={() => setBookingOpen(true)}
-                >
-                  Continuar
-                </Button>
-                <p className="summary-note">La hora se reserva al confirmar tus datos.</p>
-              </section>
             </>
           )}
         </>
@@ -526,6 +520,7 @@ export default function PatientPortal({ state, actions }) {
         className="booking-dialog"
         title="Completa tus datos"
         onClose={() => setBookingOpen(false)}
+        returnFocusRef={bookingOpenerRef}
         busy={submittingReserva}
       >
         {selectedBloque && (

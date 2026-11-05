@@ -678,31 +678,28 @@ strong {
 .availability > .field-hint {
   margin-top: 24px;
 }
-.booking-summary {
-  display: grid;
-  grid-template-columns: 180px minmax(0, 1fr) 190px;
-  align-items: center;
-  gap: 20px;
-  border-top: 2px solid var(--primary);
-  padding-top: 24px;
-  margin-top: 32px;
-}
-.booking-summary h2 {
-  font-size: 18px;
-}
-.booking-summary-selection {
+.slot-selection {
   display: flex;
   align-items: center;
-  gap: 14px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  border-left: 3px solid var(--primary);
+  padding: 16px;
+  margin-top: 16px;
+  background: var(--surface);
+}
+.slot-selection[hidden] {
+  display: none;
+}
+.slot-selection > div {
   min-width: 0;
+  overflow-wrap: anywhere;
 }
-.booking-summary p {
-  margin-top: 4px;
-}
-.summary-note {
-  grid-column: 1 / -1;
+.slot-selection p {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
+  margin-top: 4px;
 }
 .booking-form,
 .booking-receipt {
@@ -1109,9 +1106,6 @@ strong {
   .admin-heading .button-group {
     justify-content: flex-end;
   }
-  .booking-summary {
-    grid-template-columns: 130px minmax(0, 1fr) 160px;
-  }
   .doctor-layout {
     grid-template-columns: 1fr;
   }
@@ -1216,11 +1210,11 @@ strong {
   .slot-group-heading > .muted {
     font-size: 13px;
   }
-  .booking-summary {
-    grid-template-columns: 1fr;
-    gap: 16px;
+  .slot-selection {
+    align-items: stretch;
+    flex-direction: column;
   }
-  .booking-summary > .button {
+  .slot-selection > .button {
     width: 100%;
   }
   .form-grid,

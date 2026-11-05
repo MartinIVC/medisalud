@@ -62,13 +62,21 @@ export function StatusIndicator({ status }) {
   );
 }
 
-export function Dialog({ open, title, onClose, busy = false, className = '', children }) {
+export function Dialog({
+  open,
+  title,
+  onClose,
+  busy = false,
+  className = '',
+  returnFocusRef,
+  children,
+}) {
   const ref = useRef(null);
   const titleId = useId();
   useEffect(() => {
     if (!open) return undefined;
     const dialog = ref.current;
-    const opener = document.activeElement;
+    const opener = returnFocusRef?.current || document.activeElement;
     const previousOverflow = document.body.style.overflow;
     dialog.showModal();
     document.body.style.overflow = 'hidden';
@@ -78,7 +86,7 @@ export function Dialog({ open, title, onClose, busy = false, className = '', chi
       if (opener?.isConnected) opener.focus({ preventScroll: true });
       else document.getElementById('main-content')?.focus({ preventScroll: true });
     };
-  }, [open]);
+  }, [open, returnFocusRef]);
   useEffect(() => {
     const dialog = ref.current;
     // Disabling the submitting button can move native focus to the document body.
