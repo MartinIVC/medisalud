@@ -49,7 +49,7 @@ export function validateRutClient(rut) {
   if (dvProvided !== dvExpected) {
     return {
       valid: false,
-      message: `Dígito verificador inválido (para ${body} corresponde -${dvExpected}).`,
+      message: 'El dígito verificador no coincide.',
     };
   }
   return { valid: true, message: 'RUT chileno válido (Módulo 11 verificado).' };
