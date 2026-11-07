@@ -200,7 +200,7 @@ export default function SecretaryPortal({ state, actions }) {
       const noticePending = response.data.correo_aviso?.estado === 'PENDIENTE';
       const noticeMessage = noticePending
         ? emailReady
-          ? ' El aviso por correo está pendiente de envío.'
+          ? ' Se solicitó el envío del aviso por correo.'
           : ' El aviso por correo quedó pendiente: falta configurar SMTP o SendGrid.'
         : '';
       setAppointmentMessage({

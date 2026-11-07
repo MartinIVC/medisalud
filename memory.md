@@ -14,17 +14,17 @@ Completar el Sprint 3 del proyecto académico Medisalud. Jira muestra el sprint 
 | MED-20 | Cancelar o reprogramar citas por secretaría   |           5 | Finalizado en Jira; la validación ampliada fue integrada en `develop` mediante el PR #2. |
 | MED-23 | Foto de perfil de profesionales               |           5 | Implementación terminada y registrada en Git: foto persistente, carga protegida, fallback y ampliación desde el catálogo/resumen de reserva. Jira no se modificó en esta tarea. |
 | MED-24 | Desvincular profesional conservando historial |           5 | No borrar agendas ni citas históricas; bloquear la acción si hay citas futuras hasta gestionarlas.                                                                              |
-| MED-25 | Acceso individual de secretarías              |           8 | En curso en Jira; implementación y provisión de MED-26 en revisión en `feature/MED-25-acceso-individual`.                                                                      |
+| MED-25 | Acceso individual de secretarías              |           8 | Finalizado en Jira; integrado en `develop` mediante el PR #3 junto con MED-26.                                                                      |
 
-Total visible en Jira: **26 puntos**. MED-20 y MED-23 (10 puntos) están Finalizados; MED-19, MED-24 y MED-25 (16 puntos) siguen En curso. Los puntos son estimaciones del tamaño de cada historia, no horas ni una garantía de capacidad.
+Total visible en Jira: **26 puntos**. MED-20, MED-23 y MED-25 (18 puntos) están Finalizados; MED-19 y MED-24 (8 puntos) siguen En curso. Los puntos son estimaciones del tamaño de cada historia, no horas ni una garantía de capacidad.
 
 ### Subtareas
 
 - **MED-21**, hija de MED-20: prueba de cancelación y reprogramación con PostgreSQL descartable. Finalizada en Jira el 7 de noviembre. La prueba pasó y cubre acceso, motivos, cupos bloqueados/ocupados/vencidos, profesional inactivo, liberación conservando bloqueos y avisos pendientes.
 - **MED-22**, hija de MED-20: manual, contrato API y UAT. Finalizada en Jira el 7 de noviembre. El manual aclara que el aviso está pendiente, el contrato incluye `20261030_gestion_reservas.sql` y UAT-08 comprueba ambos cupos y el aviso pendiente.
-- **MED-26**, hija de MED-25: provisión inicial y migración de cuentas. Sigue Por hacer en Jira; la implementación y las pruebas están en la rama de MED-25. No habilitar autorregistro público.
+- **MED-26**, hija de MED-25: provisión inicial y migración de cuentas. Finalizada en Jira; no se habilitó autorregistro público.
 
-**MED-27** es una historia independiente de 8 puntos para auditar acciones de secretaría: depende de MED-25. La identidad de sesión de MED-25 prepara esa integración; no implementa la bitácora.
+**MED-27** queda pendiente como historia independiente de 8 puntos para asociar y auditar las acciones administrativas por cuenta. Depende de MED-25: la identidad de sesión prepara esa integración, pero no implementa la bitácora.
 
 No sumar por segunda vez los puntos de las subtareas si el esfuerzo ya está incluido en los puntos de su historia padre.
 
@@ -35,20 +35,21 @@ No sumar por segunda vez los puntos de las subtareas si el esfuerzo ya está inc
 - MED-18 / RNF-03 está Por hacer en el backlog. La configuración real de SPF/DKIM/DMARC y la meta de entrega >95 % dependen de dominio y proveedor externos, que el equipo probablemente no contratará. No incluir esa validación real en el alcance ni reportarla como cumplida. Si se retoma, acordar una alternativa académica explícita.
 - MED-24 depende de una regla ya acordada: si el profesional tiene citas futuras, no desvincularlo silenciosamente; secretaría debe gestionar esas citas con el flujo MED-20.
 - MED-23 guarda las imágenes en PostgreSQL (`BYTEA`); el volumen `medisalud_pgdata` de Docker Compose mantiene los datos al reiniciar los servicios. No requiere almacenamiento externo. La API valida PNG/JPEG, tamaño y contenido, permite reemplazo a secretaría autenticada y conserva el fallback genérico.
-- MED-25 sustituye la contraseña compartida por cuentas con hash `scrypt`, sesiones opacas revocables, límite de intentos y provisión administrativa. La transición y el ADR están en la rama de MED-25.
-- Mantener las respuestas de correo en estado «pendiente» cuando solo se encolan. La aceptación por un proveedor no prueba entrega.
+- MED-25 sustituye la contraseña compartida por cuentas con hash `scrypt`, sesiones opacas revocables, límite de intentos y provisión administrativa. La transición y el ADR están integrados en `develop`.
+- El aviso de cancelación o cambio se encola para su envío; la interfaz indica que se solicitó el envío, no que llegó. La aceptación por un proveedor no prueba entrega.
 - ADR-0001 registra la transacción y el orden de bloqueo de las operaciones de secretaría: `docs/adr/0001-gestion-atomica-citas-secretaria.md`.
-- En la agenda de secretaría, las acciones del horario se integran en la misma línea de la fila seleccionada en pantallas amplias y debajo del detalle en pantallas pequeñas, sin repetir sus datos; si una cita o un horario pasado no se puede gestionar ni modificar, se ocultan los botones de acción y se explica el motivo. En fechas pasadas (`secFecha < hoy`), la agenda permanece consultable en modo de solo lectura (con «Configurar horarios» y «Registrar ausencia o feriado» deshabilitados), y el backend rechaza con `409` (`SLOT_PAST`, `AGENDA_DATE_PAST`, `AGENDA_PAST`) cualquier intento de configurar, bloquear o desbloquear horarios o fechas vencidas. Pueden cerrarse al volver a seleccionar la fila.
+- En la agenda de secretaría, las acciones del horario aparecen debajo del detalle de la fila seleccionada, sin repetir sus datos; si una cita o un horario pasado no se puede gestionar ni modificar, se ocultan los botones de acción y se explica el motivo. En fechas pasadas (`secFecha < hoy`), la agenda permanece consultable en modo de solo lectura (con «Configurar horarios» y «Registrar ausencia o feriado» deshabilitados), y el backend rechaza con `409` (`SLOT_PAST`, `AGENDA_DATE_PAST`, `AGENDA_PAST`) cualquier intento de configurar, bloquear o desbloquear horarios o fechas vencidas. Pueden cerrarse al volver a seleccionar la fila.
 - En el portal de pacientes, el horario seleccionado abre el formulario en un diálogo; al cerrarlo o elegir «Cambiar hora», una franja junto a ese grupo conserva la hora seleccionada para retomarla. «Elegir otra hora» después de un conflicto sí limpia la selección.
 
 ## Estado conocido del repositorio
 
-- Rama de MED-25: `feature/MED-25-acceso-individual`, actualizada sobre `origin/develop` en `6e6e6d6`, que incorpora el PR #2 de MED-20.
+- El volumen local de PostgreSQL tenía el esquema previo de notificaciones; se aplicó `20261030_gestion_reservas.sql` tras respaldarlo para habilitar cancelaciones y reprogramaciones. Otros volúmenes existentes requieren revisar sus migraciones por separado.
+- MED-25 y MED-26 están integradas en `develop` mediante el PR #3 (`8c179b9`).
 - `dfaa4d3 feat(ui): redesign Medisalud with Swiss Signal` establece el diseño visual editorial («Swiss Signal») en los portales de paciente y secretaría.
 - `7a05953 feat(citas): gestionar reservas por secretaria` incorpora para MED-20 el servicio, flujo de secretaría, contrato API, manual/protocolo y prueba de aceptación `backend/tests/verify-gestion-reservas.js`.
 - `AGENTS.md` contiene convenciones y comandos del proyecto; leerlo antes de modificar código.
 - MED-23 está implementada y adaptada al diseño Swiss Signal (`880f866`, `55cf4a9`, `efa2343`). Incluye la migración `20261103_medicos_foto.sql`, carga de secretaría (`DoctorPhotoEditor`), fallback y ampliación de fotos en la experiencia paciente (`DoctorPhoto`). Jira no se modificó ni se verificó su estado de cierre en esta tarea.
-- MED-24 sigue pendiente; la implementación de MED-25 está pendiente de integración y aceptación.
+- MED-24 sigue pendiente; MED-25 está integrada en `develop`.
 
 ## Verificación segura
 

@@ -253,7 +253,7 @@ for (const providerConfigured of [true, false]) {
       fireEvent.click(screen.getByRole('button', { name: 'Confirmar cancelación' }));
 
       const expectedMessage = providerConfigured
-        ? 'La cita fue cancelada. El aviso por correo está pendiente de envío.'
+        ? 'La cita fue cancelada. Se solicitó el envío del aviso por correo.'
         : 'La cita fue cancelada. El aviso por correo quedó pendiente: falta configurar SMTP o SendGrid.';
       await waitFor(() => assert.ok(screen.getByText(expectedMessage)));
       assert.doesNotMatch(screen.getByText(expectedMessage).textContent, /entregado|recibido/i);
