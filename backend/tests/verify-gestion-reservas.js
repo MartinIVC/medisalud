@@ -44,17 +44,21 @@ async function run() {
   const token = login.body.token;
 
   const dateResult = await pool.query(
-    "SELECT TO_CHAR((NOW() AT TIME ZONE 'America/Santiago')::date + 45, 'YYYY-MM-DD') AS fecha",
+    `SELECT TO_CHAR((NOW() AT TIME ZONE 'America/Santiago')::date + 45, 'YYYY-MM-DD') AS fecha,
+            TO_CHAR((NOW() AT TIME ZONE 'America/Santiago')::date - 1, 'YYYY-MM-DD') AS fecha_pasada`,
   );
   const fecha = dateResult.rows[0].fecha;
   const createdSlotIds = [];
+  const createdBlockIds = [];
   let appointmentId;
+  let inactiveDoctorUpdated = false;
 
   try {
     for (const [horaInicio, horaFin] of [
       ['13:00', '13:30'],
       ['13:30', '14:00'],
       ['14:00', '14:30'],
+      ['14:30', '15:00'],
     ]) {
       const result = await pool.query(
         `INSERT INTO agendas (medico_id, fecha, hora_inicio, hora_fin, duracion_min)
@@ -63,7 +67,21 @@ async function run() {
       );
       createdSlotIds.push(result.rows[0].id);
     }
-    const [originalId, targetId, blockedId] = createdSlotIds;
+    const pastSlot = await pool.query(
+      `INSERT INTO agendas (medico_id, fecha, hora_inicio, hora_fin, duracion_min)
+       VALUES (1, $1, '13:00', '13:30', 30) RETURNING id`,
+      [dateResult.rows[0].fecha_pasada],
+    );
+    createdSlotIds.push(pastSlot.rows[0].id);
+    const inactiveDoctorSlot = await pool.query(
+      `INSERT INTO agendas (medico_id, fecha, hora_inicio, hora_fin, duracion_min)
+       VALUES (2, $1, '13:00', '13:30', 30) RETURNING id`,
+      [fecha],
+    );
+    createdSlotIds.push(inactiveDoctorSlot.rows[0].id);
+
+    const [originalId, targetId, blockedId, occupiedId, pastSlotId, inactiveDoctorSlotId] =
+      createdSlotIds;
 
     const booking = await post('/reservas', {
       agenda_id: originalId,
@@ -88,6 +106,7 @@ async function run() {
     );
 
     await pool.query("UPDATE agendas SET estado='BLOQUEADO' WHERE id=$1", [blockedId]);
+    await pool.query("UPDATE agendas SET estado='RESERVADO' WHERE id=$1", [occupiedId]);
     const blockedMove = await post(
       path,
       { accion: 'MOVER', motivo: 'Contingencia de prueba', agenda_id: blockedId },
@@ -97,6 +116,39 @@ async function run() {
     assert.equal((await readAppointment(appointmentId)).agenda_id, originalId);
     assert.equal(await readSlot(originalId), 'RESERVADO');
 
+    const occupiedMove = await post(
+      path,
+      { accion: 'MOVER', motivo: 'Contingencia de prueba', agenda_id: occupiedId },
+      token,
+    );
+    assert.equal(occupiedMove.status, 409, JSON.stringify(occupiedMove.body));
+    assert.equal((await readAppointment(appointmentId)).agenda_id, originalId);
+    assert.equal(await readSlot(originalId), 'RESERVADO');
+
+    const pastMove = await post(
+      path,
+      { accion: 'MOVER', motivo: 'Contingencia de prueba', agenda_id: pastSlotId },
+      token,
+    );
+    assert.equal(pastMove.status, 409, JSON.stringify(pastMove.body));
+    assert.equal((await readAppointment(appointmentId)).agenda_id, originalId);
+
+    const deactivation = await pool.query(
+      'UPDATE medicos SET activo=FALSE WHERE id=2 RETURNING id',
+    );
+    assert.equal(deactivation.rowCount, 1);
+    inactiveDoctorUpdated = true;
+    const inactiveDoctorMove = await post(
+      path,
+      { accion: 'MOVER', motivo: 'Contingencia de prueba', agenda_id: inactiveDoctorSlotId },
+      token,
+    );
+    assert.equal(inactiveDoctorMove.status, 409, JSON.stringify(inactiveDoctorMove.body));
+    assert.equal((await readAppointment(appointmentId)).agenda_id, originalId);
+    assert.equal(await readSlot(originalId), 'RESERVADO');
+    await pool.query('UPDATE medicos SET activo=TRUE WHERE id=2');
+    inactiveDoctorUpdated = false;
+
     const moved = await post(
       path,
       { accion: 'MOVER', motivo: 'Contingencia de prueba', agenda_id: targetId },
@@ -104,6 +156,8 @@ async function run() {
     );
     assert.equal(moved.status, 200, JSON.stringify(moved.body));
     assert.equal(moved.body.correo_aviso.estado, 'PENDIENTE');
+    assert.equal(moved.body.correo_aviso.proveedor_configurado, false);
+    assert.match(moved.body.mensaje, /aviso quedó pendiente/);
     assert.equal((await readAppointment(appointmentId)).agenda_id, targetId);
     assert.equal(await readSlot(originalId), 'DISPONIBLE');
     assert.equal(await readSlot(targetId), 'RESERVADO');
@@ -113,12 +167,22 @@ async function run() {
       [appointmentId],
     );
     assert.ok(noticesAfterMove.rows.some((row) => row.tipo === 'REPROGRAMACION'));
+    assert.equal(
+      noticesAfterMove.rows.find((row) => row.tipo === 'REPROGRAMACION').estado,
+      'PENDIENTE',
+    );
     assert.ok(
       noticesAfterMove.rows
         .filter((row) => row.tipo === 'RECORDATORIO')
         .every((row) => row.contenido.includes('13:30')),
     );
 
+    const block = await pool.query(
+      `INSERT INTO bloqueos_agenda (medico_id, fecha, motivo)
+       VALUES (1, $1, 'Bloqueo de aceptación') RETURNING id`,
+      [fecha],
+    );
+    createdBlockIds.push(block.rows[0].id);
     const cancelled = await post(
       path,
       { accion: 'CANCELAR', motivo: 'Cancelación de prueba' },
@@ -126,16 +190,21 @@ async function run() {
     );
     assert.equal(cancelled.status, 200, JSON.stringify(cancelled.body));
     assert.equal(cancelled.body.correo_aviso.estado, 'PENDIENTE');
+    assert.equal(cancelled.body.correo_aviso.proveedor_configurado, false);
+    assert.match(cancelled.body.mensaje, /aviso quedó pendiente/);
     assert.equal((await readAppointment(appointmentId)).estado, 'CANCELADA');
     assert.equal((await readAppointment(appointmentId)).asistencia_estado, 'CANCELADA');
-    assert.equal(await readSlot(targetId), 'DISPONIBLE');
+    assert.equal(await readSlot(targetId), 'BLOQUEADO');
     assert.equal((await post(path, { accion: 'CANCELAR', motivo: 'Repetida' }, token)).status, 409);
 
     const noticesAfterCancel = await pool.query(
       'SELECT tipo, estado FROM notificaciones WHERE cita_id=$1',
       [appointmentId],
     );
-    assert.ok(noticesAfterCancel.rows.some((row) => row.tipo === 'CANCELACION'));
+    assert.equal(
+      noticesAfterCancel.rows.find((row) => row.tipo === 'CANCELACION').estado,
+      'PENDIENTE',
+    );
     assert.ok(
       noticesAfterCancel.rows
         .filter((row) => ['CONFIRMACION', 'RECORDATORIO', 'REPROGRAMACION'].includes(row.tipo))
@@ -143,10 +212,16 @@ async function run() {
     );
 
     console.log(
-      'Gestión de citas: acceso, validación, conflicto, cambio, cancelación y avisos OK.',
+      'Gestión de citas: acceso, motivos, conflictos, reprogramación, cancelación, bloqueos y avisos pendientes OK.',
     );
   } finally {
+    if (inactiveDoctorUpdated) {
+      await pool.query('UPDATE medicos SET activo=TRUE WHERE id=2');
+    }
     if (appointmentId) await pool.query('DELETE FROM citas_medicas WHERE id=$1', [appointmentId]);
+    if (createdBlockIds.length) {
+      await pool.query('DELETE FROM bloqueos_agenda WHERE id=ANY($1::bigint[])', [createdBlockIds]);
+    }
     if (createdSlotIds.length) {
       await pool.query('DELETE FROM agendas WHERE id=ANY($1::int[])', [createdSlotIds]);
     }

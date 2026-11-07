@@ -3,6 +3,8 @@ node_modules/
 docs/**
 !docs/manual-secretaria.md
 !docs/protocolo-marcha-blanca.md
+!docs/adr/
+!docs/adr/*.md
 dist/
 build/
 .env
