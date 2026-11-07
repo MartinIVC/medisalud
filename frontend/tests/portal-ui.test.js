@@ -62,7 +62,7 @@ function SecretaryHarness({ agendas = [], secFecha = '2027-01-15', todayStr = '2
   };
   return React.createElement(SecretaryPortal, {
     state,
-    actions: { setSecMedicoId: setDoctorId, setSecFeedback() {} },
+    actions: { setSecMedicoId: setDoctorId, setSecFeedback() {}, fetchSecAgendas() {} },
   });
 }
 
@@ -192,6 +192,78 @@ test('secretary actions expand beside the selected schedule and follow its statu
   assert.equal(screen.queryByRole('button', { name: 'Desbloquear horario' }), null);
   assert.match(panel.textContent, /No se puede modificar ni reservar un horario cuya hora ya pasó/);
 });
+
+for (const providerConfigured of [true, false]) {
+  test(`appointment management reports a pending email when provider is ${providerConfigured ? 'configured' : 'missing'}`, async () => {
+    const originalFetch = globalThis.fetch;
+    const dialogPrototype = dom.window.HTMLDialogElement.prototype;
+    const originalShowModal = dialogPrototype.showModal;
+    const originalClose = dialogPrototype.close;
+    const json = (data, status = 200) =>
+      new Response(JSON.stringify(data), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    globalThis.fetch = async (url) => {
+      if (url === '/api/reservas/42/gestionar') {
+        return json({
+          ok: true,
+          correo_aviso: {
+            estado: 'PENDIENTE',
+            proveedor_configurado: providerConfigured,
+          },
+        });
+      }
+      throw new Error(`Solicitud inesperada: ${url}`);
+    };
+    dialogPrototype.showModal = function () {
+      this.setAttribute('open', '');
+    };
+    dialogPrototype.close = function () {
+      this.removeAttribute('open');
+    };
+
+    try {
+      const screen = render(
+        React.createElement(SecretaryHarness, {
+          agendas: [
+            {
+              agenda_id: 42,
+              cita_id: 42,
+              hora_inicio: '09:00',
+              hora_fin: '09:30',
+              fecha: '2027-01-15',
+              estado: 'RESERVADO',
+              duracion_min: 30,
+              box_atencion: 'Box 1',
+              paciente_nombre: 'Paciente ficticio',
+              codigo_reserva: 'MED-DEMO-42',
+              medico_nombre: 'Dra. Prueba',
+              medico_id: 1,
+              futuro: true,
+            },
+          ],
+        }),
+      );
+      fireEvent.click(screen.container.querySelector('.agenda-row'));
+      fireEvent.click(screen.getByRole('button', { name: 'Cancelar cita' }));
+      fireEvent.change(screen.getByLabelText('Motivo del cambio'), {
+        target: { value: 'Prueba de aceptación' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Confirmar cancelación' }));
+
+      const expectedMessage = providerConfigured
+        ? 'La cita fue cancelada. El aviso por correo está pendiente de envío.'
+        : 'La cita fue cancelada. El aviso por correo quedó pendiente: falta configurar SMTP o SendGrid.';
+      await waitFor(() => assert.ok(screen.getByText(expectedMessage)));
+      assert.doesNotMatch(screen.getByText(expectedMessage).textContent, /entregado|recibido/i);
+    } finally {
+      globalThis.fetch = originalFetch;
+      dialogPrototype.showModal = originalShowModal;
+      dialogPrototype.close = originalClose;
+    }
+  });
+}
 
 test('past dates disable day-level scheduling and blocking actions in read-only mode', () => {
   const screen = render(

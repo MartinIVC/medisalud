@@ -196,9 +196,15 @@ export default function SecretaryPortal({ state, actions }) {
         return;
       }
       const emailReady = response.data.correo_aviso?.proveedor_configurado !== false;
+      const noticePending = response.data.correo_aviso?.estado === 'PENDIENTE';
+      const noticeMessage = noticePending
+        ? emailReady
+          ? ' El aviso por correo está pendiente de envío.'
+          : ' El aviso por correo quedó pendiente: falta configurar SMTP o SendGrid.'
+        : '';
       setAppointmentMessage({
         tone: emailReady ? 'success' : 'warning',
-        text: `La cita fue ${appointmentAction.action === 'MOVER' ? 'cambiada' : 'cancelada'}.${emailReady ? '' : ' El aviso por correo quedó pendiente.'}`,
+        text: `La cita fue ${appointmentAction.action === 'MOVER' ? 'cambiada' : 'cancelada'}.${noticeMessage}`,
       });
       setAppointmentAction(null);
       fetchSecAgendas();
