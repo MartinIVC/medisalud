@@ -114,11 +114,33 @@ En Linux, si recibes `permission denied` al acceder a `/var/run/docker.sock`, vu
 
 ## Configurar el entorno
 
-Docker Compose puede iniciar el proyecto sin un archivo de configuración: usa valores locales predeterminados para PostgreSQL y la URL del frontend. Opcionalmente configura `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` y `PUBLIC_WEB_URL` en un archivo `.env` de la raíz. Este archivo está excluido de Git; no lo compartas ni lo subas al repositorio.
+Docker Compose puede iniciar el proyecto sin un archivo de configuración: usa valores locales predeterminados para PostgreSQL y la URL del frontend. Para personalizar el entorno, crea un archivo `.env` en la raíz a partir de [`.env.example`](.env.example). Si ya tienes un `.env`, consérvalo y agrega a mano las variables que necesites.
+
+En Linux o macOS, si todavía no existe `.env`:
+
+```bash
+cp -n .env.example .env
+```
+
+En PowerShell:
+
+```powershell
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+```
+
+El archivo `.env` está excluido de Git: guarda allí tus credenciales y no lo compartas ni lo subas al repositorio. La contraseña de PostgreSQL del ejemplo es solo para la demostración local. En un volumen de PostgreSQL ya creado, cambiar estas variables no actualiza por sí solo el usuario, la contraseña ni la base existentes.
 
 No se crean cuentas de secretaría ni contraseñas por defecto. Después de iniciar los servicios, una persona administradora debe crear la primera cuenta como se indica más abajo. Las variables antiguas `SECRETARY_PASSWORD` y `SECRETARY_TOKEN_SECRET` ya no habilitan el acceso.
 
-Las credenciales de SendGrid o SMTP (email) y Twilio (WhatsApp) son opcionales para ejecutar la aplicación. Sin ellas, el sistema no podrá enviar notificaciones reales. Para despliegues públicos, configura `PUBLIC_WEB_URL` con la dirección HTTPS del frontend.
+Las credenciales de SendGrid o SMTP (email) y Twilio (WhatsApp) son opcionales para ejecutar la aplicación. Sin ellas, el sistema no podrá enviar notificaciones reales. Para usar Gmail en una demostración, descomenta las variables `SMTP_*` del `.env`, completa `SMTP_USER` y `SMTP_FROM` con tu dirección y usa una [contraseña de aplicación de Google](https://support.google.com/mail/answer/185833?hl=es) en `SMTP_PASS`. La plantilla usa `smtp.gmail.com` con el puerto 587 y `SMTP_SECURE=false` para iniciar la conexión mediante STARTTLS. Si también configuras SendGrid, el sistema lo usará con prioridad sobre SMTP.
+
+Después de editar la configuración de correo, recrea el backend para que tome los nuevos valores:
+
+```bash
+docker compose up -d --force-recreate backend
+```
+
+Para despliegues públicos, configura `PUBLIC_WEB_URL` con la dirección HTTPS del frontend.
 
 ## Ejecutar en Windows
 
