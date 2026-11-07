@@ -65,6 +65,14 @@ La respuesta exitosa incluye `estado`, `codigo_reserva`, `mensaje` y `correo_avi
 
 La imagen se guarda en `medicos.foto_datos` (`BYTEA`) junto con su tipo y fecha de actualización. Cada reemplazo sobrescribe el valor anterior en PostgreSQL, por lo que no quedan archivos en el sistema. La base persiste en el volumen `medisalud_pgdata` de Compose. Se permite volver a cargar una foto si la vista previa falla.
 
+## Desvinculación de profesionales (MED-24)
+
+`GET /api/secretaria/medicos` exige sesión de secretaría y devuelve `{ "ok": true, "medicos": [...] }` con profesionales activos e inactivos, especialidad, RUT, `citas_futuras` (confirmadas y con inicio posterior al instante actual en Santiago), `proxima_cita_fecha` (fecha de la primera cita futura o `null`), `foto_url` y, cuando existe, `motivo`, `desvinculado_en` y `responsable` (usuario de la cuenta). Lleva `Cache-Control: no-store`. Un profesional inactivo anterior a esta funcionalidad puede carecer de registro de desvinculación. Para los activos, `foto_url` utiliza la ruta pública de fotos; para los inactivos, apunta a `GET /api/secretaria/medicos/:id/foto`, que exige sesión vigente y devuelve la imagen con `Cache-Control: private, no-store`. Sin foto, `foto_url` es `null` y la interfaz usa una imagen genérica.
+
+`POST /api/secretaria/medicos/:id/desvincular` exige sesión vigente y recibe únicamente `{ "motivo": "..." }`, con texto no vacío de hasta 255 caracteres. Devuelve `200` con `{ "ok": true, "desvinculacion": { "medico_id": 1, "motivo": "...", "desvinculado_en": "..." } }`. Registra la cuenta responsable y marca al profesional inactivo en la misma transacción, sin borrar agendas ni citas. La desvinculación no cancela citas. La consulta pública excluye a los inactivos y las operaciones de configuración y reserva los rechazan.
+
+El servidor devuelve `400 VALIDATION_ERROR` para ID o motivo inválidos, `401 UNAUTHORIZED` sin sesión, `404 DOCTOR_NOT_FOUND` para un ID inexistente, `409 DOCTOR_INACTIVE` si ya estaba inactivo y `409 DOCTOR_BUSY` si vence la espera del bloqueo. Si hay citas futuras confirmadas, responde `409 DOCTOR_HAS_FUTURE_APPOINTMENTS` con la cantidad numérica en `fields.citas_futuras` y la primera fecha en `fields.proxima_cita_fecha`; la operación no cambia datos. El conteo se verifica nuevamente dentro de la transacción, por lo que puede diferir de la lista consultada antes.
+
 ## Notificaciones
 
 `ACEPTADO` significa que el proveedor aceptó la solicitud, no que el destinatario la recibió. Los errores del proveedor pueden reintentarse; una caída después de la aceptación puede producir duplicados si el proveedor no ofrece deduplicación. Las pruebas no envían mensajes a proveedores reales.
@@ -80,5 +88,6 @@ Las instalaciones nuevas reciben el esquema actual desde `database/01_init.sql`.
 5. `20261030_gestion_reservas.sql`
 6. `20261103_medicos_foto.sql`
 7. `20261107_cuentas_secretaria.sql`
+8. `20261107_desvinculaciones_medico.sql`
 
 La migración Sprint 2 no se puede repetir y requiere resolver solapamientos de agenda antes de ejecutarla.

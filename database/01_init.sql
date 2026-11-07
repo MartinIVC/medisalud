@@ -150,6 +150,14 @@ CREATE TABLE IF NOT EXISTS intentos_acceso_secretaria (
 );
 CREATE INDEX IF NOT EXISTS idx_intentos_secretaria_ventana ON intentos_acceso_secretaria(ventana_inicio);
 
+-- MED-24: registro de la desvinculación, conservando al profesional y sus citas.
+CREATE TABLE IF NOT EXISTS desvinculaciones_medico (
+    medico_id INTEGER PRIMARY KEY REFERENCES medicos(id) ON DELETE RESTRICT,
+    secretaria_id BIGINT NOT NULL REFERENCES secretarias(id) ON DELETE RESTRICT,
+    motivo VARCHAR(255) NOT NULL CHECK (length(trim(motivo)) > 0),
+    desvinculado_en TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- =============================================================================
 -- Índices sobre llaves foráneas y filtros de búsqueda (RNF-01 / MED-9 < 2,0 s)
 -- =============================================================================

@@ -30,6 +30,39 @@ export default function usePatientPortal({
   const [fieldTouched, setFieldTouched] = useState({});
   const availabilityRequestRef = useRef(0);
   const patientRequestRef = useRef(null);
+  const knownDoctorIds = useRef(new Set());
+  const previousCatalogIds = useRef(null);
+
+  useEffect(() => {
+    if (catalogosLoading || catalogosError) return;
+    const currentIds = new Set(medicos.map((doctor) => String(doctor.id)));
+    currentIds.forEach((id) => knownDoctorIds.current.add(id));
+    const isMissing = (id) =>
+      id && knownDoctorIds.current.has(String(id)) && !currentIds.has(String(id));
+    const missingFilter = isMissing(selectedMedico);
+    const missingSlotDoctor = isMissing(selectedBloque?.medico_id);
+    if (missingFilter) {
+      setSelectedMedico('');
+    }
+    if (
+      (missingSlotDoctor || (missingFilter && !selectedBloque?.medico_id)) &&
+      !submittingReserva &&
+      reservaResult?.type !== 'success'
+    ) {
+      setSelectedBloque(null);
+      setReservaResult(null);
+      setBookingStep('datos');
+      patientRequestRef.current = null;
+    }
+  }, [
+    catalogosLoading,
+    catalogosError,
+    medicos,
+    selectedMedico,
+    selectedBloque,
+    submittingReserva,
+    reservaResult,
+  ]);
 
   const fetchDisponibilidad = useCallback(
     async ({ signal } = {}) => {
@@ -57,6 +90,16 @@ export default function usePatientPortal({
     },
     [selectedEsp, selectedMedico, selectedFecha],
   );
+
+  useEffect(() => {
+    if (catalogosLoading || catalogosError) return;
+    const currentIds = new Set(medicos.map((doctor) => String(doctor.id)));
+    const removedDoctor =
+      previousCatalogIds.current &&
+      [...previousCatalogIds.current].some((id) => !currentIds.has(id));
+    previousCatalogIds.current = currentIds;
+    if (removedDoctor && !selectedMedico) fetchDisponibilidad();
+  }, [catalogosLoading, catalogosError, medicos, selectedMedico, fetchDisponibilidad]);
 
   useEffect(() => {
     const controller = new AbortController();
