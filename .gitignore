@@ -1,6 +1,8 @@
 # Dependencias y compilados
 node_modules/
 docs/**
+!docs/DESIGN_BRIEF.md
+!docs/DESIGN_SYSTEM.md
 !docs/manual-secretaria.md
 !docs/protocolo-marcha-blanca.md
 !docs/adr/
