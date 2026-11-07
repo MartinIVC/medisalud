@@ -8,10 +8,10 @@
 ## 1. Iniciar y cerrar sesión
 
 1. Abre el portal Medisalud y selecciona **Secretaría**.
-2. Ingresa la contraseña entregada para el entorno y selecciona **Iniciar sesión**.
+2. Ingresa tu usuario individual y contraseña, y selecciona **Iniciar sesión**.
 3. Para salir, selecciona **Cerrar sesión**.
 
-La sesión vence después de ocho horas. Si aparece el acceso nuevamente, inicia sesión otra vez. Si estabas creando un médico, el formulario conserva sus datos mientras la página siga abierta. No recargues ni cierres la pestaña hasta retomarlo.
+La sesión vence después de ocho horas. Si aparece el acceso nuevamente, inicia sesión otra vez. Si no recuerdas tu contraseña o la cuenta está bloqueada, solicita ayuda al administrador. Si falla la conexión al cerrar sesión, el sistema informa el problema y debes volver a intentarlo. Si estabas creando un médico, el formulario conserva sus datos mientras la página siga abierta. No recargues ni cierres la pestaña hasta retomarlo.
 
 **Captura 1 pendiente:** acceso de secretaría y panel autenticado.
 

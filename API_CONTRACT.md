@@ -27,6 +27,14 @@ Backend y frontend validan el mismo formato: 7 u 8 dígitos de cuerpo, sin separ
 
 Los casos de aceptación compartidos están en [shared/rut-cases.json](shared/rut-cases.json) y los prueban ambos runtimes. Los RUT de `database/02_seed.sql` son datos ficticios válidos para el demo.
 
+## Acceso individual de secretaría (MED-25 y MED-26)
+
+`POST /api/auth/secretaria` recibe `{ "username": "secretaria.demo", "password": "..." }`. Si la cuenta está activa y las credenciales son correctas, devuelve `200` con `ok`, `token` opaco, `expires_in` (28800 segundos) y `secretaria` con `id` y `usuario`. El token se envía como `Authorization: Bearer <token>` a las rutas administrativas. La respuesta lleva `Cache-Control: no-store`.
+
+Credenciales incorrectas, una cuenta inexistente o inactiva y el límite temporal de intentos producen el mismo `401 UNAUTHORIZED` genérico. Se permiten cinco intentos por cuenta en ventanas de 15 minutos; no existe un límite por dirección de origen. Para evitar saturación, cada proceso admite hasta cuatro intentos de acceso simultáneos y responde `503 SERVICE_UNAVAILABLE` mientras ese límite está ocupado. Cada petición protegida comprueba la sesión y el estado de la cuenta en la base.
+
+`POST /api/auth/secretaria/logout` requiere la sesión vigente, la revoca y devuelve `{ "ok": true }`. Una sesión ausente, vencida, revocada o de una cuenta inactiva devuelve `401 UNAUTHORIZED`. Restablecer una contraseña o cambiar el estado de la cuenta revoca sus sesiones. La contraseña compartida y los tokens anteriores ya no permiten entrar; no se habilita autorregistro público.
+
 ## Reserva e idempotencia
 
 `POST /api/reservas` acepta `Idempotency-Key` (hasta 100 caracteres). El cliente reutiliza la misma clave únicamente mientras repite el mismo payload tras un resultado incierto. La misma clave y payload devuelve el comprobante persistido; usar la clave con otro payload devuelve `409 IDEMPOTENCY_CONFLICT`.
@@ -71,5 +79,6 @@ Las instalaciones nuevas reciben el esquema actual desde `database/01_init.sql`.
 4. `20261028_idempotency_response.sql`
 5. `20261030_gestion_reservas.sql`
 6. `20261103_medicos_foto.sql`
+7. `20261107_cuentas_secretaria.sql`
 
 La migración Sprint 2 no se puede repetir y requiere resolver solapamientos de agenda antes de ejecutarla.

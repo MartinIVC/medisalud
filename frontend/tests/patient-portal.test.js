@@ -15,6 +15,7 @@ const { act, cleanup, renderHook, waitFor } = await import('@testing-library/rea
 const { default: usePatientPortal } = await import('../src/features/paciente/usePatientPortal.js');
 const { default: useSecretaryPortal } =
   await import('../src/features/secretaria/useSecretaryPortal.js');
+const { requestApi } = await import('../src/api/client.js');
 const originalFetch = globalThis.fetch;
 
 afterEach(() => {
@@ -128,6 +129,106 @@ test('an expired secretary session preserves the doctor draft for the next login
     email: 'borrador@example.cl',
   });
   assert.equal(sessionStorage.getItem('medisalud-secretaria-token'), null);
+});
+
+test('secretary login sends the individual username and logout revokes the session', async () => {
+  sessionStorage.clear();
+  const calls = [];
+  globalThis.fetch = async (url, options = {}) => {
+    if (url === '/api/especialidades') return jsonResponse({ ok: true, especialidades: [] });
+    if (url === '/api/medicos') return jsonResponse({ ok: true, medicos: [] });
+    calls.push({ url, options });
+    if (url === '/api/auth/secretaria') return jsonResponse({ ok: true, token: 'sesion-ficticia' });
+    if (url === '/api/auth/secretaria/logout') return jsonResponse({ ok: true });
+    throw new Error(`Solicitud inesperada: ${url}`);
+  };
+  const { result } = renderHook(() =>
+    useSecretaryPortal({ activeTab: 'paciente', refreshAvailability: async () => {} }),
+  );
+  await waitFor(() => assert.equal(result.current.state.catalogosLoading, false));
+  act(() => {
+    result.current.actions.setSecretaryUsername('secretaria.demo');
+    result.current.actions.setSecretaryPassword('Clave ficticia 2026');
+  });
+  await act(async () => result.current.actions.loginSecretary({ preventDefault() {} }));
+  assert.deepEqual(JSON.parse(calls[0].options.body), {
+    username: 'secretaria.demo',
+    password: 'Clave ficticia 2026',
+  });
+  assert.equal(result.current.state.secretaryPassword, '');
+  assert.equal(sessionStorage.getItem('medisalud-secretaria-token'), 'sesion-ficticia');
+  await act(async () => result.current.actions.logoutSecretary());
+  assert.equal(calls[1].options.headers.get('Authorization'), 'Bearer sesion-ficticia');
+  assert.equal(result.current.state.secretaryToken, '');
+  assert.equal(sessionStorage.getItem('medisalud-secretaria-token'), null);
+});
+
+test('logout immediately closes local access and warns if server revocation fails', async () => {
+  sessionStorage.setItem('medisalud-secretaria-token', 'sesion-ficticia');
+  let rejectLogout;
+  globalThis.fetch = async (url) => {
+    if (url === '/api/especialidades') return jsonResponse({ ok: true, especialidades: [] });
+    if (url === '/api/medicos') return jsonResponse({ ok: true, medicos: [] });
+    if (url === '/api/auth/secretaria/logout') {
+      return new Promise((_resolve, reject) => {
+        rejectLogout = reject;
+      });
+    }
+    throw new Error(`Solicitud inesperada: ${url}`);
+  };
+  const { result } = renderHook(() =>
+    useSecretaryPortal({ activeTab: 'paciente', refreshAvailability: async () => {} }),
+  );
+  await waitFor(() => assert.equal(result.current.state.catalogosLoading, false));
+  let logoutPromise;
+  act(() => {
+    logoutPromise = result.current.actions.logoutSecretary();
+  });
+  assert.equal(result.current.state.secretaryToken, '');
+  assert.equal(sessionStorage.getItem('medisalud-secretaria-token'), null);
+  await act(async () => {
+    rejectLogout(new Error('Sin conexión'));
+    await logoutPromise;
+  });
+  assert.match(result.current.state.secretaryLogoutError, /no pudimos confirmar su cierre/);
+  sessionStorage.clear();
+});
+
+test('a late unauthorized response from an old session cannot close the new session', async () => {
+  sessionStorage.setItem('medisalud-secretaria-token', 'sesion-anterior');
+  let finishPreviousRequest;
+  globalThis.fetch = async (url) => {
+    if (url === '/api/especialidades') return jsonResponse({ ok: true, especialidades: [] });
+    if (url === '/api/medicos') return jsonResponse({ ok: true, medicos: [] });
+    if (url === '/api/auth/secretaria/logout') return jsonResponse({ ok: true });
+    if (url === '/api/auth/secretaria') return jsonResponse({ ok: true, token: 'sesion-nueva' });
+    if (url === '/api/pendiente') {
+      return new Promise((resolve) => {
+        finishPreviousRequest = resolve;
+      });
+    }
+    throw new Error(`Solicitud inesperada: ${url}`);
+  };
+  const { result } = renderHook(() =>
+    useSecretaryPortal({ activeTab: 'paciente', refreshAvailability: async () => {} }),
+  );
+  await waitFor(() => assert.equal(result.current.state.catalogosLoading, false));
+  const oldDoctorExpiration = result.current.actions.handleDoctorSessionExpired;
+  const previousRequest = requestApi('/api/pendiente', {
+    token: 'sesion-anterior',
+    onUnauthorized: result.current.actions.handleSecretaryUnauthorized,
+  });
+  await act(async () => result.current.actions.logoutSecretary());
+  await act(async () => result.current.actions.loginSecretary({ preventDefault() {} }));
+  await act(async () => {
+    finishPreviousRequest(jsonResponse({ error: 'Sesión vencida' }, 401));
+    await previousRequest;
+    oldDoctorExpiration({ nombre: 'Borrador anterior' });
+  });
+  assert.equal(result.current.state.secretaryToken, 'sesion-nueva');
+  assert.equal(sessionStorage.getItem('medisalud-secretaria-token'), 'sesion-nueva');
+  assert.equal(result.current.state.pendingMedicoDraft, null);
+  sessionStorage.clear();
 });
 
 test('a reservation conflict refreshes availability and preserves patient data for another slot', async () => {

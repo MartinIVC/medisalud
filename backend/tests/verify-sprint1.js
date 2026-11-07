@@ -5,6 +5,7 @@
 
 const { requireDisposableTestEnvironment } = require('./disposable-env');
 const { apiUrl: API_URL } = requireDisposableTestEnvironment();
+const { ensureTestSecretary } = require('./secretary-fixture');
 
 const REQUEST_TIMEOUT_MS = 5000;
 
@@ -40,16 +41,15 @@ async function runTests() {
   console.log(' VERIFICACIÓN AUTOMATIZADA SPRINT 1 — SISTEMA MEDISALUD (16 PTS)');
   console.log('======================================================================\n');
 
+  const credentials = await ensureTestSecretary();
   const loginRes = await fetch(`${API_URL}/auth/secretaria`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password: process.env.SECRETARY_PASSWORD }),
+    body: JSON.stringify(credentials),
   });
   const login = await loginRes.json();
   if (!loginRes.ok)
-    throw new Error(
-      'Configura SECRETARY_PASSWORD y SECRETARY_TOKEN_SECRET para ejecutar esta suite.',
-    );
+    throw new Error('No fue posible iniciar sesión con la cuenta descartable de la suite.');
   const secretaryHeaders = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${login.token}`,

@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const zlib = require('node:zlib');
 const { requireDisposableTestEnvironment } = require('./disposable-env');
+const { ensureTestSecretary } = require('./secretary-fixture');
 
 const env = requireDisposableTestEnvironment();
 process.env.DB_HOST = env.database.host;
@@ -78,7 +79,7 @@ async function verify() {
     const login = await fetch(`${env.apiUrl}/auth/secretaria`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: process.env.SECRETARY_PASSWORD }),
+      body: JSON.stringify(await ensureTestSecretary()),
     });
     assert.equal(login.status, 200);
     const token = (await login.json()).token;

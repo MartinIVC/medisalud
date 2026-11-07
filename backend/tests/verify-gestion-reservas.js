@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const { requireDisposableTestEnvironment } = require('./disposable-env');
+const { ensureTestSecretary } = require('./secretary-fixture');
 
 const testEnvironment = requireDisposableTestEnvironment();
 process.env.DB_HOST = testEnvironment.database.host;
@@ -38,8 +39,7 @@ async function readAppointment(id) {
 }
 
 async function run() {
-  assert.ok(process.env.SECRETARY_PASSWORD, 'Configura SECRETARY_PASSWORD.');
-  const login = await post('/auth/secretaria', { password: process.env.SECRETARY_PASSWORD });
+  const login = await post('/auth/secretaria', await ensureTestSecretary());
   assert.equal(login.status, 200);
   const token = login.body.token;
 

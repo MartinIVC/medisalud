@@ -44,7 +44,7 @@ La misma reserva aparece en la agenda, con acciones para cambiarla o cancelarla.
 
 ### Panel de secretaría
 
-- Acceso mediante contraseña configurada para la demo y sesión de ocho horas.
+- Acceso individual para secretaría, con sesiones revocables de ocho horas.
 - Configuración de agendas en bloques de 15, 20 o 30 minutos y bloqueo de horarios.
 - Registro de citas presenciales o telefónicas.
 - Cancelación y reprogramación de citas futuras con motivo, actualización de cupos y avisos en cola.
@@ -62,7 +62,7 @@ Una notificación encolada o aceptada por un proveedor **no equivale a una entre
 
 ## En desarrollo y limitaciones
 
-- Acceso individual por cuenta de secretaría y desvinculación de profesionales conservando el historial: pendientes de implementación.
+- Auditoría de acciones por cuenta y desvinculación de profesionales conservando el historial: pendientes de implementación.
 - Validación de entrega real de notificaciones, callbacks de entrega y configuración de dominio SPF/DKIM/DMARC: pendientes.
 - La existencia de pruebas automatizadas no implica que todas las historias hayan completado su aceptación funcional.
 - Los 15 médicos iniciales son datos semilla de demostración, no un límite del sistema.
@@ -114,43 +114,9 @@ En Linux, si recibes `permission denied` al acceder a `/var/run/docker.sock`, vu
 
 ## Configurar el entorno
 
-Docker Compose puede iniciar el proyecto sin un archivo de configuración: usa valores locales predeterminados para PostgreSQL y la URL del frontend. Para entrar al panel de secretaría necesitas configurar `SECRETARY_PASSWORD` y `SECRETARY_TOKEN_SECRET`; sin estas variables, esa función no está disponible. Para la demo local, crea un archivo `.env` en la carpeta raíz.
+Docker Compose puede iniciar el proyecto sin un archivo de configuración: usa valores locales predeterminados para PostgreSQL y la URL del frontend. Opcionalmente configura `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` y `PUBLIC_WEB_URL` en un archivo `.env` de la raíz. Este archivo está excluido de Git; no lo compartas ni lo subas al repositorio.
 
-**Windows PowerShell:** este comando genera un secreto aleatorio de 32 bytes y crea el archivo con credenciales de desarrollo local:
-
-```powershell
-$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-$bytes = New-Object byte[] 32
-$rng.GetBytes($bytes)
-$tokenSecret = [Convert]::ToBase64String($bytes)
-$rng.Dispose()
-
-@(
-  'POSTGRES_USER=medisalud',
-  'POSTGRES_PASSWORD=medisalud_secret_2026',
-  'POSTGRES_DB=medisalud_db',
-  'SECRETARY_PASSWORD=MedisaludLocal2026!',
-  "SECRETARY_TOKEN_SECRET=$tokenSecret",
-  'PUBLIC_WEB_URL=http://localhost:5173'
-) | Set-Content -Encoding ascii .env
-```
-
-**Linux/macOS:** crea el mismo archivo desde la raíz; reemplaza el valor de `SECRETARY_TOKEN_SECRET` por la salida de `openssl rand -base64 32`.
-
-```bash
-TOKEN_SECRET="$(openssl rand -base64 32)"
-cat > .env <<EOF
-POSTGRES_USER=medisalud
-POSTGRES_PASSWORD=medisalud_secret_2026
-POSTGRES_DB=medisalud_db
-SECRETARY_PASSWORD=MedisaludLocal2026!
-SECRETARY_TOKEN_SECRET=$TOKEN_SECRET
-PUBLIC_WEB_URL=http://localhost:5173
-EOF
-unset TOKEN_SECRET
-```
-
-La contraseña indicada es solo para la demo local: usa credenciales propias fuera de tu equipo. El archivo `.env` está excluido de Git; no lo compartas ni lo subas al repositorio.
+No se crean cuentas de secretaría ni contraseñas por defecto. Después de iniciar los servicios, una persona administradora debe crear la primera cuenta como se indica más abajo. Las variables antiguas `SECRETARY_PASSWORD` y `SECRETARY_TOKEN_SECRET` ya no habilitan el acceso.
 
 Las credenciales de SendGrid o SMTP (email) y Twilio (WhatsApp) son opcionales para ejecutar la aplicación. Sin ellas, el sistema no podrá enviar notificaciones reales. Para despliegues públicos, configura `PUBLIC_WEB_URL` con la dirección HTTPS del frontend.
 
@@ -180,9 +146,17 @@ docker compose ps
 docker compose logs -f backend
 ```
 
-7. Abre el portal en [http://localhost:5173](http://localhost:5173) y comprueba la API en [http://localhost:4000/api/health](http://localhost:4000/api/health).
+7. Si el volumen de PostgreSQL ya existía, aplica las migraciones pendientes de la sección siguiente. Después crea la primera cuenta desde una terminal interactiva:
 
-El paciente puede consultar y reservar sin iniciar sesión. El panel de secretaría solicita la contraseña configurada en SECRETARY_PASSWORD; la sesión vence en ocho horas.
+```powershell
+docker compose exec backend node src/cli/secretarias.js crear secretaria.demo
+```
+
+El comando solicita la contraseña sin mostrarla. Usa al menos 12 bytes y no la incluyas en el comando ni en Git.
+
+8. Abre el portal en [http://localhost:5173](http://localhost:5173) y comprueba la API en [http://localhost:4000/api/health](http://localhost:4000/api/health).
+
+El paciente puede consultar y reservar sin iniciar sesión. El panel de secretaría solicita el usuario individual y su contraseña; la sesión vence en ocho horas.
 
 Para detener los contenedores conservando la base de datos:
 
@@ -199,12 +173,26 @@ Desde la raíz del proyecto, configura .env y ejecuta:
 ```bash
 docker compose up -d --build
 docker compose ps
-docker compose logs -f backend
 ```
 
 Si tu usuario de Linux no tiene acceso al daemon, antepón `sudo` a esos comandos; por ejemplo, `sudo docker compose up -d --build`.
 
+Si el volumen ya existía, aplica las migraciones pendientes de la sección siguiente. Para crear la primera cuenta, ejecuta en una terminal interactiva `docker compose exec backend node src/cli/secretarias.js crear secretaria.demo` y escribe la contraseña cuando se solicite.
+
 Usa las mismas direcciones locales indicadas arriba. Para detener los servicios sin borrar la base, ejecuta `docker compose down`.
+
+## Administración de cuentas de secretaría
+
+El acceso a la terminal del contenedor es administrativo; no existe autorregistro desde el portal. Para crear otra cuenta, desactivarla, reactivarla o restablecer su contraseña:
+
+```bash
+docker compose exec backend node src/cli/secretarias.js crear secretaria.demo
+docker compose exec backend node src/cli/secretarias.js desactivar secretaria.demo
+docker compose exec backend node src/cli/secretarias.js activar secretaria.demo
+docker compose exec backend node src/cli/secretarias.js restablecer secretaria.demo
+```
+
+El usuario admite entre 3 y 64 letras ASCII, números, puntos, guiones y guiones bajos; se normaliza a minúsculas. La contraseña debe tener entre 12 y 256 bytes y se ingresa en el prompt, no como argumento. Desactivar, reactivar o restablecer una cuenta revoca sus sesiones; una cuenta desactivada no puede iniciar sesión. Ante una pérdida de acceso, una persona con acceso administrativo restablece la contraseña con el mismo comando. Si fallan intentos repetidos, espera 15 minutos o pide un restablecimiento administrativo.
 
 ## Base de datos y migraciones
 
@@ -282,6 +270,21 @@ Get-Content -Raw .\database\migrations\20261103_medicos_foto.sql |
 
 Las fotos se guardan en PostgreSQL y persisten en el volumen existente `medisalud_pgdata`; no se necesita un volumen de archivos ni almacenamiento externo. En una base nueva, `01_init.sql` ya incluye las columnas.
 
+Para pasar una base existente a cuentas individuales, respáldala y aplica `20261107_cuentas_secretaria.sql` después de las migraciones anteriores:
+
+```bash
+docker compose exec -T db psql -U medisalud -d medisalud_db -v ON_ERROR_STOP=1 < database/migrations/20261107_cuentas_secretaria.sql
+```
+
+En PowerShell:
+
+```powershell
+Get-Content -Raw .\database\migrations\20261107_cuentas_secretaria.sql |
+  docker compose exec -T db psql -U medisalud -d medisalud_db -v ON_ERROR_STOP=1
+```
+
+Sustituye el usuario y la base si cambiaste las variables de PostgreSQL. Para evitar una interrupción en una base existente: aplica la migración con el backend anterior aún operativo, construye la nueva imagen con `docker compose build backend`, crea una cuenta con `docker compose run --rm --no-deps backend node src/cli/secretarias.js crear secretaria.demo` y luego actualiza el servicio con `docker compose up -d --no-deps backend`. Las sesiones anteriores dejan de ser válidas al desplegar la nueva versión y cada secretaria debe usar su cuenta individual. La migración no convierte la contraseña compartida en cuentas personales. En una base nueva, `01_init.sql` ya incluye las tablas.
+
 ## Verificación automatizada
 
 Para ejecutar las comprobaciones de calidad localmente necesitas Node.js 22.22.2 o posterior, mientras sea menor que la versión 27. Esta versión mínima mantiene las pruebas de frontend compatibles con las dependencias fijadas en `frontend/package-lock.json`. Instala dependencias desde los tres lockfiles y ejecuta el conjunto habitual:
@@ -304,6 +307,7 @@ docker compose -f docker-compose.test.yml exec -T backend-test npm run test:spri
 docker compose -f docker-compose.test.yml exec -T backend-test npm run test:sprint3
 docker compose -f docker-compose.test.yml exec -T backend-test npm run test:gestion-reservas
 docker compose -f docker-compose.test.yml exec -T backend-test npm run test:fotos-medicos
+docker compose -f docker-compose.test.yml exec -T backend-test npm run test:secretarias
 docker compose -f docker-compose.test.yml down -v
 ```
 
