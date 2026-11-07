@@ -19,6 +19,7 @@ export default function SecretaryPortal({ state, actions }) {
   const {
     secretaryView,
     secretaryToken,
+    logoutPending,
     especialidades,
     catalogosLoading,
     catalogosError,
@@ -291,7 +292,9 @@ export default function SecretaryPortal({ state, actions }) {
       <>
         <div className="section-heading">
           <Button onClick={() => setSecretaryView('agenda')}>Volver a la agenda</Button>
-          <Button onClick={logoutSecretary}>Cerrar sesión</Button>
+          <Button onClick={logoutSecretary} disabled={logoutPending}>
+            Cerrar sesión
+          </Button>
         </div>
         <CrearMedico
           secretaryToken={secretaryToken}
@@ -339,7 +342,7 @@ export default function SecretaryPortal({ state, actions }) {
           >
             Configurar horarios
           </Button>
-          <Button variant="text" onClick={logoutSecretary}>
+          <Button variant="text" onClick={logoutSecretary} disabled={logoutPending}>
             Cerrar sesión
           </Button>
         </div>

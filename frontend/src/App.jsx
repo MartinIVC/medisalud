@@ -81,7 +81,10 @@ export default function App() {
             </div>
             <div className="login-form">
               <h2>Iniciar sesión</h2>
-              <p className="muted">Ingresa tu contraseña para acceder a la agenda.</p>
+              <p className="muted">Ingresa tu usuario y contraseña para acceder a la agenda.</p>
+              {secretaryState.secretaryLogoutError && (
+                <Alert tone="warning">{secretaryState.secretaryLogoutError}</Alert>
+              )}
               {secretaryState.pendingMedicoDraft && (
                 <Alert tone="warning">
                   Conservamos el borrador de {secretaryState.pendingMedicoDraft.nombre || 'médico'}.
@@ -89,6 +92,15 @@ export default function App() {
                 </Alert>
               )}
               <form onSubmit={secretaryActions.loginSecretary}>
+                <Field id="secretary-username" label="Usuario">
+                  <input
+                    id="secretary-username"
+                    autoComplete="username"
+                    required
+                    value={secretaryState.secretaryUsername}
+                    onChange={(event) => secretaryActions.setSecretaryUsername(event.target.value)}
+                  />
+                </Field>
                 <Field id="secretary-password" label="Contraseña">
                   <div className="password-input">
                     <input
@@ -115,8 +127,16 @@ export default function App() {
                   </div>
                 </Field>
                 {secretaryState.secretaryError && <Alert>{secretaryState.secretaryError}</Alert>}
-                <Button variant="primary" type="submit">
-                  Iniciar sesión
+                <Button
+                  variant="primary"
+                  type="submit"
+                  disabled={secretaryState.loginPending || secretaryState.logoutPending}
+                >
+                  {secretaryState.logoutPending
+                    ? 'Cerrando sesión…'
+                    : secretaryState.loginPending
+                      ? 'Ingresando…'
+                      : 'Iniciar sesión'}
                 </Button>
               </form>
             </div>

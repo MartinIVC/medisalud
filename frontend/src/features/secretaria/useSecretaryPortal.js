@@ -12,8 +12,14 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
   const [secretaryToken, setSecretaryToken] = useState(
     () => sessionStorage.getItem('medisalud-secretaria-token') || '',
   );
+  const [secretaryUsername, setSecretaryUsername] = useState('');
   const [secretaryPassword, setSecretaryPassword] = useState('');
   const [secretaryError, setSecretaryError] = useState('');
+  const [secretaryLogoutError, setSecretaryLogoutError] = useState('');
+  const [loginPending, setLoginPending] = useState(false);
+  const [logoutPending, setLogoutPending] = useState(false);
+  const loginPendingRef = useRef(false);
+  const logoutPendingRef = useRef(false);
   const [receptionBlock, setReceptionBlock] = useState(null);
   const receptionRequestRef = useRef(null);
   const receptionTriggerRef = useRef(null);
@@ -76,11 +82,13 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
   }, []);
 
   const handleSecretaryUnauthorized = useCallback(() => {
+    if (!secretaryToken || sessionStorage.getItem('medisalud-secretaria-token') !== secretaryToken)
+      return;
     sessionStorage.removeItem('medisalud-secretaria-token');
     setSecretaryToken('');
     setSecretaryError('Tu sesión terminó. Inicia sesión nuevamente para continuar.');
     setSecAgendas([]);
-  }, []);
+  }, [secretaryToken]);
 
   const fetchSecAgendas = useCallback(
     async ({ signal } = {}) => {
@@ -146,11 +154,15 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
 
   async function loginSecretary(event) {
     event.preventDefault();
+    if (loginPendingRef.current || logoutPendingRef.current) return;
+    loginPendingRef.current = true;
+    setLoginPending(true);
     setSecretaryError('');
+    setSecretaryLogoutError('');
     try {
       const response = await requestApi('/api/auth/secretaria', {
         method: 'POST',
-        body: { password: secretaryPassword },
+        body: { username: secretaryUsername, password: secretaryPassword },
       });
       if (!response.ok) {
         setSecretaryError(response.data.error || 'No fue posible iniciar sesión.');
@@ -161,6 +173,9 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
       setSecretaryPassword('');
     } catch {
       setSecretaryError('No pudimos iniciar sesión. Revisa tu conexión e intenta nuevamente.');
+    } finally {
+      loginPendingRef.current = false;
+      setLoginPending(false);
     }
   }
 
@@ -171,6 +186,8 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
   }, [fetchCatalogos, refreshAvailability]);
 
   function handleDoctorSessionExpired(draft) {
+    if (!secretaryToken || sessionStorage.getItem('medisalud-secretaria-token') !== secretaryToken)
+      return;
     setPendingMedicoDraft(draft);
     setSecretaryView('create-medico');
     sessionStorage.removeItem('medisalud-secretaria-token');
@@ -351,21 +368,57 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
     });
   }
 
-  function logoutSecretary() {
+  async function logoutSecretary() {
+    if (logoutPendingRef.current) return;
+    logoutPendingRef.current = true;
+    setLogoutPending(true);
+    setSecretaryLogoutError('');
+    const tokenToRevoke = secretaryToken;
     sessionStorage.removeItem('medisalud-secretaria-token');
     setSecretaryToken('');
+    secretaryRequestRef.current += 1;
     setSecAgendas([]);
+    setSecAgendasKey('');
     setSecFeedback(null);
     setSecretaryError('');
     setSecretaryView('agenda');
     setPendingMedicoDraft(null);
+    setReceptionBlock(null);
+    setReceptionData({ nombre: '', rut: '', email: '', telefono: '+569', origen: 'PRESENCIAL' });
+    setReceptionError('');
+    setReceptionFieldErrors({});
+    receptionRequestRef.current = null;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 5000);
+    try {
+      const response = await requestApi('/api/auth/secretaria/logout', {
+        method: 'POST',
+        token: tokenToRevoke,
+        signal: controller.signal,
+      });
+      if (!response.ok && response.status !== 401) {
+        throw new Error('No se confirmó la revocación.');
+      }
+    } catch {
+      setSecretaryLogoutError(
+        'La sesión se cerró en este navegador, pero no pudimos confirmar su cierre en el servidor. Podría seguir activa hasta que venza.',
+      );
+    } finally {
+      window.clearTimeout(timeout);
+      logoutPendingRef.current = false;
+      setLogoutPending(false);
+    }
   }
 
   const state = {
     secretaryView,
     secretaryToken,
+    secretaryUsername,
     secretaryPassword,
     secretaryError,
+    secretaryLogoutError,
+    loginPending,
+    logoutPending,
     receptionBlock,
     receptionDialogRef,
     receptionData,
@@ -392,6 +445,7 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
   };
   const actions = {
     setSecretaryView,
+    setSecretaryUsername,
     setSecretaryPassword,
     loginSecretary,
     setPendingMedicoDraft,

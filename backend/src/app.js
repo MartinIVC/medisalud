@@ -5,38 +5,45 @@ const disponibilidadRoutes = require('./routes/disponibilidad');
 const agendasRoutes = require('./routes/agendas');
 const reservasRoutes = require('./routes/reservas');
 const medicosRoutes = require('./routes/medicos');
-const { createSecretaryToken } = require('./middleware/auth');
-const { errorHandler, sendError } = require('./middleware/errors');
+const { requireSecretary } = require('./middleware/auth');
+const { authenticateSecretary, revokeSecretarySession } = require('./services/secretary-accounts');
+const { errorHandler, sendError, asyncHandler } = require('./middleware/errors');
 
 function createApp({ database = pool } = {}) {
   const app = express();
+  app.locals.database = database;
 
   app.use(cors());
   app.use(express.json());
 
-  app.post('/api/auth/secretaria', (req, res) => {
-    const configured = process.env.SECRETARY_PASSWORD;
-    if (
-      !configured ||
-      typeof req.body?.password !== 'string' ||
-      Buffer.byteLength(configured) !== Buffer.byteLength(req.body.password) ||
-      !require('crypto').timingSafeEqual(Buffer.from(configured), Buffer.from(req.body.password))
-    ) {
-      return sendError(res, 401, 'UNAUTHORIZED', 'Credenciales inválidas o acceso no configurado.');
-    }
-    if (
-      !process.env.SECRETARY_TOKEN_SECRET ||
-      Buffer.byteLength(process.env.SECRETARY_TOKEN_SECRET) < 32
-    ) {
-      return sendError(
-        res,
-        503,
-        'SERVICE_UNAVAILABLE',
-        'SECRETARY_TOKEN_SECRET debe tener al menos 32 bytes.',
-      );
-    }
-    return res.json({ ok: true, token: createSecretaryToken(), expires_in: 28800 });
-  });
+  app.post(
+    '/api/auth/secretaria',
+    asyncHandler(async (req, res) => {
+      res.set('Cache-Control', 'no-store');
+      const session = await authenticateSecretary(database, {
+        username: req.body?.username,
+        password: req.body?.password,
+      });
+      if (!session)
+        return sendError(
+          res,
+          401,
+          'UNAUTHORIZED',
+          'Credenciales inválidas o acceso temporalmente limitado.',
+        );
+      return res.json({ ok: true, ...session });
+    }),
+  );
+
+  app.post(
+    '/api/auth/secretaria/logout',
+    requireSecretary,
+    asyncHandler(async (req, res) => {
+      await revokeSecretarySession(database, req.secretarySessionHash);
+      res.set('Cache-Control', 'no-store');
+      return res.json({ ok: true });
+    }),
+  );
 
   app.get('/api/health', async (_req, res, next) => {
     const startHr = process.hrtime.bigint();

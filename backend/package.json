@@ -14,6 +14,7 @@
     "test:sprint1": "node tests/verify-sprint1.js",
     "test:sprint3": "node tests/verify-sprint3-medicos.js",
     "test:gestion-reservas": "node tests/verify-gestion-reservas.js",
+    "test:secretarias": "node tests/verify-secretarias.js",
     "test:fotos-medicos": "node tests/verify-fotos-medicos.js"
   },
   "dependencies": {

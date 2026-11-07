@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const { randomInt } = require('node:crypto');
 const { requireDisposableTestEnvironment } = require('./disposable-env');
+const { ensureTestSecretary } = require('./secretary-fixture');
 const testEnvironment = requireDisposableTestEnvironment();
 if (process.env.DB_NAME && process.env.DB_NAME !== testEnvironment.database.name) {
   throw new Error('DB_NAME no coincide con la base declarada en TEST_DATABASE_URL.');
@@ -20,17 +21,6 @@ const createdDoctorIds = [];
 function createRut() {
   const body = String(randomInt(1_000_000, 99_999_999));
   return formatRut(`${body}${calculateDv(body)}`);
-}
-
-function expiredSecretaryToken() {
-  const body = Buffer.from(JSON.stringify({ role: 'secretaria', exp: Date.now() - 1000 })).toString(
-    'base64url',
-  );
-  const signature = crypto
-    .createHmac('sha256', process.env.SECRETARY_TOKEN_SECRET)
-    .update(body)
-    .digest('base64url');
-  return `${body}.${signature}`;
 }
 
 async function postDoctor(payload, token) {
@@ -58,23 +48,29 @@ async function unusedRut() {
 }
 
 async function verify() {
-  assert.ok(process.env.SECRETARY_PASSWORD, 'Configura SECRETARY_PASSWORD para ejecutar la suite.');
-  assert.ok(
-    process.env.SECRETARY_TOKEN_SECRET,
-    'Configura SECRETARY_TOKEN_SECRET para ejecutar la suite.',
-  );
-
+  const credentials = await ensureTestSecretary();
   const loginResponse = await fetch(`${API_URL}/auth/secretaria`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password: process.env.SECRETARY_PASSWORD }),
+    body: JSON.stringify(credentials),
   });
   const login = await loginResponse.json();
   assert.equal(loginResponse.status, 200, 'Debe iniciar sesión de secretaría.');
 
   const unauthenticated = await postDoctor({});
   assert.equal(unauthenticated.status, 401, 'La API debe exigir una sesión vigente.');
-  const expired = await postDoctor({}, expiredSecretaryToken());
+  const expiredLogin = await fetch(`${API_URL}/auth/secretaria`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(credentials),
+  });
+  assert.equal(expiredLogin.status, 200);
+  const expiredToken = (await expiredLogin.json()).token;
+  await pool.query(
+    "UPDATE sesiones_secretaria SET expira_en = NOW() - INTERVAL '1 second' WHERE token_hash = $1",
+    [crypto.createHash('sha256').update(expiredToken).digest('hex')],
+  );
+  const expired = await postDoctor({}, expiredToken);
   assert.equal(expired.status, 401, 'La API debe rechazar una sesión vencida.');
 
   const specialtiesResponse = await fetch(`${API_URL}/especialidades`);
