@@ -72,7 +72,7 @@ Si el cupo dejó de estar disponible, el sistema informa el conflicto. Seleccion
 3. Indica el motivo y revisa los datos antes de confirmar la acción. Una cita ya iniciada o cancelada no se puede modificar.
 4. Comprueba el mensaje de resultado y vuelve a revisar la agenda: al cancelar se libera el cupo; al mover se ocupa el nuevo y se libera el anterior. Un bloqueo vigente puede mantener bloqueado el cupo anterior.
 
-El aviso al paciente queda **pendiente** de envío por correo. Si el sistema indica que falta configurar SMTP o SendGrid, coordina el aviso por el procedimiento de contingencia acordado con el responsable del entorno. No informes al paciente que recibió el correo solo porque la operación se guardó.
+Al guardar la acción se solicita el envío del aviso por correo. Este se procesa en segundo plano, por lo que el mensaje inicial no indica si el proveedor ya lo aceptó o si llegó al paciente. Si el sistema indica que falta configurar SMTP o SendGrid, coordina el aviso por el procedimiento de contingencia acordado con el responsable del entorno. No informes al paciente que recibió el correo solo porque la operación se guardó.
 
 **Captura 7 pendiente:** diálogo de cancelación o cambio y mensaje de resultado.
 
