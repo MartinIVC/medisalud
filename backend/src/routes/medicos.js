@@ -22,7 +22,8 @@ router.get(
   asyncHandler(async (req, res) => {
     const database = req.app.locals.database || pool;
     const result = await database.query(`
-      SELECT m.id, m.nombre, m.rut, m.activo, m.foto_actualizada_en, e.nombre AS especialidad_nombre,
+      SELECT m.id, m.nombre, m.rut, m.activo, m.especialidad_id, m.foto_actualizada_en,
+             e.nombre AS especialidad_nombre,
              d.motivo, d.desvinculado_en, s.usuario AS responsable,
              (SELECT COUNT(*)::int FROM citas_medicas c JOIN agendas a ON a.id = c.agenda_id
               WHERE c.medico_id = m.id AND c.estado = 'CONFIRMADA'
@@ -121,12 +122,51 @@ router.post(
         await client.query('UPDATE medicos SET activo=FALSE WHERE id=$1', [id]);
         const audit = await client.query(
           `INSERT INTO desvinculaciones_medico (medico_id, secretaria_id, motivo)
-          VALUES ($1, $2, $3) RETURNING medico_id, motivo, desvinculado_en`,
+          VALUES ($1, $2, $3)
+          ON CONFLICT (medico_id) DO UPDATE
+          SET secretaria_id = EXCLUDED.secretaria_id,
+              motivo = EXCLUDED.motivo,
+              desvinculado_en = CURRENT_TIMESTAMP
+          RETURNING medico_id, motivo, desvinculado_en`,
           [id, req.secretary.id, body.motivo.trim()],
         );
         return audit.rows[0];
       });
       return res.json({ ok: true, desvinculacion: record });
+    } catch (error) {
+      if (error.code === '55P03')
+        return sendError(
+          res,
+          409,
+          'DOCTOR_BUSY',
+          'El profesional está siendo actualizado. Inténtalo nuevamente.',
+        );
+      throw error;
+    }
+  }),
+);
+
+router.post(
+  '/secretaria/medicos/:id/revincular',
+  requireSecretary,
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!validDoctorId(id))
+      return sendError(res, 400, 'VALIDATION_ERROR', 'Indica un profesional válido.');
+    const database = req.app.locals.database || pool;
+    try {
+      await withTransaction(database, async (client) => {
+        await client.query("SET LOCAL lock_timeout = '1500ms'");
+        const doctor = await client.query('SELECT id, activo FROM medicos WHERE id=$1 FOR UPDATE', [
+          id,
+        ]);
+        if (!doctor.rowCount)
+          throw new HttpError(404, 'DOCTOR_NOT_FOUND', 'El profesional no existe.');
+        if (doctor.rows[0].activo)
+          throw new HttpError(409, 'DOCTOR_ALREADY_ACTIVE', 'El profesional ya está activo.');
+        await client.query('UPDATE medicos SET activo=TRUE WHERE id=$1', [id]);
+      });
+      return res.json({ ok: true, revinculacion: { medico_id: id, activo: true } });
     } catch (error) {
       if (error.code === '55P03')
         return sendError(

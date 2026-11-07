@@ -62,7 +62,7 @@ Una notificación encolada o aceptada por un proveedor **no equivale a una entre
 
 ## En desarrollo y limitaciones
 
-- Auditoría general de acciones por cuenta: pendiente de implementación (MED-27). La desvinculación de profesionales registra su responsable, fecha y motivo y conserva el historial (MED-24).
+- Auditoría general de acciones por cuenta: pendiente de implementación (MED-27). MED-24 registra la última desvinculación con responsable, fecha y motivo; secretaría puede filtrar profesionales por especialidad y revincularlos sin perder agendas ni citas.
 - Validación de entrega real de notificaciones, callbacks de entrega y configuración de dominio SPF/DKIM/DMARC: pendientes.
 - La existencia de pruebas automatizadas no implica que todas las historias hayan completado su aceptación funcional.
 - Los 15 médicos iniciales son datos semilla de demostración, no un límite del sistema.

@@ -947,9 +947,14 @@ strong {
 }
 .professionals-filters {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(160px, 220px);
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 240px) minmax(150px, 200px);
   gap: 16px;
   margin-bottom: 24px;
+}
+@media (max-width: 767px) {
+  .professionals-filters {
+    grid-template-columns: 1fr;
+  }
 }
 .professionals-list {
   border-top: 2px solid var(--primary);

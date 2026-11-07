@@ -292,6 +292,7 @@ export default function SecretaryPortal({ state, actions }) {
     return (
       <Profesionales
         token={secretaryToken}
+        specialties={especialidades}
         onUnauthorized={handleSecretaryUnauthorized}
         onRefresh={refreshDoctorCatalogs}
         onBack={() => setSecretaryView('agenda')}

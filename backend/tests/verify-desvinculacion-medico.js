@@ -11,9 +11,9 @@ const api = environment.apiUrl;
 const rutBody = String(crypto.randomInt(1000000, 99999999));
 const patientRut = formatRut(`${rutBody}${calculateDv(rutBody)}`);
 
-async function request(path, token, body) {
+async function request(path, token, body, method = body ? 'POST' : 'GET') {
   const response = await fetch(`${api}${path}`, {
-    method: body ? 'POST' : 'GET',
+    method,
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(body ? { 'Content-Type': 'application/json' } : {}),
@@ -62,6 +62,14 @@ async function verify() {
     (await request('/secretaria/medicos/2147483648/desvincular', token, { motivo: 'Prueba' }))
       .status,
     400,
+  );
+  assert.equal(
+    (await request('/secretaria/medicos/2147483648/revincular', token, undefined, 'POST')).status,
+    400,
+  );
+  assert.equal(
+    (await request(`/secretaria/medicos/${doctor.id}/revincular`, null, undefined, 'POST')).status,
+    401,
   );
   assert.equal((await request(path, null, { motivo: 'Prueba' })).status, 401);
   assert.equal((await request(path, token, { motivo: '   ' })).status, 400);
@@ -139,6 +147,40 @@ async function verify() {
   assert.equal(retry.status, 409);
   assert.equal(retry.data.code, 'SLOT_NOT_BOOKABLE');
 
+  const relinked = await request(
+    `/secretaria/medicos/${doctor.id}/revincular`,
+    token,
+    undefined,
+    'POST',
+  );
+  assert.equal(relinked.status, 200, JSON.stringify(relinked.data));
+  assert.deepEqual(relinked.data.revinculacion, { medico_id: doctor.id, activo: true });
+  assert.equal(
+    (await db.query('SELECT activo FROM medicos WHERE id=$1', [doctor.id])).rows[0].activo,
+    true,
+  );
+  assert.ok((await request('/medicos')).data.medicos.some((item) => item.id === doctor.id));
+  assert.equal(
+    (
+      await db.query('SELECT COUNT(*)::int AS total FROM citas_medicas WHERE medico_id=$1', [
+        doctor.id,
+      ])
+    ).rows[0].total,
+    2,
+  );
+  assert.equal(
+    (await request(`/secretaria/medicos/${doctor.id}/revincular`, token, undefined, 'POST')).data
+      .code,
+    'DOCTOR_ALREADY_ACTIVE',
+  );
+  const relinkedAgain = await request(path, token, { motivo: 'Nueva vinculación finalizada' });
+  assert.equal(relinkedAgain.status, 200, JSON.stringify(relinkedAgain.data));
+  const latestAudit = await db.query(
+    'SELECT motivo FROM desvinculaciones_medico WHERE medico_id=$1',
+    [doctor.id],
+  );
+  assert.equal(latestAudit.rows[0].motivo, 'Nueva vinculación finalizada');
+
   for (let i = 0; i < 6; i += 1) {
     const candidate = await doctorWithSlots();
     const [unlink, booking] = await Promise.all([
@@ -165,6 +207,39 @@ async function verify() {
     );
     assert.ok(invariant.rows[0].activo || invariant.rows[0].total === 0);
   }
+  const inactiveCandidate = await doctorWithSlots();
+  assert.equal(
+    (
+      await request(`/secretaria/medicos/${inactiveCandidate.id}/desvincular`, token, {
+        motivo: 'Prueba de concurrencia',
+      })
+    ).status,
+    200,
+  );
+  const [reactivation, concurrentBooking] = await Promise.all([
+    request(`/secretaria/medicos/${inactiveCandidate.id}/revincular`, token, undefined, 'POST'),
+    request('/reservas', null, {
+      agenda_id: inactiveCandidate.slot,
+      paciente_rut: patientRut,
+      paciente_nombre: 'Paciente de prueba',
+      paciente_email: 'demo@example.invalid',
+      paciente_telefono: '+56912345678',
+      origen: 'WEB',
+    }),
+  ]);
+  assert.equal(reactivation.status, 200, JSON.stringify(reactivation.data));
+  assert.ok(
+    concurrentBooking.status === 201 ||
+      (concurrentBooking.status === 409 && concurrentBooking.data.code === 'SLOT_NOT_BOOKABLE'),
+    JSON.stringify(concurrentBooking),
+  );
+  const concurrentInvariant = await db.query(
+    `SELECT m.activo, COUNT(c.id)::int AS total FROM medicos m
+     LEFT JOIN citas_medicas c ON c.medico_id=m.id AND c.estado='CONFIRMADA' AND c.agenda_id=$2
+     WHERE m.id=$1 GROUP BY m.activo`,
+    [inactiveCandidate.id, inactiveCandidate.slot],
+  );
+  assert.ok(concurrentInvariant.rows[0].activo || concurrentInvariant.rows[0].total === 0);
   console.log('MED-24: autorización, historial, bloqueo, auditoría y concurrencia verificadas.');
 }
 verify()

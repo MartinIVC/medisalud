@@ -49,6 +49,7 @@ function ProfessionalPhoto({ doctor, token, onUnauthorized }) {
 
 export default function Profesionales({
   token,
+  specialties = [],
   onUnauthorized,
   onBack,
   onCreate,
@@ -59,11 +60,14 @@ export default function Profesionales({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [target, setTarget] = useState(null);
+  const [linkTarget, setLinkTarget] = useState(null);
+  const [linkError, setLinkError] = useState('');
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('todos');
+  const [specialtyFilter, setSpecialtyFilter] = useState('');
   const [historyDoctor, setHistoryDoctor] = useState(null);
   const [historyDate, setHistoryDate] = useState(() =>
     new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date()),
@@ -76,6 +80,7 @@ export default function Profesionales({
   const rutQuery = /^[0-9k.\s-]+$/.test(query) ? query.replace(/[.\s-]/g, '') : '';
   const filteredDoctors = doctors.filter((doctor) => {
     const statusMatches = status === 'todos' || doctor.activo === (status === 'activos');
+    const specialtyMatches = !specialtyFilter || String(doctor.especialidad_id) === specialtyFilter;
     const textMatches = [doctor.nombre, doctor.rut, doctor.especialidad_nombre].some((value) =>
       normalizeSearch(value).includes(query),
     );
@@ -84,7 +89,7 @@ export default function Profesionales({
       normalizeSearch(doctor.rut)
         .replace(/[.\s-]/g, '')
         .includes(rutQuery);
-    return statusMatches && (textMatches || rutMatches);
+    return statusMatches && specialtyMatches && (textMatches || rutMatches);
   });
 
   const load = useCallback(
@@ -176,6 +181,39 @@ export default function Profesionales({
     }
   }
 
+  async function reactivate() {
+    if (pending.current || !linkTarget) return;
+    pending.current = true;
+    setSubmitting(true);
+    setLinkError('');
+    try {
+      const response = await requestApi(`/api/secretaria/medicos/${linkTarget.id}/revincular`, {
+        method: 'POST',
+        token,
+        onUnauthorized,
+      });
+      if (!response.ok) {
+        if (response.data.code === 'DOCTOR_ALREADY_ACTIVE') {
+          const name = linkTarget.nombre;
+          setLinkTarget(null);
+          setMessage(`${name} ya estaba activo. Se actualizó la lista.`);
+          await Promise.all([load(), onRefresh()]);
+          return;
+        }
+        setLinkError(response.data.error);
+        return;
+      }
+      setLinkTarget(null);
+      setMessage(`${linkTarget.nombre} volvió a estar activo. Se conservaron sus agendas y citas.`);
+      await Promise.all([load(), onRefresh()]);
+    } catch (failure) {
+      setLinkError(failure.message);
+    } finally {
+      pending.current = false;
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div className="secretary-portal">
       <div className="section-heading admin-heading">
@@ -191,7 +229,7 @@ export default function Profesionales({
         </div>
       </div>
       <p className="professionals-intro muted">
-        Consulta el estado de cada profesional y gestiona su desvinculación. Los profesionales
+        Consulta el estado de cada profesional y gestiona su vinculación. Los profesionales
         inactivos conservan sus agendas y citas históricas.
       </p>
       {message && <Alert tone="success">{message}</Alert>}
@@ -209,6 +247,20 @@ export default function Profesionales({
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
+        </Field>
+        <Field id="professionals-specialty" label="Especialidad">
+          <select
+            id="professionals-specialty"
+            value={specialtyFilter}
+            onChange={(event) => setSpecialtyFilter(event.target.value)}
+          >
+            <option value="">Todas las especialidades</option>
+            {specialties.map((specialty) => (
+              <option key={specialty.id} value={String(specialty.id)}>
+                {specialty.nombre}
+              </option>
+            ))}
+          </select>
         </Field>
         <Field id="professionals-status" label="Estado">
           <select
@@ -291,7 +343,18 @@ export default function Profesionales({
                     </Button>
                   </>
                 ) : (
-                  <Button onClick={() => setHistoryDoctor(doctor)}>Consultar agenda</Button>
+                  <>
+                    <Button onClick={() => setHistoryDoctor(doctor)}>Consultar agenda</Button>
+                    <Button
+                      variant="primary"
+                      onClick={() => {
+                        setLinkError('');
+                        setLinkTarget(doctor);
+                      }}
+                    >
+                      Revincular
+                    </Button>
+                  </>
                 )}
               </div>
             </section>
@@ -341,6 +404,31 @@ export default function Profesionales({
             <p className="muted">No hay horarios registrados para esta fecha.</p>
           ))
         )}
+      </Dialog>
+      <Dialog
+        open={Boolean(linkTarget)}
+        title="Revincular profesional"
+        busy={submitting}
+        onClose={() => {
+          if (submitting) return;
+          setLinkTarget(null);
+          setLinkError('');
+        }}
+      >
+        <p>{linkTarget?.nombre}</p>
+        <p>
+          Volverá a aparecer en el catálogo de pacientes y sus horarios disponibles podrán
+          reservarse. Sus agendas y citas existentes se conservarán.
+        </p>
+        {linkError && <Alert>{linkError}</Alert>}
+        <div className="form-actions">
+          <Button disabled={submitting} onClick={() => setLinkTarget(null)}>
+            Volver
+          </Button>
+          <Button variant="primary" disabled={submitting} onClick={reactivate}>
+            {submitting ? 'Guardando…' : 'Confirmar revinculación'}
+          </Button>
+        </div>
       </Dialog>
       <Dialog
         open={Boolean(target)}
