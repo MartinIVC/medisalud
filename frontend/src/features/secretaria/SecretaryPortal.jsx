@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { motion } from 'motion/react';
 import { requestApi } from '../../api/client.js';
 import { cleanRut, validateRutClient } from '../../utils/rut.js';
 import CrearMedico from '../../components/CrearMedico';
 import DoctorPhoto from '../../components/DoctorPhoto.jsx';
 import Profesionales from './Profesionales.jsx';
 import Auditoria from './Auditoria.jsx';
+import { SPRING_CRISP } from '../../utils/motionPresets.js';
 import {
   Alert,
   Button,
@@ -529,6 +531,14 @@ export default function SecretaryPortal({ state, actions }) {
                         .length
                     }
                   </span>
+                  {statusFilter === value && (
+                    <motion.span
+                      layoutId="secretary-status-filter"
+                      className="nav-active-indicator"
+                      transition={SPRING_CRISP}
+                      aria-hidden="true"
+                    />
+                  )}
                 </button>
               ))}
             </div>

@@ -1,6 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { motion } from 'motion/react';
 import { Check, Copy, Printer } from 'lucide-react';
 import DoctorPhoto from '../../components/DoctorPhoto.jsx';
+import {
+  EASE_OUT_EXPO,
+  EASE_OUT_QUART,
+  stageVariants,
+  staggerContainerVariants,
+  staggerItemVariants,
+} from '../../utils/motionPresets.js';
 import {
   Alert,
   AppointmentDetails,
@@ -230,7 +238,11 @@ export default function PatientPortal({ state, actions }) {
       </div>
       <ol className="booking-steps no-print" aria-label="Etapas de reserva">
         {['Profesional', 'Fecha y hora', 'Datos y reserva'].map((label, index) => (
-          <li key={label} aria-current={stage === index ? 'step' : undefined}>
+          <li
+            key={label}
+            aria-current={stage === index ? 'step' : undefined}
+            data-completed={index < stage ? 'true' : undefined}
+          >
             <span>{index < stage ? <Check size={14} aria-hidden="true" /> : index + 1}</span>
             {label}
           </li>
@@ -238,7 +250,7 @@ export default function PatientPortal({ state, actions }) {
       </ol>
 
       {activeView === 'horarios' ? (
-        <>
+        <motion.div key="horarios" variants={stageVariants} initial="initial" animate="animate">
           {catalogosLoading ? (
             <p className="loading-state" role="status">
               Cargando especialidades y profesionales…
@@ -290,7 +302,13 @@ export default function PatientPortal({ state, actions }) {
                     </select>
                   </Field>
                   {currentDoctor ? (
-                    <div className="professional-caption">
+                    <motion.div
+                      key={currentDoctor.id}
+                      className="professional-caption"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.2, ease: EASE_OUT_QUART }}
+                    >
                       <DoctorPhoto
                         url={currentDoctor.foto_url}
                         name={currentDoctor.nombre}
@@ -301,7 +319,7 @@ export default function PatientPortal({ state, actions }) {
                         <p>{currentDoctor.especialidad_nombre}</p>
                         <p>{currentDoctor.box_atencion}</p>
                       </div>
-                    </div>
+                    </motion.div>
                   ) : (
                     <p className="muted">Compara los horarios de los profesionales disponibles.</p>
                   )}
@@ -363,9 +381,20 @@ export default function PatientPortal({ state, actions }) {
                       Prueba otro día o consulta con cualquier profesional.
                     </EmptyState>
                   ) : (
-                    <div className="availability-groups">
+                    <motion.div
+                      className="availability-groups"
+                      key={`${selectedFecha}-${selectedEsp}-${selectedMedico}`}
+                      variants={staggerContainerVariants}
+                      initial="hidden"
+                      animate="visible"
+                    >
                       {Object.entries(groupedBlocks).map(([group, blocks]) => (
-                        <section className="slot-group" key={group} aria-label={group}>
+                        <motion.section
+                          className="slot-group"
+                          key={group}
+                          aria-label={group}
+                          variants={staggerItemVariants}
+                        >
                           <div className="slot-group-heading">
                             <div className="slot-doctor-info">
                               <DoctorPhoto
@@ -407,7 +436,14 @@ export default function PatientPortal({ state, actions }) {
                               >
                                 <span>{block.hora_inicio}</span>
                                 {selectedBloque?.agenda_id === block.agenda_id && (
-                                  <Check size={16} aria-hidden="true" />
+                                  <motion.span
+                                    className="time-slot-check"
+                                    initial={{ scale: 0, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    transition={{ duration: 0.18, ease: EASE_OUT_EXPO }}
+                                  >
+                                    <Check size={16} aria-hidden="true" />
+                                  </motion.span>
                                 )}
                               </button>
                             ))}
@@ -441,9 +477,9 @@ export default function PatientPortal({ state, actions }) {
                                 </Button>
                               </div>
                             )}
-                        </section>
+                        </motion.section>
                       ))}
-                    </div>
+                    </motion.div>
                   )}
                   <p className="field-hint">
                     Horarios de Santiago de Chile. La duración se muestra al elegir una hora.
@@ -452,69 +488,94 @@ export default function PatientPortal({ state, actions }) {
               </div>
             </>
           )}
-        </>
+        </motion.div>
       ) : successful ? (
-        <section className="booking-receipt printable-receipt" aria-labelledby="receipt-title">
-          <h2 id="receipt-title" ref={headingRef} tabIndex={-1}>
-            Comprobante de reserva
-          </h2>
-          <Alert tone="success">Reserva confirmada</Alert>
-          <div className="reservation-code">
-            <div>
-              <span>Código de reserva</span>
-              <strong>{reservaResult.data.reserva.codigo_reserva}</strong>
+        <motion.div key="comprobante" variants={stageVariants} initial="initial" animate="animate">
+          <section className="booking-receipt printable-receipt" aria-labelledby="receipt-title">
+            <div className="receipt-header-row">
+              <div className="receipt-check-icon" aria-hidden="true">
+                <motion.svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <motion.path
+                    d="M20 6L9 17L4 12"
+                    initial={{ pathLength: 0 }}
+                    animate={{ pathLength: 1 }}
+                    transition={{ duration: 0.45, ease: EASE_OUT_EXPO }}
+                  />
+                </motion.svg>
+              </div>
+              <h2 id="receipt-title" ref={headingRef} tabIndex={-1}>
+                Comprobante de reserva
+              </h2>
             </div>
-            <Button
-              className="no-print"
-              onClick={() => copyCode(reservaResult.data.reserva.codigo_reserva)}
-            >
-              <Copy size={16} aria-hidden="true" />
-              {copied ? 'Copiado' : 'Copiar código'}
-            </Button>
-          </div>
-          <AppointmentDetails appointment={reservaResult.data.reserva} />
-          <p>
-            El comprobante se enviará a <strong>{pacienteEmail}</strong>.
-          </p>
-          {copyError && <Alert>{copyError}</Alert>}
-          <div className="form-actions no-print">
-            <Button onClick={() => window.print()}>
-              <Printer size={17} aria-hidden="true" />
-              Imprimir comprobante
-            </Button>
-            <Button
-              variant="primary"
-              onClick={() => {
-                changeHour();
-                setPacienteRut('');
-                setPacienteNombre('');
-                setPacienteEmail('');
-                setPacienteTelefono('+569');
-                setCopied(false);
-              }}
-            >
-              Reservar otra hora
-            </Button>
-          </div>
-        </section>
+            <Alert tone="success">Reserva confirmada</Alert>
+            <div className="reservation-code">
+              <div>
+                <span>Código de reserva</span>
+                <strong>{reservaResult.data.reserva.codigo_reserva}</strong>
+              </div>
+              <Button
+                className="no-print"
+                onClick={() => copyCode(reservaResult.data.reserva.codigo_reserva)}
+              >
+                <Copy size={16} aria-hidden="true" />
+                {copied ? 'Copiado' : 'Copiar código'}
+              </Button>
+            </div>
+            <AppointmentDetails appointment={reservaResult.data.reserva} />
+            <p>
+              El comprobante se enviará a <strong>{pacienteEmail}</strong>.
+            </p>
+            {copyError && <Alert>{copyError}</Alert>}
+            <div className="form-actions no-print">
+              <Button onClick={() => window.print()}>
+                <Printer size={17} aria-hidden="true" />
+                Imprimir comprobante
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  changeHour();
+                  setPacienteRut('');
+                  setPacienteNombre('');
+                  setPacienteEmail('');
+                  setPacienteTelefono('+569');
+                  setCopied(false);
+                }}
+              >
+                Reservar otra hora
+              </Button>
+            </div>
+          </section>
+        </motion.div>
       ) : (
-        <section className="booking-form" aria-labelledby="patient-data-title">
-          <div className="section-heading">
-            <h2 id="patient-data-title" ref={headingRef} tabIndex={-1}>
-              {bookingStep === 'revision' ? 'Revisión de la reserva' : 'Datos del paciente'}
-            </h2>
-            <Button disabled={submittingReserva} onClick={() => changeHour(true)}>
-              Cambiar hora
-            </Button>
-          </div>
-          {selectedBloque && (
-            <AppointmentDetails
-              appointment={{ ...selectedBloque, fecha: selectedBloque.fecha || selectedFecha }}
-              showPhoto
-            />
-          )}
-          {bookingForm}
-        </section>
+        <motion.div key="formulario" variants={stageVariants} initial="initial" animate="animate">
+          <section className="booking-form" aria-labelledby="patient-data-title">
+            <div className="section-heading">
+              <h2 id="patient-data-title" ref={headingRef} tabIndex={-1}>
+                {bookingStep === 'revision' ? 'Revisión de la reserva' : 'Datos del paciente'}
+              </h2>
+              <Button disabled={submittingReserva} onClick={() => changeHour(true)}>
+                Cambiar hora
+              </Button>
+            </div>
+            {selectedBloque && (
+              <AppointmentDetails
+                appointment={{ ...selectedBloque, fecha: selectedBloque.fecha || selectedFecha }}
+                showPhoto
+              />
+            )}
+            {bookingForm}
+          </section>
+        </motion.div>
       )}
       <Dialog
         open={bookingOpen && activeView === 'horarios' && Boolean(selectedBloque)}
