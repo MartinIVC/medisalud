@@ -622,8 +622,37 @@ test('portals render doctor photos with zoom dialog and secretary photo upload c
     cleanup();
 
     const secretaryScreen = render(React.createElement(SecretaryHarness));
-    assert.ok(secretaryScreen.getByLabelText('Foto de Dra. Prueba'));
-    assert.ok(secretaryScreen.getByText('Añadir foto'));
+    assert.ok(secretaryScreen.getByAltText('Foto de Dra. Prueba'));
+    assert.equal(secretaryScreen.queryByText('Añadir foto'), null);
+    cleanup();
+
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = async () =>
+        new Response(
+          JSON.stringify({
+            ok: true,
+            medicos: [
+              {
+                id: 1,
+                nombre: 'Dra. Prueba',
+                especialidad_id: 1,
+                especialidad_nombre: 'General',
+                activo: true,
+                citas_futuras: 0,
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      const secretaryPortalScreen = render(React.createElement(SecretaryHarness));
+      fireEvent.click(secretaryPortalScreen.getByRole('button', { name: 'Profesionales' }));
+      await secretaryPortalScreen.findByRole('heading', { name: 'Dra. Prueba', level: 2 });
+      assert.ok(secretaryPortalScreen.getByText('Añadir foto'));
+      assert.ok(secretaryPortalScreen.getByLabelText('Foto de Dra. Prueba'));
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   } finally {
     prototype.showModal = originalShow;
     prototype.close = originalClose;
@@ -701,6 +730,8 @@ test('desvinculación exige gestionar citas futuras y confirma con motivo cuando
       '/profesional-generico.svg',
     );
     assert.ok(screen.getByText(/Profesional inactivo/));
+    assert.ok(screen.getByText('Reemplazar foto'));
+    assert.ok(screen.getByText('Añadir foto'));
     fireEvent.click(screen.getAllByRole('button', { name: 'Desvincular' })[0]);
     assert.ok(screen.getByText(/Tiene 2 citas futuras confirmadas/));
     assert.equal(screen.queryByRole('button', { name: 'Confirmar desvinculación' }), null);

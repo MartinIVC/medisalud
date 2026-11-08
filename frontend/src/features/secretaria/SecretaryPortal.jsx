@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { requestApi } from '../../api/client.js';
 import { validateRutClient } from '../../utils/rut.js';
 import CrearMedico from '../../components/CrearMedico';
-import DoctorPhotoEditor from '../../components/DoctorPhotoEditor.jsx';
+import DoctorPhoto from '../../components/DoctorPhoto.jsx';
 import Profesionales from './Profesionales.jsx';
 import {
   Alert,
@@ -441,11 +441,10 @@ export default function SecretaryPortal({ state, actions }) {
       </div>
       {selectedDoctor && (
         <div className="agenda-caption">
-          <DoctorPhotoEditor
-            doctor={selectedDoctor}
-            token={secretaryToken}
-            onSaved={refreshDoctorCatalogs}
-            onUnauthorized={handleSecretaryUnauthorized}
+          <DoctorPhoto
+            url={selectedDoctor.foto_url}
+            name={selectedDoctor.nombre}
+            className="doctor-photo-sm"
           />
           <div className="agenda-doctor-meta">
             <strong>{selectedDoctor.nombre}</strong>

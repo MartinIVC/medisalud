@@ -5,7 +5,14 @@ import { Button } from './ui/index.jsx';
 
 const MAX_BYTES = 2 * 1024 * 1024;
 
-export default function DoctorPhotoEditor({ doctor, token, onSaved, onUnauthorized }) {
+export default function DoctorPhotoEditor({
+  doctor,
+  token,
+  onSaved,
+  onUnauthorized,
+  showPhoto = false,
+  className = '',
+}) {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [message, setMessage] = useState('');
@@ -57,7 +64,7 @@ export default function DoctorPhotoEditor({ doctor, token, onSaved, onUnauthoriz
         setMessage(result.data.mensaje || 'No pudimos guardar la foto. Intenta nuevamente.');
         return;
       }
-      await onSaved();
+      await onSaved?.();
       setFile(null);
       setPreview(null);
       setMessage('Foto guardada.');
@@ -68,13 +75,21 @@ export default function DoctorPhotoEditor({ doctor, token, onSaved, onUnauthoriz
     }
   }
 
+  function cancel() {
+    setFile(null);
+    setPreview(null);
+    setMessage('');
+  }
+
   return (
-    <div className="doctor-photo-editor">
-      <DoctorPhoto
-        url={preview || doctor.foto_url}
-        name={doctor.nombre}
-        className="doctor-photo-sm"
-      />
+    <div className={`doctor-photo-editor ${className}`.trim()}>
+      {showPhoto && (
+        <DoctorPhoto
+          url={preview || doctor.foto_url}
+          name={doctor.nombre}
+          className="doctor-photo-sm"
+        />
+      )}
       <label className="button button-secondary doctor-photo-upload">
         {doctor.foto_url ? 'Reemplazar foto' : 'Añadir foto'}
         <input
@@ -86,9 +101,15 @@ export default function DoctorPhotoEditor({ doctor, token, onSaved, onUnauthoriz
         />
       </label>
       {file && (
-        <Button variant="primary" disabled={saving} onClick={savePhoto}>
-          {saving ? 'Guardando…' : 'Guardar foto'}
-        </Button>
+        <div className="doctor-photo-pending">
+          <DoctorPhoto url={preview} name={doctor.nombre} className="doctor-photo-sm" />
+          <Button variant="primary" disabled={saving} onClick={savePhoto}>
+            {saving ? 'Guardando…' : 'Guardar foto'}
+          </Button>
+          <Button disabled={saving} onClick={cancel}>
+            Cancelar
+          </Button>
+        </div>
       )}
       {file && <span className="muted">Vista previa antes de guardar</span>}
       {message && (
