@@ -296,6 +296,62 @@ test('la agenda de secretaria visualiza el estado de asistencia de las citas res
   assert.ok(rows[1].querySelector('.asistencia-badge.is-pending'));
 });
 
+test('la búsqueda en la agenda encuentra al paciente por RUT con o sin puntos y guión', () => {
+  const agendas = [
+    {
+      agenda_id: 1,
+      hora_inicio: '09:00',
+      hora_fin: '09:30',
+      estado: 'RESERVADO',
+      paciente_nombre: 'Paciente Uno',
+      paciente_rut: '12.345.678-5',
+      codigo_reserva: 'MED-01',
+      asistencia_estado: 'PENDIENTE',
+      futuro: true,
+      cita_id: 10,
+    },
+    {
+      agenda_id: 2,
+      hora_inicio: '10:00',
+      hora_fin: '10:30',
+      estado: 'RESERVADO',
+      paciente_nombre: 'Paciente Dos',
+      paciente_rut: '98.765.432-1',
+      codigo_reserva: 'MED-02',
+      asistencia_estado: 'PENDIENTE',
+      futuro: true,
+      cita_id: 20,
+    },
+  ];
+  const screen = render(React.createElement(SecretaryHarness, { agendas }));
+  const searchInput = screen.getByLabelText('Buscar en la agenda');
+
+  // Búsqueda sin puntos ni guión
+  fireEvent.change(searchInput, { target: { value: '123456785' } });
+  assert.equal(screen.container.querySelectorAll('.agenda-row').length, 1);
+  assert.ok(screen.getByText('Paciente Uno'));
+
+  // Búsqueda sin puntos pero con guión
+  fireEvent.change(searchInput, { target: { value: '12345678-5' } });
+  assert.equal(screen.container.querySelectorAll('.agenda-row').length, 1);
+  assert.ok(screen.getByText('Paciente Uno'));
+
+  // Búsqueda parcial de RUT sin puntos
+  fireEvent.change(searchInput, { target: { value: '123456' } });
+  assert.equal(screen.container.querySelectorAll('.agenda-row').length, 1);
+  assert.ok(screen.getByText('Paciente Uno'));
+
+  // Búsqueda con formato tradicional
+  fireEvent.change(searchInput, { target: { value: '12.345.678-5' } });
+  assert.equal(screen.container.querySelectorAll('.agenda-row').length, 1);
+  assert.ok(screen.getByText('Paciente Uno'));
+
+  // Búsqueda de otro paciente sin formato
+  fireEvent.change(searchInput, { target: { value: '987654321' } });
+  assert.equal(screen.container.querySelectorAll('.agenda-row').length, 1);
+  assert.ok(screen.getByText('Paciente Dos'));
+});
+
 for (const providerConfigured of [true, false]) {
   test(`appointment management reports a pending email when provider is ${providerConfigured ? 'configured' : 'missing'}`, async () => {
     const originalFetch = globalThis.fetch;

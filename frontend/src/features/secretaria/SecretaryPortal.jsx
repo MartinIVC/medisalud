@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { requestApi } from '../../api/client.js';
-import { validateRutClient } from '../../utils/rut.js';
+import { cleanRut, validateRutClient } from '../../utils/rut.js';
 import CrearMedico from '../../components/CrearMedico';
 import DoctorPhoto from '../../components/DoctorPhoto.jsx';
 import Profesionales from './Profesionales.jsx';
@@ -106,22 +106,29 @@ export default function SecretaryPortal({ state, actions }) {
     selection?.key === `${secMedicoId}:${secFecha}`
       ? secAgendas.find((block) => block.agenda_id === selection.id)
       : null;
-  const filteredAgendas = useMemo(
-    () =>
-      secAgendas.filter(
-        (block) =>
-          (statusFilter === 'TODOS' || block.estado === statusFilter) &&
-          (!searchQuery.trim() ||
-            [
-              block.hora_inicio,
-              block.paciente_nombre,
-              block.paciente_rut,
-              block.codigo_reserva,
-              block.motivo_bloqueo,
-            ].some((value) => value?.toLowerCase().includes(searchQuery.trim().toLowerCase()))),
-      ),
-    [secAgendas, statusFilter, searchQuery],
-  );
+  const filteredAgendas = useMemo(() => {
+    const trimmedQuery = searchQuery.trim().toLowerCase();
+    const rutQuery = /^[0-9k.\s-]+$/i.test(trimmedQuery) ? cleanRut(trimmedQuery) : '';
+    return secAgendas.filter((block) => {
+      if (statusFilter !== 'TODOS' && block.estado !== statusFilter) return false;
+      if (!trimmedQuery) return true;
+
+      const textMatches = [
+        block.hora_inicio,
+        block.paciente_nombre,
+        block.paciente_rut,
+        block.codigo_reserva,
+        block.motivo_bloqueo,
+      ].some((value) => value?.toLowerCase().includes(trimmedQuery));
+
+      const rutMatches =
+        Boolean(rutQuery) &&
+        Boolean(block.paciente_rut) &&
+        cleanRut(block.paciente_rut).includes(rutQuery);
+
+      return textMatches || rutMatches;
+    });
+  }, [secAgendas, statusFilter, searchQuery]);
 
   useEffect(() => {
     setSecFeedback(null);
