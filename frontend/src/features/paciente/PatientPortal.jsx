@@ -203,9 +203,6 @@ export default function PatientPortal({ state, actions }) {
   return (
     <div className="patient-portal">
       <div className="patient-heading no-print">
-        <span className="step-display" aria-hidden="true">
-          0{stage + 1}
-        </span>
         <div>
           <h1>
             {activeView === 'horarios' ? (
