@@ -128,6 +128,10 @@ export default function SecretaryPortal({ state, actions }) {
     setAppointmentMessage(null);
   }, [secMedicoId, secFecha, setSecFeedback]);
 
+  useEffect(() => {
+    if (secFeedback) setAppointmentMessage(null);
+  }, [secFeedback]);
+
   function changeSpecialty(value) {
     setSpecialtyFilter(value);
     const options = value
@@ -141,6 +145,7 @@ export default function SecretaryPortal({ state, actions }) {
     setBlockingTarget(target);
     setBlockingScope('doctor');
     setSecFeedback(null);
+    setAppointmentMessage(null);
     if (target.type === 'slot' && target.block.estado !== 'BLOQUEADO')
       setSecMotivoBloqueo('Bloqueo manual por secretaría');
   }
@@ -204,6 +209,7 @@ export default function SecretaryPortal({ state, actions }) {
           ? ' Se solicitó el envío del aviso por correo.'
           : ' El aviso por correo quedó pendiente: falta configurar SMTP o SendGrid.'
         : '';
+      setSecFeedback(null);
       setAppointmentMessage({
         tone: emailReady ? 'success' : 'warning',
         text: `La cita fue ${appointmentAction.action === 'MOVER' ? 'cambiada' : 'cancelada'}.${noticeMessage}`,
@@ -454,14 +460,13 @@ export default function SecretaryPortal({ state, actions }) {
           </div>
         </div>
       )}
-      {secFeedback && !scheduleDetailsOpen && !blockingTarget && (
+      {appointmentMessage ? (
+        <Alert tone={appointmentMessage.tone}>{appointmentMessage.text}</Alert>
+      ) : secFeedback && !scheduleDetailsOpen && !blockingTarget ? (
         <Alert tone={secFeedback.ok ? 'success' : 'error'}>
           {secFeedback.mensaje || secFeedback.error}
         </Alert>
-      )}
-      {appointmentMessage && (
-        <Alert tone={appointmentMessage.tone}>{appointmentMessage.text}</Alert>
-      )}
+      ) : null}
       <div className="agenda-filters">
         <div className="filter-tabs" aria-label="Filtrar agenda por estado">
           {[
@@ -611,6 +616,8 @@ export default function SecretaryPortal({ state, actions }) {
                         variant="primary"
                         onClick={(event) => {
                           setReceptionRutError('');
+                          setAppointmentMessage(null);
+                          setSecFeedback(null);
                           openReceptionBooking(selectedBlock, event);
                         }}
                       >
