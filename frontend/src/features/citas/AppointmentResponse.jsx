@@ -84,9 +84,9 @@ export default function AppointmentResponse({ token }) {
             </div>
             <AppointmentDetails appointment={appointment} />
             {appointment.estado === 'CANCELADA' ? (
-              <Alert tone="warning">Esta cita fue cancelada.</Alert>
+              <Alert tone="warning">{reply || 'Esta cita fue cancelada.'}</Alert>
             ) : actionDone ? (
-              <Alert tone="success">Tu respuesta quedó registrada.</Alert>
+              <Alert tone="success">{reply || 'Gracias. Registramos que asistirás.'}</Alert>
             ) : (
               <div className="form-actions">
                 <Button
@@ -105,12 +105,8 @@ export default function AppointmentResponse({ token }) {
                 </Button>
               </div>
             )}
+            {!actionDone && reply && <Alert tone="error">{reply}</Alert>}
           </>
-        )}
-        {reply && (
-          <p role="status" className="notice notice-neutral">
-            {reply}
-          </p>
         )}
         <Dialog
           open={confirmCancel}
