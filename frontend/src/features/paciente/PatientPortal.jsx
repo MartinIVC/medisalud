@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'motion/react';
-import { Check, Copy, Printer } from 'lucide-react';
+import { motion, useReducedMotion } from 'motion/react';
+import { CalendarDays, Check, Copy, MapPin, Printer } from 'lucide-react';
 import DoctorPhoto from '../../components/DoctorPhoto.jsx';
 import {
   EASE_OUT_EXPO,
   EASE_OUT_QUART,
+  SPRING_CRISP,
   stageVariants,
   staggerContainerVariants,
   staggerItemVariants,
@@ -19,6 +20,45 @@ import {
   PatientFields,
   formatDate,
 } from '../../components/ui';
+
+function BookingAppointmentSummary({ appointment }) {
+  return (
+    <section className="booking-appointment" aria-label="Resumen de la cita seleccionada">
+      <div className="booking-professional">
+        <div className="booking-professional-details">
+          <p className="booking-professional-specialty">{appointment.especialidad_nombre}</p>
+          <h3>{appointment.medico_nombre}</h3>
+          <p className="booking-professional-caption">Tu profesional de atención</p>
+        </div>
+        <DoctorPhoto
+          url={appointment.foto_url}
+          name={appointment.medico_nombre}
+          className="booking-doctor-photo"
+        />
+      </div>
+      <dl className="booking-visit-details">
+        <div>
+          <dt>
+            <CalendarDays size={18} aria-hidden="true" /> Fecha y hora
+          </dt>
+          <dd>
+            {formatDate(appointment.fecha)}
+            <br />
+            <span className="numeric">
+              {appointment.hora_inicio}–{appointment.hora_fin}
+            </span>
+          </dd>
+        </div>
+        <div>
+          <dt>
+            <MapPin size={18} aria-hidden="true" /> Lugar de atención
+          </dt>
+          <dd>{appointment.box_atencion || '—'}</dd>
+        </div>
+      </dl>
+    </section>
+  );
+}
 
 function nextDates(selectedDate, today) {
   const last = new Date(`${today}T12:00:00Z`);
@@ -79,6 +119,7 @@ export default function PatientPortal({ state, actions }) {
     resetRequestKey,
     retryCatalogos,
   } = actions;
+  const reduceMotion = useReducedMotion();
   const [view, setView] = useState(() =>
     submittingReserva || reservaResult || bookingStep === 'revision' ? 'reserva' : 'horarios',
   );
@@ -97,7 +138,11 @@ export default function PatientPortal({ state, actions }) {
         ? view
         : 'horarios';
   const stage =
-    activeView === 'reserva' ? 2 : selectedEsp || selectedMedico || selectedBloque ? 1 : 0;
+    activeView === 'reserva' || bookingOpen
+      ? 2
+      : selectedEsp || selectedMedico || selectedBloque || selectedFecha !== today
+        ? 1
+        : 0;
   const successful = reservaResult?.type === 'success';
   const needsAnotherSlot =
     reservaResult?.status === 409 &&
@@ -109,7 +154,7 @@ export default function PatientPortal({ state, actions }) {
 
   useEffect(() => {
     if (activeView === 'reserva') headingRef.current?.focus({ preventScroll: true });
-  }, [activeView, bookingStep]);
+  }, [activeView, bookingStep, successful]);
 
   function changeHour(preserveSelectedSlot = false) {
     resetRequestKey();
@@ -236,21 +281,35 @@ export default function PatientPortal({ state, actions }) {
           </p>
         </div>
       </div>
-      <ol className="booking-steps no-print" aria-label="Etapas de reserva">
-        {['Profesional', 'Fecha y hora', 'Datos y reserva'].map((label, index) => (
-          <li
-            key={label}
-            aria-current={stage === index ? 'step' : undefined}
-            data-completed={index < stage ? 'true' : undefined}
-          >
-            <span>{index < stage ? <Check size={14} aria-hidden="true" /> : index + 1}</span>
-            {label}
-          </li>
-        ))}
-      </ol>
+      <div className="booking-steps-wrap no-print">
+        <motion.span
+          className="booking-progress"
+          aria-hidden="true"
+          initial={false}
+          animate={{ scaleX: stage / 2 }}
+          transition={reduceMotion ? { duration: 0 } : { duration: 0.25, ease: EASE_OUT_QUART }}
+        />
+        <ol className="booking-steps" aria-label="Etapas de reserva">
+          {['Profesional', 'Fecha y hora', 'Datos y reserva'].map((label, index) => (
+            <li
+              key={label}
+              aria-current={stage === index ? 'step' : undefined}
+              data-completed={index < stage ? 'true' : undefined}
+            >
+              <span>{index < stage ? <Check size={14} aria-hidden="true" /> : index + 1}</span>
+              {label}
+            </li>
+          ))}
+        </ol>
+      </div>
 
       {activeView === 'horarios' ? (
-        <motion.div key="horarios" variants={stageVariants} initial="initial" animate="animate">
+        <motion.div
+          key="horarios"
+          variants={stageVariants}
+          initial={reduceMotion ? false : 'initial'}
+          animate="animate"
+        >
           {catalogosLoading ? (
             <p className="loading-state" role="status">
               Cargando especialidades y profesionales…
@@ -305,7 +364,7 @@ export default function PatientPortal({ state, actions }) {
                     <motion.div
                       key={currentDoctor.id}
                       className="professional-caption"
-                      initial={{ opacity: 0, y: 6 }}
+                      initial={reduceMotion ? false : { opacity: 0, y: 6 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.2, ease: EASE_OUT_QUART }}
                     >
@@ -358,7 +417,16 @@ export default function PatientPortal({ state, actions }) {
                         aria-label={formatDate(date.iso)}
                         onClick={() => setSelectedFecha(date.iso)}
                       >
-                        <span>{date.weekday}</span>
+                        {date.iso === selectedFecha && (
+                          <motion.span
+                            className="date-selection-indicator"
+                            layoutId="patient-date-selection"
+                            initial={false}
+                            transition={reduceMotion ? { duration: 0 } : SPRING_CRISP}
+                            aria-hidden="true"
+                          />
+                        )}
+                        <span className="date-weekday">{date.weekday}</span>
                         <strong>{date.day}</strong>
                       </button>
                     ))}
@@ -385,7 +453,7 @@ export default function PatientPortal({ state, actions }) {
                       className="availability-groups"
                       key={`${selectedFecha}-${selectedEsp}-${selectedMedico}`}
                       variants={staggerContainerVariants}
-                      initial="hidden"
+                      initial={reduceMotion ? false : 'hidden'}
                       animate="visible"
                     >
                       {Object.entries(groupedBlocks).map(([group, blocks]) => (
@@ -415,11 +483,12 @@ export default function PatientPortal({ state, actions }) {
                             </span>
                           </div>
                           <div className="time-slots">
-                            {blocks.map((block) => (
+                            {blocks.map((block, index) => (
                               <button
                                 key={block.agenda_id}
                                 type="button"
                                 className="time-slot"
+                                style={{ '--slot-delay': `${Math.min(index, 5) * 25}ms` }}
                                 aria-pressed={selectedBloque?.agenda_id === block.agenda_id}
                                 aria-label={`${block.hora_inicio}, ${block.medico_nombre}, ${block.duracion_min} minutos`}
                                 aria-haspopup="dialog"
@@ -438,7 +507,7 @@ export default function PatientPortal({ state, actions }) {
                                 {selectedBloque?.agenda_id === block.agenda_id && (
                                   <motion.span
                                     className="time-slot-check"
-                                    initial={{ scale: 0, opacity: 0 }}
+                                    initial={reduceMotion ? false : { scale: 0, opacity: 0 }}
                                     animate={{ scale: 1, opacity: 1 }}
                                     transition={{ duration: 0.18, ease: EASE_OUT_EXPO }}
                                   >
@@ -490,7 +559,12 @@ export default function PatientPortal({ state, actions }) {
           )}
         </motion.div>
       ) : successful ? (
-        <motion.div key="comprobante" variants={stageVariants} initial="initial" animate="animate">
+        <motion.div
+          key="comprobante"
+          variants={stageVariants}
+          initial={reduceMotion ? false : 'initial'}
+          animate="animate"
+        >
           <section className="booking-receipt printable-receipt" aria-labelledby="receipt-title">
             <div className="receipt-header-row">
               <div className="receipt-check-icon" aria-hidden="true">
@@ -506,7 +580,7 @@ export default function PatientPortal({ state, actions }) {
                 >
                   <motion.path
                     d="M20 6L9 17L4 12"
-                    initial={{ pathLength: 0 }}
+                    initial={reduceMotion ? false : { pathLength: 0 }}
                     animate={{ pathLength: 1 }}
                     transition={{ duration: 0.45, ease: EASE_OUT_EXPO }}
                   />
@@ -532,7 +606,7 @@ export default function PatientPortal({ state, actions }) {
             </div>
             <AppointmentDetails appointment={reservaResult.data.reserva} />
             <p>
-              El comprobante se enviará a <strong>{pacienteEmail}</strong>.
+              Se solicitó el envío del comprobante a <strong>{pacienteEmail}</strong>.
             </p>
             {copyError && <Alert>{copyError}</Alert>}
             <div className="form-actions no-print">
@@ -557,7 +631,12 @@ export default function PatientPortal({ state, actions }) {
           </section>
         </motion.div>
       ) : (
-        <motion.div key="formulario" variants={stageVariants} initial="initial" animate="animate">
+        <motion.div
+          key="formulario"
+          variants={stageVariants}
+          initial={reduceMotion ? false : 'initial'}
+          animate="animate"
+        >
           <section className="booking-form" aria-labelledby="patient-data-title">
             <div className="section-heading">
               <h2 id="patient-data-title" ref={headingRef} tabIndex={-1}>
@@ -586,9 +665,8 @@ export default function PatientPortal({ state, actions }) {
         busy={submittingReserva}
       >
         {selectedBloque && (
-          <AppointmentDetails
+          <BookingAppointmentSummary
             appointment={{ ...selectedBloque, fecha: selectedBloque.fecha || selectedFecha }}
-            showPhoto
           />
         )}
         <p className="muted booking-dialog-note">

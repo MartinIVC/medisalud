@@ -78,6 +78,8 @@ export function Dialog({
     const dialog = ref.current;
     const opener = returnFocusRef?.current || document.activeElement;
     const previousOverflow = document.body.style.overflow;
+    const content = dialog.querySelector('.dialog-content');
+    if (content) content.scrollTop = 0;
     dialog.showModal();
     document.body.style.overflow = 'hidden';
     return () => {

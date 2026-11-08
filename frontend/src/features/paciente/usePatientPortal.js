@@ -18,6 +18,8 @@ export default function usePatientPortal({
   const [selectedFecha, setSelectedFecha] = useState(localToday);
   const [disponibilidad, setDisponibilidad] = useState({ bloques: [], latencia_ms: 0 });
   const [loadingDisp, setLoadingDisp] = useState(false);
+  const [availabilityKey, setAvailabilityKey] = useState(null);
+  const currentAvailabilityKey = JSON.stringify([selectedEsp, selectedMedico, selectedFecha]);
   const [availabilityError, setAvailabilityError] = useState('');
   const [selectedBloque, setSelectedBloque] = useState(null);
   const [pacienteRut, setPacienteRut] = useState('');
@@ -76,10 +78,12 @@ export default function usePatientPortal({
         if (selectedFecha) params.set('fecha', selectedFecha);
         const response = await requestApi(`/api/disponibilidad?${params.toString()}`, { signal });
         if (signal?.aborted || requestId !== availabilityRequestRef.current) return;
+        setAvailabilityKey(currentAvailabilityKey);
         if (response.ok && response.data.ok) setDisponibilidad(response.data);
         else setAvailabilityError('No pudimos cargar los horarios. Intenta nuevamente.');
       } catch {
         if (!signal?.aborted && requestId === availabilityRequestRef.current) {
+          setAvailabilityKey(currentAvailabilityKey);
           setAvailabilityError(
             'No pudimos cargar los horarios. Revisa tu conexión e intenta nuevamente.',
           );
@@ -88,7 +92,7 @@ export default function usePatientPortal({
         if (requestId === availabilityRequestRef.current) setLoadingDisp(false);
       }
     },
-    [selectedEsp, selectedMedico, selectedFecha],
+    [selectedEsp, selectedMedico, selectedFecha, currentAvailabilityKey],
   );
 
   useEffect(() => {
@@ -208,7 +212,7 @@ export default function usePatientPortal({
     disponibilidad,
     fieldTouched,
     groupedBlocks,
-    loadingDisp,
+    loadingDisp: loadingDisp || availabilityKey !== currentAvailabilityKey,
     medicosFiltrados,
     pacienteEmail,
     pacienteNombre,

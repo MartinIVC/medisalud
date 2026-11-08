@@ -471,16 +471,29 @@ strong {
   border-left: 1px solid var(--border);
   font-size: 18px;
 }
+.booking-steps-wrap {
+  position: relative;
+  margin-bottom: var(--space-8);
+}
 .booking-steps {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-6);
-  margin: 0 0 var(--space-8);
+  margin: 0;
   padding: 0 0 var(--space-6);
   list-style: none;
   border-bottom: 1px solid var(--border);
   color: var(--muted);
   font-size: 14px;
+}
+.booking-progress {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--primary);
+  transform-origin: left;
 }
 .booking-steps li {
   display: flex;
@@ -624,6 +637,13 @@ strong {
 .doctor-photo-upload {
   cursor: pointer;
 }
+.doctor-photo-hint {
+  width: 100%;
+  max-width: 50ch;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
 .doctor-photo-status {
   width: 100%;
   font-size: 13px;
@@ -685,10 +705,15 @@ strong {
 .date-option:active {
   transform: translateY(1px);
 }
-.date-option span {
+.date-option .date-weekday {
   display: block;
   font-size: 13px;
   text-transform: capitalize;
+}
+.date-option strong,
+.date-option .date-weekday {
+  position: relative;
+  z-index: 1;
 }
 .date-option strong {
   display: block;
@@ -696,7 +721,16 @@ strong {
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
-.date-option[aria-pressed='true'],
+.date-option[aria-pressed='true'] {
+  color: #fff;
+  border-color: var(--primary);
+}
+.date-option .date-selection-indicator {
+  position: absolute;
+  inset: 0;
+  background: var(--primary);
+  pointer-events: none;
+}
 .time-slot[aria-pressed='true'] {
   color: #fff;
   background: var(--primary);
@@ -745,6 +779,8 @@ strong {
   font-size: 16px;
   font-variant-numeric: tabular-nums;
   background: var(--background);
+  animation: slotEnter 180ms var(--ease-out-quart) backwards;
+  animation-delay: var(--slot-delay, 0ms);
   transition:
     background-color var(--duration-fast) var(--ease-standard),
     border-color var(--duration-fast) var(--ease-standard),
@@ -1072,6 +1108,10 @@ strong {
 .asistencia-badge.is-pending {
   color: var(--blocked);
   background: var(--blocked-surface);
+}
+.agenda-entry,
+.professional-row {
+  animation: slotEnter var(--duration-fast) var(--ease-out-quart);
 }
 .agenda-context-patient-info {
   width: 100%;
@@ -1640,6 +1680,9 @@ strong {
 .booking-dialog-note {
   margin: calc(var(--space-2) * -1) 0;
 }
+.booking-dialog {
+  width: min(760px, calc(100% - 32px));
+}
 .booking-dialog[open] {
   display: flex;
   flex-direction: column;
@@ -1655,15 +1698,77 @@ strong {
   overscroll-behavior: contain;
   padding-top: 0;
 }
-.booking-dialog .appointment-details {
-  align-items: start;
-  gap: var(--space-6) var(--space-6);
-  padding: var(--space-6) 0;
-  border-top: 0;
+.booking-appointment {
   margin: 0 0 var(--space-6);
 }
-.booking-dialog .appointment-details > div {
+.booking-professional {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 38%);
+  align-items: stretch;
+  min-height: 200px;
+  margin: 0 calc(var(--space-6) * -1);
+  background: var(--surface);
+}
+.booking-professional-details {
+  align-self: center;
   min-width: 0;
+  padding: var(--space-6);
+}
+.booking-professional-specialty {
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: var(--space-2);
+}
+.booking-professional-details h3 {
+  max-width: 20ch;
+  color: var(--foreground);
+  font-size: clamp(22px, 3vw, 30px);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.booking-professional-caption {
+  margin-top: var(--space-3);
+  color: var(--muted);
+  font-size: 14px;
+}
+.booking-doctor-photo {
+  width: 100%;
+  height: 200px;
+  align-self: center;
+  border: 0;
+  border-radius: 0;
+}
+.booking-doctor-photo img {
+  object-fit: cover;
+  object-position: center 25%;
+}
+.booking-doctor-photo.doctor-photo-placeholder img {
+  object-fit: contain;
+  padding: var(--space-4);
+}
+.booking-visit-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4) var(--space-6);
+  margin: 0;
+  padding: var(--space-6) 0;
+  border-bottom: 1px solid var(--border);
+}
+.booking-visit-details dt {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--muted);
+  font-size: 14px;
+}
+.booking-visit-details dt svg {
+  color: var(--primary);
+  flex-shrink: 0;
+}
+.booking-visit-details dd {
+  margin: var(--space-2) 0 0 calc(18px + var(--space-2));
+  font-weight: 600;
+  overflow-wrap: anywhere;
 }
 .booking-dialog .booking-dialog-note {
   max-width: 64ch;
@@ -2185,7 +2290,7 @@ strong {
     min-height: 66px;
     padding: var(--space-2) var(--space-1);
   }
-  .date-option span {
+  .date-option .date-weekday {
     font-size: 12px;
   }
   .date-option strong {
@@ -2328,10 +2433,29 @@ strong {
   .booking-dialog .dialog-content {
     padding: 0 var(--space-4) var(--space-4);
   }
-  .booking-dialog .appointment-details {
+  .booking-dialog {
+    width: calc(100% - 16px);
+  }
+  .booking-appointment {
+    margin-bottom: var(--space-4);
+  }
+  .booking-professional {
+    grid-template-columns: minmax(0, 1fr) minmax(112px, 38%);
+    min-height: 160px;
+    margin: 0 calc(var(--space-4) * -1);
+  }
+  .booking-professional-details {
+    padding: var(--space-4);
+  }
+  .booking-professional-details h3 {
+    font-size: clamp(19px, 5vw, 25px);
+  }
+  .booking-doctor-photo {
+    height: 160px;
+  }
+  .booking-visit-details {
     gap: var(--space-4);
     padding: var(--space-4) 0;
-    margin-bottom: var(--space-4);
   }
   .booking-dialog .booking-dialog-note {
     margin-bottom: var(--space-4);
@@ -2379,6 +2503,17 @@ strong {
     break-inside: avoid;
   }
 }
+@keyframes slotEnter {
+  from {
+    opacity: 0.65;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes slideFadeIn {
   from {
     opacity: 0;
@@ -2403,11 +2538,18 @@ strong {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .landing-page *,
+  .patient-portal *,
+  .login-layout {
+    animation-delay: 0ms !important;
+  }
   *,
   *::before,
   *::after {
     scroll-behavior: auto !important;
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
     transition-duration: 0.01ms !important;
   }
 }

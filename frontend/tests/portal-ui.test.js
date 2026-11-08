@@ -24,7 +24,9 @@ globalThis.IntersectionObserver = class {
   unobserve() {}
   disconnect() {}
 };
-const { act, cleanup, fireEvent, render, waitFor } = await import('@testing-library/react');
+const { MotionGlobalConfig } = await import('motion/react');
+MotionGlobalConfig.skipAnimations = true;
+const { act, cleanup, fireEvent, render, waitFor, within } = await import('@testing-library/react');
 const server = await createServer({
   root: fileURLToPath(new URL('../', import.meta.url)),
   configFile: false,
@@ -573,6 +575,9 @@ for (const outcome of ['success', 'error']) {
     const slot = {
       agenda_id: 7,
       medico_nombre: 'Dra. Prueba',
+      especialidad_nombre: 'Medicina General',
+      box_atencion: 'Box 1',
+      foto_url: '/api/medicos/1/foto',
       fecha: '2027-01-15',
       hora_inicio: '09:00',
       hora_fin: '09:30',
@@ -611,7 +616,11 @@ for (const outcome of ['success', 'error']) {
       });
       assert.equal(screen.queryByRole('region', { name: 'Hora seleccionada' }), null);
       fireEvent.click(slotButton);
-      assert.ok(screen.getByRole('dialog', { name: 'Completa tus datos' }));
+      const bookingDialog = screen.getByRole('dialog', { name: 'Completa tus datos' });
+      assert.ok(within(bookingDialog).getByRole('heading', { name: 'Dra. Prueba' }));
+      assert.ok(within(bookingDialog).getByText('Medicina General'));
+      assert.ok(within(bookingDialog).getByText('Box 1'));
+      assert.ok(within(bookingDialog).getByRole('button', { name: 'Ampliar foto de Dra. Prueba' }));
       assert.equal(screen.queryByRole('region', { name: 'Hora seleccionada' }), null);
       fireEvent.change(screen.getByLabelText('RUT'), { target: { value: '12.345.678-5' } });
       fireEvent.change(screen.getByLabelText('Nombre completo'), {
@@ -1485,8 +1494,88 @@ test('la landing page permite conocer el servicio, seleccionar una especialidad 
 
     // 5. Volver a Inicio y usar CTA "Agendar hora"
     fireEvent.click(screen.getByRole('button', { name: 'Inicio' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Agendar hora' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Agendar hora' }));
     assert.ok(await screen.findByRole('heading', { name: /Tu próxima hora/i }));
+  } finally {
+    cleanup();
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('la landing ofrece solo especialidades del catálogo cargado y permite reintentar', async () => {
+  const { default: LandingPage } = await server.ssrLoadModule(
+    '/src/features/landing/LandingPage.jsx',
+  );
+  let retried = 0;
+  let selected = '';
+  const screen = render(
+    React.createElement(LandingPage, {
+      catalogosError: 'Error de red',
+      especialidades: [{ id: 42, nombre: 'Cardiología' }],
+      onRetryCatalogs: () => {
+        retried += 1;
+      },
+      onSelectSpecialty: (id) => {
+        selected = id;
+      },
+    }),
+  );
+  assert.equal(screen.queryByRole('button', { name: /Reservar en/ }), null);
+  fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+  assert.equal(retried, 1);
+  screen.rerender(
+    React.createElement(LandingPage, {
+      especialidades: [{ id: 42, nombre: 'Cardiología' }],
+      onSelectSpecialty: (id) => {
+        selected = id;
+      },
+    }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Reservar en Cardiología' }));
+  assert.equal(selected, '42');
+  screen.rerender(React.createElement(LandingPage));
+  assert.ok(screen.getByText('No hay especialidades disponibles para consultar.'));
+  assert.equal(screen.queryByRole('button', { name: /Reservar en/ }), null);
+});
+
+test('al cambiar la fecha oculta las horas anteriores hasta recibir la nueva disponibilidad', async () => {
+  const originalFetch = globalThis.fetch;
+  const json = (data) =>
+    new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } });
+  let resolveNext;
+  let requestCount = 0;
+  globalThis.fetch = async (url) => {
+    if (url === '/api/especialidades')
+      return json({ ok: true, especialidades: [{ id: 1, nombre: 'General' }] });
+    if (url === '/api/medicos')
+      return json({ ok: true, medicos: [{ id: 1, nombre: 'Dra. Prueba', especialidad_id: 1 }] });
+    if (url.startsWith('/api/disponibilidad')) {
+      requestCount += 1;
+      if (requestCount > 1)
+        return new Promise((resolve) => {
+          resolveNext = resolve;
+        });
+      return json({
+        ok: true,
+        bloques: [
+          { agenda_id: 7, medico_nombre: 'Dra. Prueba', hora_inicio: '09:00', duracion_min: 30 },
+        ],
+      });
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  };
+  try {
+    const { default: App } = await server.ssrLoadModule('/src/App.jsx');
+    const screen = render(React.createElement(App));
+    await screen.findByRole('button', { name: '09:00, Dra. Prueba, 30 minutos' });
+    fireEvent.change(screen.getByLabelText('Fecha de atención'), {
+      target: { value: '2099-01-01' },
+    });
+    assert.equal(screen.queryByRole('button', { name: '09:00, Dra. Prueba, 30 minutos' }), null);
+    assert.ok(screen.getByText('Consultando horarios…'));
+    await waitFor(() => assert.equal(typeof resolveNext, 'function'));
+    await act(async () => resolveNext(json({ ok: true, bloques: [] })));
+    assert.ok(await screen.findByText('No hay horas para esta fecha'));
   } finally {
     cleanup();
     globalThis.fetch = originalFetch;

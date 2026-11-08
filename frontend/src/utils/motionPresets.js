@@ -1,28 +1,3 @@
-import { MotionGlobalConfig } from 'motion/react';
-
-// Si el entorno se ejecuta bajo JSDOM o pruebas automatizadas, desactivamos animaciones
-// y proveemos un mock de IntersectionObserver para prevenir errores por APIs de navegador ausentes.
-if (
-  typeof window !== 'undefined' &&
-  (window.navigator?.userAgent?.includes('jsdom') ||
-    typeof globalThis.IS_REACT_ACT_ENVIRONMENT !== 'undefined')
-) {
-  MotionGlobalConfig.skipAnimations = true;
-}
-
-if (typeof globalThis !== 'undefined' && typeof globalThis.IntersectionObserver === 'undefined') {
-  globalThis.IntersectionObserver = class IntersectionObserverMock {
-    constructor(callback) {
-      this.callback = callback;
-    }
-    observe(element) {
-      this.callback([{ isIntersecting: true, target: element }]);
-    }
-    unobserve() {}
-    disconnect() {}
-  };
-}
-
 export const EASE_OUT_QUART = [0.22, 1, 0.36, 1];
 export const EASE_OUT_EXPO = [0.16, 1, 0.3, 1];
 export const EASE_STANDARD = [0.4, 0, 0.2, 1];
@@ -50,13 +25,7 @@ export const stageVariants = {
 
 export const staggerContainerVariants = {
   hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.035,
-      delayChildren: 0.02,
-    },
-  },
+  visible: { opacity: 1 },
 };
 
 export const staggerItemVariants = {

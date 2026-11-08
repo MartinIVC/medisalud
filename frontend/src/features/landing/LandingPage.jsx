@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import {
   Activity,
   ArrowRight,
@@ -17,34 +17,6 @@ import {
 } from '../../utils/motionPresets.js';
 import { Button } from '../../components/ui';
 
-// Fallback canónico en caso de que los catálogos aún estén cargando
-const CANONICAL_SPECIALTIES = [
-  {
-    id: 1,
-    nombre: 'Medicina General',
-    descripcion:
-      'Atención primaria integral, diagnóstico general y controles preventivos para adultos.',
-  },
-  {
-    id: 2,
-    nombre: 'Pediatría',
-    descripcion:
-      'Control de niño sano, patologías infantiles y seguimiento integral del desarrollo.',
-  },
-  {
-    id: 3,
-    nombre: 'Traumatología',
-    descripcion:
-      'Evaluación y tratamiento de lesiones músculo-esqueléticas, articulaciones y rehabilitación.',
-  },
-  {
-    id: 4,
-    nombre: 'Dermatología',
-    descripcion:
-      'Diagnóstico y cuidado de enfermedades de la piel, cabello, uñas y lesiones cutáneas.',
-  },
-];
-
 function getSpecialtyIcon(nombre = '') {
   const normalized = nombre.toLowerCase();
   if (normalized.includes('pediatr')) return HeartPulse;
@@ -61,8 +33,10 @@ export default function LandingPage({
   onStartBooking = () => {},
   onSelectSpecialty = () => {},
   onOpenSecretary = () => {},
+  onRetryCatalogs = () => {},
 }) {
-  const displaySpecialties = especialidades.length > 0 ? especialidades : CANONICAL_SPECIALTIES;
+  const reduceMotion = useReducedMotion();
+  const displaySpecialties = catalogosLoading || catalogosError ? [] : especialidades;
   const activeDoctors = medicos.filter((m) => m.activo !== false);
   const activeDoctorsCount = activeDoctors.length;
   const activeSpecialtiesCount = displaySpecialties.length;
@@ -74,7 +48,7 @@ export default function LandingPage({
         <motion.div
           className="landing-hero-content"
           variants={heroContainerVariants}
-          initial="hidden"
+          initial={reduceMotion ? false : 'hidden'}
           animate="visible"
         >
           <motion.p className="section-context" variants={heroItemVariants}>
@@ -97,12 +71,12 @@ export default function LandingPage({
           <motion.div className="landing-hero-meta" variants={heroItemVariants}>
             <span className="landing-meta-item">
               <Clock size={15} aria-hidden="true" />
-              Horario America/Santiago
+              Horarios de Santiago
             </span>
             <span aria-hidden="true">·</span>
             <span className="landing-meta-item">
               <ShieldCheck size={15} aria-hidden="true" />
-              Reserva transaccional sin sobreventa
+              Tu hora queda reservada al confirmar
             </span>
           </motion.div>
         </motion.div>
@@ -110,7 +84,7 @@ export default function LandingPage({
         {/* Motivo gráfico médico: Monitor de Pulso ECG Editorial (Swiss Signal) */}
         <motion.div
           className="landing-ecg-card"
-          initial={{ opacity: 0, y: 16 }}
+          initial={reduceMotion ? false : { opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: EASE_OUT_QUART, delay: 0.15 }}
           role="region"
@@ -118,7 +92,7 @@ export default function LandingPage({
         >
           <div className="landing-ecg-header">
             <span className="landing-ecg-title">Monitoreo de Agenda</span>
-            <span className="landing-ecg-badge">En línea</span>
+            <span className="landing-ecg-badge">Catálogo</span>
           </div>
 
           <div className="landing-ecg-svg-container" aria-hidden="true">
@@ -152,7 +126,7 @@ export default function LandingPage({
                 strokeWidth="2.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                initial={{ pathLength: 0, opacity: 0.35 }}
+                initial={reduceMotion ? false : { pathLength: 0, opacity: 0.35 }}
                 animate={{ pathLength: 1, opacity: 1 }}
                 transition={{ duration: 1.35, ease: EASE_OUT_EXPO }}
               />
@@ -162,17 +136,11 @@ export default function LandingPage({
           <div className="landing-ecg-metrics">
             <div className="landing-ecg-stat">
               <strong>{catalogosLoading || catalogosError ? '—' : activeSpecialtiesCount}</strong>
-              <span>Especialidades activas</span>
+              <span>Especialidades</span>
             </div>
             <div className="landing-ecg-stat">
-              <strong>
-                {catalogosLoading || catalogosError
-                  ? '—'
-                  : medicos.length > 0
-                    ? activeDoctorsCount
-                    : '—'}
-              </strong>
-              <span>Médicos en atención</span>
+              <strong>{catalogosLoading || catalogosError ? '—' : activeDoctorsCount}</strong>
+              <span>Profesionales activos</span>
             </div>
           </div>
         </motion.div>
@@ -189,6 +157,16 @@ export default function LandingPage({
           </p>
         </div>
 
+        {catalogosLoading ? (
+          <p role="status">Cargando especialidades…</p>
+        ) : catalogosError ? (
+          <div role="alert">
+            <p>No pudimos cargar las especialidades.</p>
+            <Button onClick={onRetryCatalogs}>Reintentar</Button>
+          </div>
+        ) : displaySpecialties.length === 0 ? (
+          <p>No hay especialidades disponibles para consultar.</p>
+        ) : null}
         <div className="specialties-grid">
           {displaySpecialties.map((esp, index) => {
             const countDoctors = activeDoctors.filter(
@@ -203,7 +181,7 @@ export default function LandingPage({
                 className="specialty-card"
                 onClick={() => onSelectSpecialty(String(esp.id))}
                 whileTap={{ scale: 0.99 }}
-                initial={{ opacity: 0, y: 12 }}
+                initial={reduceMotion ? false : { opacity: 0, y: 12 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.2 }}
                 transition={{ duration: 0.28, delay: index * 0.05, ease: EASE_OUT_QUART }}
@@ -223,7 +201,7 @@ export default function LandingPage({
                   <span>
                     {medicos.length > 0
                       ? countDoctors === 1
-                        ? '1 profesional disponible'
+                        ? '1 profesional'
                         : `${countDoctors} profesionales`
                       : 'Consultar disponibilidad'}
                   </span>
@@ -250,7 +228,7 @@ export default function LandingPage({
         <div className="how-it-works-grid">
           <motion.div
             className="step-card"
-            initial={{ opacity: 0, y: 14 }}
+            initial={reduceMotion ? false : { opacity: 0, y: 14 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
             transition={{ duration: 0.32, delay: 0.04, ease: EASE_OUT_QUART }}
@@ -268,7 +246,7 @@ export default function LandingPage({
 
           <motion.div
             className="step-card"
-            initial={{ opacity: 0, y: 14 }}
+            initial={reduceMotion ? false : { opacity: 0, y: 14 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
             transition={{ duration: 0.32, delay: 0.1, ease: EASE_OUT_QUART }}
@@ -286,7 +264,7 @@ export default function LandingPage({
 
           <motion.div
             className="step-card"
-            initial={{ opacity: 0, y: 14 }}
+            initial={reduceMotion ? false : { opacity: 0, y: 14 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
             transition={{ duration: 0.32, delay: 0.16, ease: EASE_OUT_QUART }}
@@ -316,15 +294,14 @@ export default function LandingPage({
         <div className="landing-info-item">
           <h4>Aviso y Gestión de Cita</h4>
           <p>
-            Recibirás el comprobante en tu correo y podrás confirmar o cancelar tu asistencia desde
-            el enlace de tu citación.
+            Puedes guardar tu comprobante al reservar. Si recibes una citación, usa su enlace para
+            confirmar o cancelar tu asistencia.
           </p>
         </div>
         <div className="landing-info-item">
           <h4>Reserva Garantizada</h4>
           <p>
-            Sistema transaccional con control de concurrencia e idempotencia para evitar topes de
-            horario o reservas duplicadas.
+            Al confirmar una hora disponible, obtendrás un comprobante con tu código de reserva.
           </p>
         </div>
       </section>

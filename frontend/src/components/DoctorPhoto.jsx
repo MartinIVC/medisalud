@@ -17,11 +17,13 @@ export default function DoctorPhoto({ url, name, className = '' }) {
 
   const hasPhoto = Boolean(url && !failed);
   const photoSrc = hasPhoto ? url : '/profesional-generico.svg';
-  const imageDimensions = className.includes('professionals-photo')
-    ? { width: 72, height: 82 }
-    : className.includes('doctor-photo-sm')
-      ? { width: 48, height: 48 }
-      : { width: 56, height: 56 };
+  const imageDimensions = className.includes('booking-doctor-photo')
+    ? { width: 240, height: 200 }
+    : className.includes('professionals-photo')
+      ? { width: 72, height: 82 }
+      : className.includes('doctor-photo-sm')
+        ? { width: 48, height: 48 }
+        : { width: 56, height: 56 };
 
   return (
     <>
@@ -31,7 +33,7 @@ export default function DoctorPhoto({ url, name, className = '' }) {
         disabled={!hasPhoto}
         aria-label={hasPhoto ? `Ampliar foto de ${name}` : `Imagen genérica de ${name}`}
         aria-haspopup={hasPhoto ? 'dialog' : undefined}
-        className={`doctor-photo ${hasPhoto ? 'doctor-photo-zoomable' : ''} ${className}`.trim()}
+        className={`doctor-photo ${hasPhoto ? 'doctor-photo-zoomable' : 'doctor-photo-placeholder'} ${className}`.trim()}
       >
         <img
           src={photoSrc}

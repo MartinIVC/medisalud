@@ -61,13 +61,20 @@ Parte de los componentes existentes y amplíalos solo cuando haya una necesidad 
 
 Para nuevas interacciones, contempla los estados normal, hover, foco, deshabilitado, carga y error cuando apliquen. La acción principal debe ser reconocible sin que todas las acciones reciban el mismo énfasis.
 
+## Movimiento
+
+- Usa transiciones breves para comunicar navegación, selección de fechas y aparición de horarios; evita retrasar el acceso a controles o mensajes de error. En listas largas no acumules demoras por cada grupo.
+- La barra de etapas refleja el avance disponible y el indicador de fecha acompaña la selección sin sustituir `aria-pressed`. La confirmación dibuja el check solo cuando la reserva tuvo éxito.
+- Respeta `prefers-reduced-motion`: muestra el pulso y el check completos, evita desplazamientos y secuencias y deja los indicadores de carga estáticos. No dependas de que una animación termine para presentar información.
+- Mantén los diálogos nativos, la gestión de foco y la posibilidad de cerrarlos con Escape cuando la operación lo permita. La apertura puede animarse; el cierre es inmediato para devolver el foco sin mantener contenido interactivo duplicado.
+
 ## Portal de pacientes
 
 El objetivo es facilitar una reserva sin exigir conocimientos técnicos:
 
 1. Ofrece filtros de especialidad y profesional, incluida la consulta sin filtro específico.
 2. Da protagonismo a la fecha y a los horarios disponibles. Consulta automáticamente al cambiar filtros y muestra carga, error con reintento o ausencia de horas según corresponda.
-3. Al seleccionar una hora, abre el diálogo de datos. Si se cierra, muestra junto al grupo elegido una franja breve con profesional, fecha, hora y **«Completar reserva»** para reabrirlo conservando el borrador.
+3. Al seleccionar una hora, abre el diálogo de datos con una cabecera que destaque la foto disponible, el nombre y la especialidad del profesional; muestra fecha, hora y lugar antes del formulario. Permite ampliar la foto y usa el recurso genérico si no está disponible. Si se cierra, muestra junto al grupo elegido una franja breve con profesional, fecha, hora y **«Completar reserva»** para reabrirlo conservando el borrador.
 4. Separa la entrada de datos de la revisión y confirmación. El paciente debe entender que la hora se reserva al confirmar; conserva el comprobante, su código y las opciones de copia e impresión.
 
 Al cambiar especialidad, profesional o fecha, invalida la hora anterior. Si una reserva entra en conflicto, orienta al paciente para continuar sin perder sus datos. Presenta mensajes breves: no muestres cálculos internos ni detalles técnicos innecesarios.

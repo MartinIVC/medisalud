@@ -1,6 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
-import { motion, MotionConfig } from 'motion/react';
+import {
+  AnimatePresence,
+  motion,
+  MotionConfig,
+  useIsPresent,
+  useReducedMotion,
+} from 'motion/react';
 import AppointmentResponse from './features/citas/AppointmentResponse';
 import LandingPage from './features/landing/LandingPage';
 import PatientPortal from './features/paciente/PatientPortal';
@@ -10,7 +16,24 @@ import useSecretaryPortal from './features/secretaria/useSecretaryPortal';
 import { SPRING_CRISP, stageVariants } from './utils/motionPresets';
 import { Alert, Button, Field } from './components/ui';
 
+function AnimatedView({ children, reduceMotion }) {
+  const isPresent = useIsPresent();
+  return (
+    <motion.div
+      variants={stageVariants}
+      initial={reduceMotion ? false : 'initial'}
+      animate="animate"
+      exit={reduceMotion ? { opacity: 1, transition: { duration: 0 } } : 'exit'}
+      inert={isPresent ? undefined : ''}
+      aria-hidden={isPresent ? undefined : true}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
 export default function App() {
+  const reduceMotion = useReducedMotion();
   const appointmentToken = new URLSearchParams(window.location.search).get('cita_token');
   const [activeTab, setActiveTab] = useState(() => {
     if (sessionStorage.getItem('medisalud-secretaria-token')) return 'secretaria';
@@ -40,7 +63,13 @@ export default function App() {
     patientAvailabilityRef.current = patientPortal.actions.fetchDisponibilidad;
   }, [patientPortal.actions.fetchDisponibilidad]);
 
-  if (appointmentToken) return <AppointmentResponse token={appointmentToken} />;
+  if (appointmentToken) {
+    return (
+      <MotionConfig reducedMotion="user">
+        <AppointmentResponse token={appointmentToken} />
+      </MotionConfig>
+    );
+  }
 
   return (
     <MotionConfig reducedMotion="user">
@@ -108,110 +137,119 @@ export default function App() {
           </div>
         </header>
         <main id="main-content" tabIndex={-1} className="main-content">
-          {activeTab === 'inicio' ? (
-            <LandingPage
-              especialidades={secretaryState.especialidades}
-              medicos={secretaryState.medicos}
-              catalogosLoading={secretaryState.catalogosLoading}
-              catalogosError={secretaryState.catalogosError}
-              onStartBooking={() => setActiveTab('paciente')}
-              onSelectSpecialty={(espId) => {
-                patientPortal.actions.setSelectedEsp(String(espId));
-                setActiveTab('paciente');
-              }}
-              onOpenSecretary={() => setActiveTab('secretaria')}
-            />
-          ) : activeTab === 'paciente' ? (
-            <PatientPortal state={patientPortal.state} actions={patientPortal.actions} />
-          ) : !secretaryState.secretaryToken ? (
-            <motion.section
-              className="login-layout"
-              variants={stageVariants}
-              initial="initial"
-              animate="animate"
-            >
-              <div className="login-intro">
-                <p className="section-context">Secretaría</p>
-                <h1>
-                  Una agenda clara.
-                  <br />
-                  Una atención coordinada.
-                </h1>
-                <p>
-                  Consulta las horas del día, registra citas y organiza la disponibilidad de los
-                  profesionales.
-                </p>
-              </div>
-              <div className="login-form">
-                <h2>Iniciar sesión</h2>
-                <p className="muted">Ingresa tu usuario y contraseña para acceder a la agenda.</p>
-                {secretaryState.secretaryLogoutError && (
-                  <Alert tone="warning">{secretaryState.secretaryLogoutError}</Alert>
-                )}
-                {secretaryState.pendingMedicoDraft && (
-                  <Alert tone="warning">
-                    Conservamos el borrador de{' '}
-                    {secretaryState.pendingMedicoDraft.nombre || 'médico'}. Podrás retomarlo al
-                    iniciar sesión.
-                  </Alert>
-                )}
-                <form onSubmit={secretaryActions.loginSecretary}>
-                  <Field id="secretary-username" label="Usuario">
-                    <input
-                      id="secretary-username"
-                      name="username"
-                      autoComplete="username"
-                      required
-                      value={secretaryState.secretaryUsername}
-                      onChange={(event) =>
-                        secretaryActions.setSecretaryUsername(event.target.value)
-                      }
-                    />
-                  </Field>
-                  <Field id="secretary-password" label="Contraseña">
-                    <div className="password-input">
-                      <input
-                        id="secretary-password"
-                        name="password"
-                        type={showPassword ? 'text' : 'password'}
-                        autoComplete="current-password"
-                        required
-                        value={secretaryState.secretaryPassword}
-                        onChange={(event) =>
-                          secretaryActions.setSecretaryPassword(event.target.value)
-                        }
-                      />
+          <AnimatePresence mode="wait" initial={false}>
+            <AnimatedView key={activeTab} reduceMotion={reduceMotion}>
+              {activeTab === 'inicio' ? (
+                <LandingPage
+                  especialidades={secretaryState.especialidades}
+                  medicos={secretaryState.medicos}
+                  catalogosLoading={secretaryState.catalogosLoading}
+                  catalogosError={secretaryState.catalogosError}
+                  onStartBooking={() => setActiveTab('paciente')}
+                  onRetryCatalogs={secretaryActions.refreshDoctorCatalogs}
+                  onSelectSpecialty={(espId) => {
+                    patientPortal.actions.setSelectedEsp(String(espId));
+                    setActiveTab('paciente');
+                  }}
+                  onOpenSecretary={() => setActiveTab('secretaria')}
+                />
+              ) : activeTab === 'paciente' ? (
+                <PatientPortal state={patientPortal.state} actions={patientPortal.actions} />
+              ) : !secretaryState.secretaryToken ? (
+                <motion.section
+                  className="login-layout"
+                  variants={stageVariants}
+                  initial={reduceMotion ? false : 'initial'}
+                  animate="animate"
+                >
+                  <div className="login-intro">
+                    <p className="section-context">Secretaría</p>
+                    <h1>
+                      Una agenda clara.
+                      <br />
+                      Una atención coordinada.
+                    </h1>
+                    <p>
+                      Consulta las horas del día, registra citas y organiza la disponibilidad de los
+                      profesionales.
+                    </p>
+                  </div>
+                  <div className="login-form">
+                    <h2>Iniciar sesión</h2>
+                    <p className="muted">
+                      Ingresa tu usuario y contraseña para acceder a la agenda.
+                    </p>
+                    {secretaryState.secretaryLogoutError && (
+                      <Alert tone="warning">{secretaryState.secretaryLogoutError}</Alert>
+                    )}
+                    {secretaryState.pendingMedicoDraft && (
+                      <Alert tone="warning">
+                        Conservamos el borrador de{' '}
+                        {secretaryState.pendingMedicoDraft.nombre || 'médico'}. Podrás retomarlo al
+                        iniciar sesión.
+                      </Alert>
+                    )}
+                    <form onSubmit={secretaryActions.loginSecretary}>
+                      <Field id="secretary-username" label="Usuario">
+                        <input
+                          id="secretary-username"
+                          name="username"
+                          autoComplete="username"
+                          required
+                          value={secretaryState.secretaryUsername}
+                          onChange={(event) =>
+                            secretaryActions.setSecretaryUsername(event.target.value)
+                          }
+                        />
+                      </Field>
+                      <Field id="secretary-password" label="Contraseña">
+                        <div className="password-input">
+                          <input
+                            id="secretary-password"
+                            name="password"
+                            type={showPassword ? 'text' : 'password'}
+                            autoComplete="current-password"
+                            required
+                            value={secretaryState.secretaryPassword}
+                            onChange={(event) =>
+                              secretaryActions.setSecretaryPassword(event.target.value)
+                            }
+                          />
+                          <Button
+                            className="icon-button"
+                            aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                            onClick={() => setShowPassword((value) => !value)}
+                          >
+                            {showPassword ? (
+                              <EyeOff size={20} aria-hidden="true" />
+                            ) : (
+                              <Eye size={20} aria-hidden="true" />
+                            )}
+                          </Button>
+                        </div>
+                      </Field>
+                      {secretaryState.secretaryError && (
+                        <Alert>{secretaryState.secretaryError}</Alert>
+                      )}
                       <Button
-                        className="icon-button"
-                        aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                        onClick={() => setShowPassword((value) => !value)}
+                        variant="primary"
+                        type="submit"
+                        disabled={secretaryState.loginPending || secretaryState.logoutPending}
                       >
-                        {showPassword ? (
-                          <EyeOff size={20} aria-hidden="true" />
-                        ) : (
-                          <Eye size={20} aria-hidden="true" />
-                        )}
+                        {secretaryState.logoutPending
+                          ? 'Cerrando sesión…'
+                          : secretaryState.loginPending
+                            ? 'Ingresando…'
+                            : 'Iniciar sesión'}
                       </Button>
-                    </div>
-                  </Field>
-                  {secretaryState.secretaryError && <Alert>{secretaryState.secretaryError}</Alert>}
-                  <Button
-                    variant="primary"
-                    type="submit"
-                    disabled={secretaryState.loginPending || secretaryState.logoutPending}
-                  >
-                    {secretaryState.logoutPending
-                      ? 'Cerrando sesión…'
-                      : secretaryState.loginPending
-                        ? 'Ingresando…'
-                        : 'Iniciar sesión'}
-                  </Button>
-                </form>
-              </div>
-            </motion.section>
-          ) : (
-            <SecretaryPortal state={secretaryState} actions={secretaryActions} />
-          )}
+                    </form>
+                  </div>
+                </motion.section>
+              ) : (
+                <SecretaryPortal state={secretaryState} actions={secretaryActions} />
+              )}
+            </AnimatedView>
+          </AnimatePresence>
         </main>
         <footer className="site-footer no-print">
           <span>Medisalud · Centro médico</span>

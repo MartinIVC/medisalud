@@ -39,6 +39,7 @@ test('an older availability response cannot replace a newer filter result', asyn
   await waitFor(() => assert.equal(pending.length, 1));
   act(() => result.current.actions.setSelectedFecha('2027-01-15'));
   await waitFor(() => assert.equal(pending.length, 2));
+  assert.equal(result.current.state.loadingDisp, true);
   pending[1].resolve(jsonResponse({ ok: true, bloques: [], latencia_ms: 2 }));
   await waitFor(() => assert.equal(result.current.state.disponibilidad.latencia_ms, 2));
   pending[0].resolve(jsonResponse({ ok: true, bloques: [], latencia_ms: 1 }));
