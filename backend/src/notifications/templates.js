@@ -9,9 +9,10 @@ function buildConfirmation({
   fecha,
   horaInicio,
   horaFin,
+  responseUrl,
 }) {
   const subject = `[Medisalud] Confirmación de cita — ${codigoReserva}`;
-  const text = [
+  const lines = [
     `Estimado(a) ${pacienteNombre} (RUT: ${pacienteRut}):`,
     'Su reserva en Centro Médico Medisalud está confirmada.',
     `Código: ${codigoReserva}`,
@@ -19,8 +20,15 @@ function buildConfirmation({
     `Profesional: ${medicoNombre}`,
     `Fecha y hora: ${fecha}, ${horaInicio} a ${horaFin}`,
     `Lugar: ${boxAtencion}`,
-  ].join('\n');
-  return { to: pacienteEmail, subject, text, codigoReserva };
+  ];
+  if (responseUrl) {
+    lines.push(
+      '',
+      'Para confirmar su asistencia o cancelar su hora, ingrese al siguiente enlace:',
+      responseUrl,
+    );
+  }
+  return { to: pacienteEmail, subject, text: lines.join('\n'), codigoReserva };
 }
 
 function buildCancellationNotice({

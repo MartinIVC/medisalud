@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createReservation, reservationFingerprint } = require('../src/services/reservas');
+const { buildConfirmation } = require('../src/notifications/templates');
 const { HttpError } = require('../src/middleware/errors');
 
 function fakePool({ slot = {}, previous = null, failQuery } = {}) {
@@ -244,5 +245,49 @@ test('agendamiento presencial y telefónico encola confirmación por correo igua
     assert.equal(enqueuedDetails.pacienteNombre, 'Ana Pérez');
     assert.equal(enqueuedDetails.pacienteRut, '12.345.678-5');
     assert.equal(enqueuedDetails.medicoNombre, 'Dra. Prueba');
+    assert.ok(enqueuedDetails.responseUrl);
+    assert.match(enqueuedDetails.responseUrl, /\/\?cita_token=/);
+    assert.equal(result.response.reserva.response_url, enqueuedDetails.responseUrl);
   }
+});
+
+test('buildConfirmation incluye el enlace de confirmación si se proporciona responseUrl', () => {
+  const confirmationWithUrl = buildConfirmation({
+    codigoReserva: 'MED-2026-ABCDEF123456',
+    pacienteNombre: 'Ana Pérez',
+    pacienteRut: '12.345.678-5',
+    pacienteEmail: 'ana@example.cl',
+    medicoNombre: 'Dr. Alejandro Soto Rojas',
+    especialidadNombre: 'Medicina General',
+    boxAtencion: 'Box 101',
+    fecha: '2026-11-08',
+    horaInicio: '09:00',
+    horaFin: '09:30',
+    responseUrl: 'http://localhost:5173/?cita_token=test-token-123',
+  });
+
+  assert.equal(confirmationWithUrl.to, 'ana@example.cl');
+  assert.equal(
+    confirmationWithUrl.subject,
+    '[Medisalud] Confirmación de cita — MED-2026-ABCDEF123456',
+  );
+  assert.match(
+    confirmationWithUrl.text,
+    /Para confirmar su asistencia o cancelar su hora, ingrese al siguiente enlace:\nhttp:\/\/localhost:5173\/\?cita_token=test-token-123/,
+  );
+
+  const confirmationWithoutUrl = buildConfirmation({
+    codigoReserva: 'MED-2026-ABCDEF123456',
+    pacienteNombre: 'Ana Pérez',
+    pacienteRut: '12.345.678-5',
+    pacienteEmail: 'ana@example.cl',
+    medicoNombre: 'Dr. Alejandro Soto Rojas',
+    especialidadNombre: 'Medicina General',
+    boxAtencion: 'Box 101',
+    fecha: '2026-11-08',
+    horaInicio: '09:00',
+    horaFin: '09:30',
+  });
+
+  assert.equal(confirmationWithoutUrl.text.includes('Para confirmar su asistencia'), false);
 });

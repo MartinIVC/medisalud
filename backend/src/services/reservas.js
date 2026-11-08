@@ -174,7 +174,7 @@ async function createReservation({
       const codigoReserva = `MED-${new Date().getFullYear()}-${randomBytes(6).toString('hex').toUpperCase()}`;
       const responseToken = randomBytes(32).toString('base64url');
       const responseTokenHash = crypto.createHash('sha256').update(responseToken).digest('hex');
-      const responseUrl = `${publicWebUrl}/?cita_token=${responseToken}`;
+      const responseUrl = `${publicWebUrl.replace(/\/$/, '')}/?cita_token=${responseToken}`;
       const insertCita = await client.query(
         `INSERT INTO citas_medicas (
            codigo_reserva, agenda_id, medico_id, paciente_rut, paciente_nombre,
@@ -214,6 +214,7 @@ async function createReservation({
         fecha: slot.fecha,
         horaInicio: slot.hora_inicio,
         horaFin: slot.hora_fin,
+        responseUrl,
       });
 
       const reminderText = `Medisalud: recuerda tu cita con ${slot.medico_nombre} el ${slot.fecha} a las ${slot.hora_inicio}. Confirma o cancela aquí: ${responseUrl}`;
@@ -254,6 +255,7 @@ async function createReservation({
           hora_inicio: slot.hora_inicio,
           hora_fin: slot.hora_fin,
           created_at: appointment.created_at,
+          response_url: responseUrl,
         },
         comprobante_correo: emailComprobante,
       };
