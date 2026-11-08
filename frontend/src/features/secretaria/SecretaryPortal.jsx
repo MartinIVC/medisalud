@@ -4,6 +4,7 @@ import { requestApi } from '../../api/client.js';
 import { validateRutClient } from '../../utils/rut.js';
 import CrearMedico from '../../components/CrearMedico';
 import DoctorPhotoEditor from '../../components/DoctorPhotoEditor.jsx';
+import Profesionales from './Profesionales.jsx';
 import {
   Alert,
   Button,
@@ -287,11 +288,32 @@ export default function SecretaryPortal({ state, actions }) {
     telefono: receptionData.telefono,
   };
 
+  if (secretaryView === 'profesionales')
+    return (
+      <Profesionales
+        token={secretaryToken}
+        specialties={especialidades}
+        onUnauthorized={handleSecretaryUnauthorized}
+        onRefresh={refreshDoctorCatalogs}
+        onBack={() => setSecretaryView('agenda')}
+        onCreate={() => setSecretaryView('create-medico')}
+        onAgenda={(id, fecha) => {
+          setSpecialtyFilter('');
+          setStatusFilter('TODOS');
+          setSearchQuery('');
+          setSelection(null);
+          setSecMedicoId(String(id));
+          if (fecha) setSecFecha(fecha);
+          setSecretaryView('agenda');
+        }}
+      />
+    );
+
   if (secretaryView === 'create-medico')
     return (
       <>
         <div className="section-heading">
-          <Button onClick={() => setSecretaryView('agenda')}>Volver a la agenda</Button>
+          <Button onClick={() => setSecretaryView('profesionales')}>Volver a profesionales</Button>
           <Button onClick={logoutSecretary} disabled={logoutPending}>
             Cerrar sesión
           </Button>
@@ -306,7 +328,7 @@ export default function SecretaryPortal({ state, actions }) {
           initialDraft={pendingMedicoDraft}
           onDraftChange={setPendingMedicoDraft}
           onClearDraft={() => setPendingMedicoDraft(null)}
-          onCancel={() => setSecretaryView('agenda')}
+          onCancel={() => setSecretaryView('profesionales')}
           onContinueScheduling={(id) => {
             setSpecialtyFilter('');
             setSecMedicoId(String(id));
@@ -330,7 +352,7 @@ export default function SecretaryPortal({ state, actions }) {
           <p className="muted">{formatDate(secFecha, { year: 'numeric' })}</p>
         </div>
         <div className="button-group">
-          <Button onClick={() => setSecretaryView('create-medico')}>Registrar médico</Button>
+          <Button onClick={() => setSecretaryView('profesionales')}>Profesionales</Button>
           <Button
             variant="primary"
             disabled={!selectedDoctor || isPastDate}

@@ -83,7 +83,11 @@ export default function PatientPortal({ state, actions }) {
   const currentDoctor = medicosFiltrados.find((doctor) => String(doctor.id) === selectedMedico);
   // Reservation progress belongs to the persistent hook, including across portal navigation.
   const activeView =
-    submittingReserva || reservaResult || bookingStep === 'revision' ? 'reserva' : view;
+    submittingReserva || reservaResult || bookingStep === 'revision'
+      ? 'reserva'
+      : selectedBloque
+        ? view
+        : 'horarios';
   const stage =
     activeView === 'reserva' ? 2 : selectedEsp || selectedMedico || selectedBloque ? 1 : 0;
   const successful = reservaResult?.type === 'success';

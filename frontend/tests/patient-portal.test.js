@@ -356,3 +356,117 @@ test('a transient concurrency conflict can be retried with the same idempotency 
   assert.equal(keys[0], keys[1]);
   assert.equal(result.current.state.reservaResult.type, 'success');
 });
+
+test('retira el filtro de un profesional ausente tras actualizar el catálogo', async () => {
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    calls.push(url);
+    return jsonResponse({ ok: true, bloques: [] });
+  };
+  const doctor = { id: 2, nombre: 'Profesional ficticio', especialidad_id: 1 };
+  const { result, rerender } = renderHook(
+    ({ medicos, loading, error }) =>
+      usePatientPortal({
+        medicos,
+        especialidades: [],
+        catalogosLoading: loading,
+        catalogosError: error,
+      }),
+    { initialProps: { medicos: [doctor], loading: false, error: '' } },
+  );
+  act(() => result.current.actions.setSelectedMedico('2'));
+  act(() => {
+    result.current.actions.setSelectedBloque({ agenda_id: 9, medico_id: 2 });
+    result.current.actions.setPacienteNombre('Paciente ficticio');
+    result.current.actions.setBookingStep('revision');
+  });
+  await waitFor(() => assert.ok(calls.some((url) => url.includes('medico_id=2'))));
+  rerender({ medicos: [], loading: true, error: '' });
+  assert.equal(result.current.state.selectedMedico, '2');
+  rerender({ medicos: [], loading: false, error: 'Sin conexión' });
+  assert.equal(result.current.state.selectedMedico, '2');
+  rerender({ medicos: [], loading: false, error: '' });
+  await waitFor(() => assert.equal(result.current.state.selectedMedico, ''));
+  assert.equal(result.current.state.selectedBloque, null);
+  assert.equal(result.current.state.bookingStep, 'datos');
+  assert.equal(result.current.state.pacienteNombre, 'Paciente ficticio');
+  await waitFor(() => assert.ok(!calls.at(-1).includes('medico_id=')));
+});
+
+test('descarta una hora de un médico inactivo incluso sin filtro de profesional', async () => {
+  globalThis.fetch = async () => jsonResponse({ ok: true, bloques: [] });
+  const doctor = { id: 2, especialidad_id: 1 };
+  const { result, rerender } = renderHook(
+    ({ medicos }) => usePatientPortal({ medicos, especialidades: [] }),
+    { initialProps: { medicos: [doctor] } },
+  );
+  act(() => result.current.actions.setSelectedBloque({ agenda_id: 9, medico_id: 2 }));
+  assert.equal(result.current.state.selectedMedico, '');
+  rerender({ medicos: [] });
+  await waitFor(() => assert.equal(result.current.state.selectedBloque, null));
+});
+
+test('conserva una hora de un profesional nuevo aún ausente del catálogo', async () => {
+  globalThis.fetch = async () => jsonResponse({ ok: true, bloques: [] });
+  const { result, rerender } = renderHook(
+    ({ medicos }) => usePatientPortal({ medicos, especialidades: [] }),
+    { initialProps: { medicos: [{ id: 1, especialidad_id: 1 }] } },
+  );
+  act(() => result.current.actions.setSelectedBloque({ agenda_id: 9, medico_id: 2 }));
+  assert.equal(result.current.state.selectedBloque.agenda_id, 9);
+  rerender({
+    medicos: [
+      { id: 1, especialidad_id: 1 },
+      { id: 2, especialidad_id: 1 },
+    ],
+  });
+  assert.equal(result.current.state.selectedBloque.agenda_id, 9);
+});
+
+test('conserva un comprobante confirmado si el médico sale del catálogo', async () => {
+  globalThis.fetch = async () => jsonResponse({ ok: true, bloques: [] });
+  const { result, rerender } = renderHook(
+    ({ medicos }) => usePatientPortal({ medicos, especialidades: [] }),
+    { initialProps: { medicos: [{ id: 2, especialidad_id: 1 }] } },
+  );
+  act(() => {
+    result.current.actions.setSelectedBloque({ agenda_id: 9, medico_id: 2 });
+    result.current.actions.setReservaResult({
+      type: 'success',
+      data: { reserva: { codigo_reserva: 'DEMO' } },
+    });
+  });
+  rerender({ medicos: [] });
+  assert.equal(result.current.state.reservaResult.data.reserva.codigo_reserva, 'DEMO');
+  assert.equal(result.current.state.selectedBloque.agenda_id, 9);
+});
+
+test('actualiza los horarios generales al retirar un médico del catálogo', async () => {
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    return jsonResponse({
+      ok: true,
+      bloques:
+        calls === 1
+          ? [
+              {
+                agenda_id: 1,
+                medico_id: 2,
+                medico_nombre: 'Profesional ficticio',
+                hora_inicio: '09:00',
+              },
+            ]
+          : [],
+    });
+  };
+  const doctor = { id: 2, especialidad_id: 1 };
+  const { result, rerender } = renderHook(
+    ({ medicos }) => usePatientPortal({ medicos, especialidades: [] }),
+    { initialProps: { medicos: [doctor] } },
+  );
+  await waitFor(() => assert.equal(result.current.state.disponibilidad.bloques.length, 1));
+  rerender({ medicos: [] });
+  await waitFor(() => assert.equal(result.current.state.disponibilidad.bloques.length, 0));
+  assert.equal(calls, 2);
+});

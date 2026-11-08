@@ -62,7 +62,7 @@ Una notificación encolada o aceptada por un proveedor **no equivale a una entre
 
 ## En desarrollo y limitaciones
 
-- Auditoría de acciones por cuenta y desvinculación de profesionales conservando el historial: pendientes de implementación.
+- Auditoría general de acciones por cuenta: pendiente de implementación (MED-27). MED-24 registra la última desvinculación con responsable, fecha y motivo; secretaría puede filtrar profesionales por especialidad y revincularlos sin perder agendas ni citas.
 - Validación de entrega real de notificaciones, callbacks de entrega y configuración de dominio SPF/DKIM/DMARC: pendientes.
 - La existencia de pruebas automatizadas no implica que todas las historias hayan completado su aceptación funcional.
 - Los 15 médicos iniciales son datos semilla de demostración, no un límite del sistema.
@@ -306,6 +306,14 @@ Get-Content -Raw .\database\migrations\20261107_cuentas_secretaria.sql |
 ```
 
 Sustituye el usuario y la base si cambiaste las variables de PostgreSQL. Para evitar una interrupción en una base existente: aplica la migración con el backend anterior aún operativo, construye la nueva imagen con `docker compose build backend`, crea una cuenta con `docker compose run --rm --no-deps backend node src/cli/secretarias.js crear secretaria.demo` y luego actualiza el servicio con `docker compose up -d --no-deps backend`. Las sesiones anteriores dejan de ser válidas al desplegar la nueva versión y cada secretaria debe usar su cuenta individual. La migración no convierte la contraseña compartida en cuentas personales. En una base nueva, `01_init.sql` ya incluye las tablas.
+
+Para habilitar la desvinculación en una base existente, respáldala y aplica `20261107_desvinculaciones_medico.sql` después de la migración de cuentas:
+
+```bash
+docker compose exec -T db psql -U medisalud -d medisalud_db < database/migrations/20261107_desvinculaciones_medico.sql
+```
+
+En PowerShell, usa `Get-Content -Raw .\database\migrations\20261107_desvinculaciones_medico.sql | docker compose exec -T db psql -U medisalud -d medisalud_db`. Una base nueva ya incluye la tabla. Los profesionales inactivos anteriores no tienen fecha, motivo ni responsable retroactivos.
 
 ## Verificación automatizada
 

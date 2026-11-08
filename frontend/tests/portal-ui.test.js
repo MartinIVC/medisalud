@@ -34,8 +34,9 @@ afterEach(cleanup);
 
 function SecretaryHarness({ agendas = [], secFecha = '2027-01-15', todayStr = '2027-01-15' }) {
   const [doctorId, setDoctorId] = useState('1');
+  const [view, setView] = useState('agenda');
   const state = {
-    secretaryView: 'agenda',
+    secretaryView: view,
     secretaryToken: 'test',
     especialidades: [
       { id: 1, nombre: 'General' },
@@ -62,9 +63,75 @@ function SecretaryHarness({ agendas = [], secFecha = '2027-01-15', todayStr = '2
   };
   return React.createElement(SecretaryPortal, {
     state,
-    actions: { setSecMedicoId: setDoctorId, setSecFeedback() {}, fetchSecAgendas() {} },
+    actions: {
+      setSecretaryView: setView,
+      setSecMedicoId: setDoctorId,
+      setSecFecha() {},
+      setSecFeedback() {},
+      setPendingMedicoDraft() {},
+      fetchSecAgendas() {},
+    },
   });
 }
+
+test('el registro se abre desde Profesionales y vuelve al listado al cancelar', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ ok: true, medicos: [] }));
+  try {
+    const screen = render(React.createElement(SecretaryHarness));
+    assert.equal(screen.queryByRole('button', { name: 'Registrar médico' }), null);
+    fireEvent.click(screen.getByRole('button', { name: 'Profesionales' }));
+    await screen.findByRole('button', { name: 'Registrar médico' });
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar médico' }));
+    assert.ok(screen.getByRole('heading', { name: 'Registrar médico' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    assert.ok(screen.getByRole('heading', { name: 'Profesionales' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar médico' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Volver a profesionales' }));
+    assert.ok(screen.getByRole('heading', { name: 'Profesionales' }));
+  } finally {
+    cleanup();
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('al gestionar citas desde Profesionales se limpian los filtros anteriores de la agenda', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        ok: true,
+        medicos: [
+          {
+            id: 1,
+            nombre: 'Dra. Prueba',
+            rut: 'RUT ficticio',
+            especialidad_nombre: 'General',
+            activo: true,
+            citas_futuras: 1,
+            proxima_cita_fecha: '2027-01-15',
+          },
+        ],
+      }),
+    );
+  try {
+    const screen = render(React.createElement(SecretaryHarness));
+    fireEvent.click(screen.getByRole('button', { name: /Disponibles/ }));
+    fireEvent.change(screen.getByLabelText('Buscar en la agenda'), {
+      target: { value: 'otro paciente' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Profesionales' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Gestionar citas en agenda' }));
+    assert.equal(screen.getByLabelText('Buscar en la agenda').value, '');
+    assert.equal(
+      screen.getByRole('button', { name: /Todos/ }).getAttribute('aria-pressed'),
+      'true',
+    );
+  } finally {
+    cleanup();
+    globalThis.fetch = originalFetch;
+  }
+});
 
 test('returning from an empty specialty restores a usable doctor selection', () => {
   const screen = render(React.createElement(SecretaryHarness));
@@ -558,6 +625,465 @@ test('portals render doctor photos with zoom dialog and secretary photo upload c
     assert.ok(secretaryScreen.getByLabelText('Foto de Dra. Prueba'));
     assert.ok(secretaryScreen.getByText('Añadir foto'));
   } finally {
+    prototype.showModal = originalShow;
+    prototype.close = originalClose;
+  }
+});
+
+test('desvinculación exige gestionar citas futuras y confirma con motivo cuando no existen', async () => {
+  const { default: Profesionales } = await server.ssrLoadModule(
+    '/src/features/secretaria/Profesionales.jsx',
+  );
+  const originalFetch = globalThis.fetch;
+  const prototype = dom.window.HTMLDialogElement.prototype;
+  const originalShow = prototype.showModal;
+  const originalClose = prototype.close;
+  prototype.showModal = function () {
+    this.setAttribute('open', '');
+  };
+  prototype.close = function () {
+    this.removeAttribute('open');
+  };
+  const calls = [];
+  const agendaSelections = [];
+  const doctors = [
+    {
+      id: 1,
+      nombre: 'Doctora de prueba',
+      rut: 'RUT ficticio',
+      especialidad_nombre: 'General',
+      activo: true,
+      citas_futuras: 2,
+      proxima_cita_fecha: '2027-02-15',
+      foto_url: '/api/medicos/1/foto?v=1',
+    },
+    {
+      id: 2,
+      nombre: 'Doctor de prueba',
+      rut: 'RUT ficticio',
+      especialidad_nombre: 'General',
+      activo: true,
+      citas_futuras: 0,
+    },
+    {
+      id: 3,
+      nombre: 'Profesional inactivo',
+      rut: 'RUT ficticio',
+      especialidad_nombre: 'General',
+      activo: false,
+      citas_futuras: 0,
+    },
+  ];
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url, options });
+    return new Response(
+      JSON.stringify(url.endsWith('/desvincular') ? { ok: true } : { ok: true, medicos: doctors }),
+      { status: 200 },
+    );
+  };
+  try {
+    const screen = render(
+      React.createElement(Profesionales, {
+        token: 'token',
+        onUnauthorized() {},
+        onRefresh: async () => {},
+        onBack() {},
+        onAgenda: (...args) => agendaSelections.push(args),
+      }),
+    );
+    await screen.findByRole('heading', { name: 'Doctora de prueba', level: 2 });
+    assert.equal(
+      screen.getByAltText('Foto de Doctora de prueba').getAttribute('src'),
+      '/api/medicos/1/foto?v=1',
+    );
+    assert.equal(
+      screen.getByAltText('Foto de Profesional inactivo').getAttribute('src'),
+      '/profesional-generico.svg',
+    );
+    assert.ok(screen.getByText(/Profesional inactivo/));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Desvincular' })[0]);
+    assert.ok(screen.getByText(/Tiene 2 citas futuras confirmadas/));
+    assert.equal(screen.queryByRole('button', { name: 'Confirmar desvinculación' }), null);
+    fireEvent.click(screen.getByRole('button', { name: 'Ir a la agenda' }));
+    assert.deepEqual(agendaSelections, [[1, '2027-02-15']]);
+    assert.equal(calls.filter((call) => call.url.endsWith('/desvincular')).length, 0);
+    fireEvent.click(screen.getByRole('button', { name: /cerrar/i }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Desvincular' })[1]);
+    fireEvent.change(screen.getByLabelText('Motivo de la desvinculación'), {
+      target: { value: 'Fin de atención' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar desvinculación' }));
+    await screen.findByText(/quedó inactivo/);
+    assert.deepEqual(
+      JSON.parse(calls.find((call) => call.url.endsWith('/desvincular')).options.body),
+      { motivo: 'Fin de atención' },
+    );
+  } finally {
+    cleanup();
+    globalThis.fetch = originalFetch;
+    prototype.showModal = originalShow;
+    prototype.close = originalClose;
+  }
+});
+
+test('la foto de un profesional inactivo se solicita con la sesión y se libera al salir', async () => {
+  const { default: Profesionales } = await server.ssrLoadModule(
+    '/src/features/secretaria/Profesionales.jsx',
+  );
+  const originalFetch = globalThis.fetch;
+  const originalCreate = URL.createObjectURL;
+  const originalRevoke = URL.revokeObjectURL;
+  const calls = [];
+  const revoked = [];
+  URL.createObjectURL = () => 'blob:foto-privada';
+  URL.revokeObjectURL = (url) => revoked.push(url);
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url, options });
+    if (url.includes('/foto')) return new Response('foto ficticia', { status: 200 });
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        medicos: [
+          {
+            id: 3,
+            nombre: 'Profesional inactivo',
+            rut: 'RUT ficticio',
+            especialidad_nombre: 'General',
+            activo: false,
+            foto_url: '/api/secretaria/medicos/3/foto?v=1',
+          },
+        ],
+      }),
+      { status: 200 },
+    );
+  };
+  try {
+    const screen = render(
+      React.createElement(Profesionales, {
+        token: 'token',
+        onUnauthorized() {},
+        onRefresh: async () => {},
+        onBack() {},
+        onAgenda() {},
+      }),
+    );
+    await waitFor(() =>
+      assert.equal(
+        screen.getByAltText('Foto de Profesional inactivo').getAttribute('src'),
+        'blob:foto-privada',
+      ),
+    );
+    assert.equal(
+      calls.find((call) => call.url.includes('/foto')).options.headers.Authorization,
+      'Bearer token',
+    );
+    cleanup();
+    assert.deepEqual(revoked, ['blob:foto-privada']);
+  } finally {
+    cleanup();
+    globalThis.fetch = originalFetch;
+    URL.createObjectURL = originalCreate;
+    URL.revokeObjectURL = originalRevoke;
+  }
+});
+
+test('el listado filtra por nombre, RUT, especialidad y estado', async () => {
+  const { default: Profesionales } = await server.ssrLoadModule(
+    '/src/features/secretaria/Profesionales.jsx',
+  );
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        ok: true,
+        medicos: [
+          {
+            id: 1,
+            nombre: 'Dra. Álvarez',
+            rut: '11.111.111-1',
+            especialidad_id: 1,
+            especialidad_nombre: 'Pediatría',
+            activo: true,
+            citas_futuras: 0,
+          },
+          {
+            id: 2,
+            nombre: 'Dr. Muñoz',
+            rut: '22.222.222-2',
+            especialidad_id: 2,
+            especialidad_nombre: 'Medicina general',
+            activo: false,
+            citas_futuras: 0,
+          },
+        ],
+      }),
+    );
+  try {
+    const screen = render(
+      React.createElement(Profesionales, {
+        token: 'token',
+        onUnauthorized() {},
+        onRefresh() {},
+        onCreate() {},
+        onBack() {},
+        onAgenda() {},
+        specialties: [
+          { id: 1, nombre: 'Pediatría' },
+          { id: 2, nombre: 'Medicina general' },
+        ],
+      }),
+    );
+    await screen.findByRole('heading', { name: 'Dra. Álvarez' });
+    const search = screen.getByLabelText('Buscar profesional');
+    const status = screen.getByLabelText('Estado');
+    const specialty = screen.getByLabelText('Especialidad');
+    fireEvent.change(specialty, { target: { value: '2' } });
+    assert.ok(screen.getByRole('heading', { name: 'Dr. Muñoz' }));
+    assert.equal(screen.queryByRole('heading', { name: 'Dra. Álvarez' }), null);
+    fireEvent.change(specialty, { target: { value: '1' } });
+    assert.ok(screen.getByRole('heading', { name: 'Dra. Álvarez' }));
+    fireEvent.change(specialty, { target: { value: '' } });
+    fireEvent.change(search, { target: { value: 'pediatria' } });
+    assert.ok(screen.getByRole('heading', { name: 'Dra. Álvarez' }));
+    assert.equal(screen.queryByRole('heading', { name: 'Dr. Muñoz' }), null);
+    fireEvent.change(status, { target: { value: 'inactivos' } });
+    assert.ok(screen.getByText('No hay profesionales para estos filtros'));
+    fireEvent.change(search, { target: { value: '222222222' } });
+    assert.ok(screen.getByRole('heading', { name: 'Dr. Muñoz' }));
+    fireEvent.change(search, { target: { value: 'munoz' } });
+    assert.ok(screen.getByRole('heading', { name: 'Dr. Muñoz' }));
+    fireEvent.change(status, { target: { value: 'todos' } });
+    fireEvent.change(search, { target: { value: '' } });
+    assert.ok(screen.getByRole('heading', { name: 'Dra. Álvarez' }));
+    assert.ok(screen.getByRole('heading', { name: 'Dr. Muñoz' }));
+  } finally {
+    cleanup();
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('revincular un profesional lo reactiva y conserva sus datos', async () => {
+  const { default: Profesionales } = await server.ssrLoadModule(
+    '/src/features/secretaria/Profesionales.jsx',
+  );
+  const originalFetch = globalThis.fetch;
+  const prototype = dom.window.HTMLDialogElement.prototype;
+  const originalShow = prototype.showModal;
+  const originalClose = prototype.close;
+  prototype.showModal = function () {
+    this.setAttribute('open', '');
+  };
+  prototype.close = function () {
+    this.removeAttribute('open');
+  };
+  let active = false;
+  let reactivationRequest = null;
+  globalThis.fetch = async (url, options = {}) => {
+    if (url === '/api/secretaria/medicos')
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          medicos: [
+            {
+              id: 3,
+              nombre: 'Profesional de prueba',
+              rut: 'RUT ficticio',
+              especialidad_id: 1,
+              especialidad_nombre: 'General',
+              activo: active,
+              citas_futuras: 0,
+            },
+          ],
+        }),
+      );
+    if (url === '/api/secretaria/medicos/3/revincular') {
+      reactivationRequest = options;
+      active = true;
+      return new Response(
+        JSON.stringify({ ok: true, revinculacion: { medico_id: 3, activo: true } }),
+      );
+    }
+    throw new Error(`Solicitud inesperada: ${url}`);
+  };
+  try {
+    const screen = render(
+      React.createElement(Profesionales, {
+        token: 'token',
+        onUnauthorized() {},
+        onRefresh() {},
+        onCreate() {},
+        onBack() {},
+        onAgenda() {},
+      }),
+    );
+    await screen.findByRole('button', { name: 'Revincular' });
+    fireEvent.click(screen.getByRole('button', { name: 'Revincular' }));
+    await screen.findByRole('heading', { name: 'Revincular profesional' });
+    assert.ok(screen.getByText(/Sus agendas y citas existentes se conservarán/));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar revinculación' }));
+    await screen.findByText(/Profesional de prueba volvió a estar activo/);
+    await screen.findByText('Activo');
+    assert.equal(reactivationRequest.method, 'POST');
+    assert.equal(screen.queryByRole('button', { name: 'Revincular' }), null);
+  } finally {
+    cleanup();
+    globalThis.fetch = originalFetch;
+    prototype.showModal = originalShow;
+    prototype.close = originalClose;
+  }
+});
+
+test('actualiza la lista si otra sesión ya revinculó al profesional', async () => {
+  const { default: Profesionales } = await server.ssrLoadModule(
+    '/src/features/secretaria/Profesionales.jsx',
+  );
+  const originalFetch = globalThis.fetch;
+  const prototype = dom.window.HTMLDialogElement.prototype;
+  const originalShow = prototype.showModal;
+  const originalClose = prototype.close;
+  prototype.showModal = function () {
+    this.setAttribute('open', '');
+  };
+  prototype.close = function () {
+    this.removeAttribute('open');
+  };
+  let active = false;
+  let refreshes = 0;
+  globalThis.fetch = async (url, options = {}) => {
+    if (url === '/api/secretaria/medicos')
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          medicos: [
+            {
+              id: 4,
+              nombre: 'Profesional actualizado',
+              rut: 'RUT ficticio',
+              especialidad_id: 1,
+              especialidad_nombre: 'General',
+              activo: active,
+              citas_futuras: 0,
+            },
+          ],
+        }),
+      );
+    if (url === '/api/secretaria/medicos/4/revincular' && options.method === 'POST') {
+      active = true;
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          code: 'DOCTOR_ALREADY_ACTIVE',
+          error: 'El profesional ya está activo.',
+        }),
+        { status: 409 },
+      );
+    }
+    throw new Error(`Solicitud inesperada: ${url}`);
+  };
+  try {
+    const screen = render(
+      React.createElement(Profesionales, {
+        token: 'token',
+        onUnauthorized() {},
+        onRefresh() {
+          refreshes += 1;
+        },
+        onCreate() {},
+        onBack() {},
+        onAgenda() {},
+      }),
+    );
+    await screen.findByRole('button', { name: 'Revincular' });
+    fireEvent.click(screen.getByRole('button', { name: 'Revincular' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar revinculación' }));
+    await screen.findByText(/Profesional actualizado ya estaba activo/);
+    await screen.findByText('Activo');
+    assert.equal(screen.queryByRole('heading', { name: 'Revincular profesional' }), null);
+    assert.equal(screen.queryByRole('button', { name: 'Revincular' }), null);
+    assert.equal(refreshes, 1);
+  } finally {
+    cleanup();
+    globalThis.fetch = originalFetch;
+    prototype.showModal = originalShow;
+    prototype.close = originalClose;
+  }
+});
+
+test('la agenda de un profesional inactivo se consulta en modo de solo lectura', async () => {
+  const { default: Profesionales } = await server.ssrLoadModule(
+    '/src/features/secretaria/Profesionales.jsx',
+  );
+  const originalFetch = globalThis.fetch;
+  const prototype = dom.window.HTMLDialogElement.prototype;
+  const originalShow = prototype.showModal;
+  const originalClose = prototype.close;
+  prototype.showModal = function () {
+    this.setAttribute('open', '');
+  };
+  prototype.close = function () {
+    this.removeAttribute('open');
+  };
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    calls.push(url);
+    if (url.startsWith('/api/agendas'))
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          bloques: [
+            {
+              agenda_id: 9,
+              hora_inicio: '09:00',
+              hora_fin: '09:30',
+              estado: 'RESERVADO',
+              paciente_nombre: 'Paciente ficticio',
+              codigo_reserva: 'DEMO-1',
+            },
+          ],
+        }),
+      );
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        medicos: [
+          {
+            id: 3,
+            nombre: 'Profesional inactivo',
+            rut: 'RUT ficticio',
+            especialidad_nombre: 'General',
+            activo: false,
+          },
+        ],
+      }),
+    );
+  };
+  try {
+    const screen = render(
+      React.createElement(Profesionales, {
+        token: 'token',
+        onUnauthorized() {},
+        onBack() {},
+        onCreate() {},
+        onAgenda() {},
+        onRefresh() {},
+      }),
+    );
+    await screen.findByRole('button', { name: 'Consultar agenda' });
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar agenda' }));
+    await screen.findByText('Paciente ficticio · DEMO-1');
+    assert.ok(screen.getByText(/modo de solo lectura/));
+    assert.equal(screen.queryByRole('button', { name: 'Desvincular' }), null);
+    fireEvent.change(screen.getByLabelText('Fecha de la agenda'), {
+      target: { value: '2025-01-12' },
+    });
+    await waitFor(() =>
+      assert.ok(
+        calls.some((url) => url.includes('medico_id=3') && url.includes('fecha=2025-01-12')),
+      ),
+    );
+  } finally {
+    cleanup();
+    globalThis.fetch = originalFetch;
     prototype.showModal = originalShow;
     prototype.close = originalClose;
   }

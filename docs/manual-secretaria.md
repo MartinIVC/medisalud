@@ -17,7 +17,7 @@ La sesión vence después de ocho horas. Si aparece el acceso nuevamente, inicia
 
 ## 2. Crear un médico
 
-1. En el panel, selecciona **Crear médico**.
+1. En **Agenda del día**, abre **Profesionales** y selecciona **Registrar médico**.
 2. Completa RUT chileno, nombre completo, correo, especialidad y box de atención.
 3. Selecciona **Guardar médico** una sola vez y espera la confirmación.
 4. Si un campo aparece marcado, corrígelo y vuelve a guardar. El sistema enfoca el primer campo que requiere corrección.
@@ -31,6 +31,10 @@ El alta crea un médico activo, pero **no crea horarios**. Hasta configurar una 
 ### Foto de un profesional existente
 
 En **Agenda del día**, selecciona al profesional. En su ficha, elige **Añadir foto** o **Reemplazar foto**. Se admiten archivos PNG o JPEG de hasta 2 MiB. Revisa la vista previa y selecciona **Guardar foto**. Si la carga falla, la ficha y el catálogo muestran una imagen genérica y puedes volver a intentarlo; las reservas siguen disponibles. Solo una sesión de secretaría vigente permite guardar la foto.
+
+### Desvincular un profesional
+
+En **Agenda del día**, abre **Profesionales**. La lista muestra la foto, el estado y la cantidad de citas futuras confirmadas. Usa la búsqueda por nombre, RUT o especialidad, el filtro de especialidad y el filtro de estado para encontrar profesionales. Si no hay foto, se muestra una imagen genérica; puedes ampliarla cuando esté disponible. Si hay citas, usa **Gestionar citas en agenda** para abrir la fecha de la próxima cita y cancela o reprograma cada una siguiendo la sección 6; no se cancelan automáticamente. Vuelve a **Profesionales**, selecciona **Desvincular**, ingresa el motivo y confirma. La lista mostrará al profesional como inactivo, junto con la fecha, el motivo y el usuario responsable. Sus agendas y citas se conservan, pero no se ofrecen nuevos horarios ni reservas. Para revisar sus horarios y citas confirmadas, selecciona **Consultar agenda** en la ficha del profesional inactivo y elige la fecha; esta vista es de solo lectura. Para reactivarlo, selecciona **Revincular** y confirma: volverá a mostrarse en el catálogo público, y sus horarios disponibles se podrán reservar. No se modifican sus agendas, citas ni el registro de la última desvinculación. Si otra persona reserva mientras se realiza una actualización, el sistema serializa ambas operaciones por profesional.
 
 ## 3. Configurar horarios
 
