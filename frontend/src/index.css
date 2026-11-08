@@ -419,9 +419,19 @@ strong {
 .patient-heading {
   margin: var(--space-2) 0 var(--space-8);
 }
+.patient-heading > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.8fr);
+  align-items: end;
+  gap: var(--space-8);
+}
 .patient-heading p {
   color: var(--muted);
-  margin-top: var(--space-6);
+  max-width: 32ch;
+  margin: 0;
+  padding-left: var(--space-6);
+  border-left: 1px solid var(--border);
+  font-size: 18px;
 }
 .booking-steps {
   display: flex;
@@ -1241,11 +1251,17 @@ strong {
   .patient-heading {
     margin-bottom: var(--space-6);
   }
+  .patient-heading > div {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
   h1 {
     font-size: 34px;
   }
   .patient-heading p {
     margin-top: var(--space-4);
+    padding-left: 0;
+    border-left: 0;
     font-size: 14px;
   }
   .booking-steps {
