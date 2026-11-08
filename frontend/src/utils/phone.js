@@ -5,16 +5,11 @@ export function onlyMobileSubscriberDigits(value) {
 }
 
 export function parseChileanMobileDigits(value) {
-  let digits = String(value ?? '').replace(/\D/g, '');
+  const digits = String(value ?? '').replace(/\D/g, '');
 
-  if (digits.startsWith('569')) {
-    digits = digits.slice(3);
-  } else if (digits.startsWith('56')) {
-    digits = digits.slice(2);
-    if (digits.startsWith('9') && digits.length === 9) digits = digits.slice(1);
-  } else if (digits.startsWith('9') && digits.length === 9) {
-    digits = digits.slice(1);
-  }
+  if (digits.startsWith('569') && digits.length === 11) return digits.slice(3);
+  if (digits.startsWith('56') && digits.length === 10) return digits.slice(2);
+  if (digits.startsWith('9') && digits.length === 9) return digits.slice(1);
 
   return digits.slice(0, 8);
 }

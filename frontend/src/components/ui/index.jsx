@@ -179,11 +179,25 @@ export function PatientFields({
   readOnly = false,
 }) {
   const fields = [
-    { key: 'rut', label: 'RUT', autoComplete: 'off', placeholder: '12.345.678-5', maxLength: 15 },
-    { key: 'nombre', label: 'Nombre completo', autoComplete: 'name', maxLength: 150 },
+    {
+      key: 'rut',
+      label: 'RUT',
+      name: 'rut',
+      autoComplete: 'off',
+      placeholder: '12.345.678-5',
+      maxLength: 15,
+    },
+    {
+      key: 'nombre',
+      label: 'Nombre completo',
+      name: 'nombre',
+      autoComplete: 'name',
+      maxLength: 150,
+    },
     {
       key: 'email',
       label: 'Correo electrónico',
+      name: 'email',
       autoComplete: 'email',
       type: 'email',
       maxLength: 150,
@@ -224,26 +238,18 @@ export function PatientFields({
           <span aria-hidden="true">+56 9</span>
           <input
             id={`${prefix}-telefono`}
+            name="telefono"
             aria-label="Teléfono móvil, ocho dígitos después de +56 9"
             type="tel"
             inputMode="numeric"
             autoComplete="tel-national"
             required
             pattern="[0-9]{8}"
-            maxLength={8}
             readOnly={readOnly}
             value={onlyMobileSubscriberDigits(values.telefono.replace(/^\+569/, ''))}
             onChange={(event) =>
-              onChange('telefono', `+569${onlyMobileSubscriberDigits(event.target.value)}`)
+              onChange('telefono', `+569${parseChileanMobileDigits(event.target.value)}`)
             }
-            onPaste={(event) => {
-              if (readOnly) return;
-              event.preventDefault();
-              onChange(
-                'telefono',
-                `+569${parseChileanMobileDigits(event.clipboardData.getData('text'))}`,
-              );
-            }}
             aria-invalid={Boolean(errors.paciente_telefono)}
             aria-describedby={`${prefix}-telefono-hint${errors.paciente_telefono ? ` ${prefix}-telefono-error` : ''}`}
           />

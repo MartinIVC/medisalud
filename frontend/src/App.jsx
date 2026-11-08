@@ -95,6 +95,7 @@ export default function App() {
                 <Field id="secretary-username" label="Usuario">
                   <input
                     id="secretary-username"
+                    name="username"
                     autoComplete="username"
                     required
                     value={secretaryState.secretaryUsername}
@@ -105,6 +106,7 @@ export default function App() {
                   <div className="password-input">
                     <input
                       id="secretary-password"
+                      name="password"
                       type={showPassword ? 'text' : 'password'}
                       autoComplete="current-password"
                       required
