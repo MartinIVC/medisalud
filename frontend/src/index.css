@@ -118,14 +118,14 @@ strong {
 .skip-link {
   position: absolute;
   top: -100px;
-  left: 16px;
+  left: var(--space-4);
   z-index: 100;
-  padding: 12px 16px;
+  padding: var(--space-3) var(--space-4);
   color: #fff;
   background: var(--primary);
 }
 .skip-link:focus {
-  top: 16px;
+  top: var(--space-4);
 }
 .site-header {
   border-top: 6px solid var(--primary);
@@ -134,7 +134,7 @@ strong {
 .header-inner {
   width: min(100%, 1280px);
   margin-inline: auto;
-  padding: 18px 40px;
+  padding: var(--space-4) var(--space-8);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -150,7 +150,7 @@ strong {
 }
 .wordmark span {
   display: block;
-  margin-top: 5px;
+  margin-top: var(--space-1);
   color: var(--muted);
   font-size: 12px;
   letter-spacing: 0;
@@ -162,7 +162,7 @@ strong {
 }
 .main-nav button {
   min-height: 44px;
-  padding: 8px 0;
+  padding: var(--space-2) 0;
   border: 0;
   border-bottom: 2px solid transparent;
   background: transparent;
@@ -178,16 +178,16 @@ strong {
   flex: 1;
   width: min(100%, 1280px);
   margin-inline: auto;
-  padding: 40px;
+  padding: var(--space-8);
   min-width: 0;
 }
 .site-footer {
-  width: min(calc(100% - 80px), 1200px);
-  margin: 24px auto 0;
+  width: min(calc(100% - 64px), 1216px);
+  margin: var(--space-6) auto 0;
   border-top: 1px solid var(--border);
-  padding: 20px 0 28px;
+  padding: var(--space-6) 0 var(--space-6);
   display: flex;
-  gap: 16px;
+  gap: var(--space-4);
   justify-content: space-between;
   color: var(--muted);
   font-size: 12px;
@@ -197,8 +197,8 @@ strong {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 10px 18px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
   border: 1px solid var(--control-border);
   border-radius: var(--radius);
   font-size: 14px;
@@ -238,12 +238,12 @@ strong {
 }
 .icon-button {
   width: 44px;
-  padding: 8px;
+  padding: var(--space-2);
   flex-shrink: 0;
 }
 .button-group {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   flex-wrap: wrap;
   align-items: center;
 }
@@ -255,7 +255,7 @@ strong {
   color: var(--muted);
   font-size: 14px;
   font-weight: 500;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
 }
 .field input,
 .field select,
@@ -269,7 +269,7 @@ strong {
   border-radius: var(--radius);
   color: var(--foreground);
   background: var(--background);
-  padding: 10px 12px;
+  padding: var(--space-2) var(--space-3);
   font-size: 16px;
   line-height: 1.5;
 }
@@ -292,7 +292,7 @@ strong {
 }
 .field-hint,
 .field-error {
-  margin-top: 8px;
+  margin-top: var(--space-2);
   font-size: 13px;
 }
 .field-error {
@@ -301,8 +301,8 @@ strong {
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px;
-  margin: 24px 0;
+  gap: var(--space-6);
+  margin: var(--space-6) 0;
 }
 .span-full {
   grid-column: 1 / -1;
@@ -311,10 +311,10 @@ strong {
   display: flex;
   justify-content: flex-end;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--space-3);
   border-top: 1px solid var(--border);
-  padding-top: 24px;
-  margin-top: 24px;
+  padding-top: var(--space-6);
+  margin-top: var(--space-6);
 }
 .phone-input {
   display: flex;
@@ -324,7 +324,7 @@ strong {
 .phone-input > span {
   display: flex;
   align-items: center;
-  padding: 10px 12px;
+  padding: var(--space-2) var(--space-3);
   background: var(--surface);
   border-right: 1px solid var(--control-border);
   white-space: nowrap;
@@ -360,16 +360,16 @@ strong {
 .notice {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  padding: 16px;
-  margin: 20px 0;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  margin: var(--space-6) 0;
   font-size: 14px;
   border-left: 3px solid currentColor;
   overflow-wrap: anywhere;
 }
 .notice svg {
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: var(--space-1);
 }
 .notice > div {
   min-width: 0;
@@ -377,7 +377,7 @@ strong {
 .notice .button {
   display: flex;
   width: fit-content;
-  margin-top: 12px;
+  margin-top: var(--space-3);
 }
 .notice-error {
   color: var(--error);
@@ -395,32 +395,32 @@ strong {
   background: var(--surface);
 }
 .empty-state {
-  padding: 40px 24px;
+  padding: var(--space-8) var(--space-6);
   background: var(--surface);
 }
 .empty-state p {
-  margin-top: 8px;
+  margin-top: var(--space-2);
   color: var(--muted);
 }
 .empty-state .button {
-  margin-top: 20px;
+  margin-top: var(--space-6);
 }
 .loading-state {
-  padding: 32px 0;
+  padding: var(--space-8) 0;
   color: var(--muted);
 }
 .section-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 32px;
+  gap: var(--space-6);
+  margin-bottom: var(--space-8);
 }
 .patient-heading {
   display: flex;
   align-items: flex-start;
-  gap: 40px;
-  margin: 8px 0 32px;
+  gap: var(--space-8);
+  margin: var(--space-2) 0 var(--space-8);
 }
 .step-display {
   color: var(--primary);
@@ -431,14 +431,14 @@ strong {
 }
 .patient-heading p {
   color: var(--muted);
-  margin-top: 20px;
+  margin-top: var(--space-6);
 }
 .booking-steps {
   display: flex;
   flex-wrap: wrap;
-  gap: 28px;
-  margin: 0 0 32px;
-  padding: 0 0 24px;
+  gap: var(--space-6);
+  margin: 0 0 var(--space-8);
+  padding: 0 0 var(--space-6);
   list-style: none;
   border-bottom: 1px solid var(--border);
   color: var(--muted);
@@ -447,7 +447,7 @@ strong {
 .booking-steps li {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .booking-steps li > span {
   display: grid;
@@ -470,17 +470,17 @@ strong {
 .patient-search-layout {
   display: grid;
   grid-template-columns: 245px minmax(0, 1fr);
-  gap: 32px;
+  gap: var(--space-8);
 }
 .professional-context {
   border-right: 1px solid var(--border);
-  padding-right: 32px;
+  padding-right: var(--space-8);
 }
 .professional-context h2 {
-  margin-bottom: 24px;
+  margin-bottom: var(--space-6);
 }
 .professional-context .field {
-  margin-bottom: 20px;
+  margin-bottom: var(--space-6);
 }
 .professional-context select {
   font-size: 14px;
@@ -488,13 +488,13 @@ strong {
 .professional-caption {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  margin-top: 32px;
-  padding-top: 20px;
+  gap: var(--space-3);
+  margin-top: var(--space-8);
+  padding-top: var(--space-6);
   border-top: 1px solid var(--border);
 }
 .professional-caption p {
-  margin-top: 6px;
+  margin-top: var(--space-2);
   color: var(--muted);
   font-size: 14px;
 }
@@ -536,8 +536,8 @@ strong {
 }
 .doctor-photo-badge {
   position: absolute;
-  right: 3px;
-  bottom: 3px;
+  right: var(--space-1);
+  bottom: var(--space-1);
   display: grid;
   place-items: center;
   width: 20px;
@@ -567,7 +567,7 @@ strong {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-2);
 }
 .doctor-photo-upload {
   cursor: pointer;
@@ -581,12 +581,12 @@ strong {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 24px;
+  gap: var(--space-6);
+  margin-bottom: var(--space-6);
 }
 .date-heading h2 {
   font-size: 23px;
-  padding-bottom: 10px;
+  padding-bottom: var(--space-2);
 }
 .date-heading .field {
   max-width: 190px;
@@ -594,8 +594,8 @@ strong {
 .date-strip {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 32px;
+  gap: var(--space-2);
+  margin-bottom: var(--space-8);
 }
 .date-option {
   min-width: 0;
@@ -603,7 +603,7 @@ strong {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--background);
-  padding: 10px 4px;
+  padding: var(--space-2) var(--space-1);
 }
 .date-option span {
   display: block;
@@ -625,34 +625,34 @@ strong {
 .availability-groups {
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: var(--space-6);
 }
 .slot-group + .slot-group {
   border-top: 1px solid var(--border);
-  padding-top: 24px;
+  padding-top: var(--space-6);
 }
 .slot-group-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
 }
 .slot-doctor-info {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--space-3);
   min-width: 0;
 }
 .slot-group-heading p {
   color: var(--muted);
   font-size: 13px;
-  margin-top: 4px;
+  margin-top: var(--space-1);
 }
 .time-slots {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--space-3);
 }
 .time-slot {
   position: relative;
@@ -668,7 +668,7 @@ strong {
 }
 .time-slot svg {
   position: absolute;
-  right: 8px;
+  right: var(--space-2);
 }
 .time-slot:hover:not([aria-pressed='true']),
 .date-option:hover:not([aria-pressed='true']) {
@@ -676,17 +676,17 @@ strong {
   border-color: var(--primary);
 }
 .availability > .field-hint {
-  margin-top: 24px;
+  margin-top: var(--space-6);
 }
 .slot-selection {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 12px 20px;
+  gap: var(--space-3) var(--space-6);
   border-left: 3px solid var(--primary);
-  padding: 16px;
-  margin-top: 16px;
+  padding: var(--space-4);
+  margin-top: var(--space-4);
   background: var(--surface);
 }
 .slot-selection[hidden] {
@@ -699,7 +699,7 @@ strong {
 .slot-selection p {
   color: var(--muted);
   font-size: 14px;
-  margin-top: 4px;
+  margin-top: var(--space-1);
 }
 .booking-form,
 .booking-receipt {
@@ -709,16 +709,16 @@ strong {
 .appointment-details {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px;
-  padding: 24px 0;
+  gap: var(--space-6);
+  padding: var(--space-6) 0;
   border-block: 1px solid var(--border);
-  margin: 24px 0;
+  margin: var(--space-6) 0;
 }
 .appointment-details dt,
 .doctor-preview dt {
   color: var(--muted);
   font-size: 13px;
-  margin-bottom: 4px;
+  margin-bottom: var(--space-1);
 }
 .appointment-details dd,
 .doctor-preview dd {
@@ -730,14 +730,14 @@ strong {
 .appointment-doctor {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
 }
 .reservation-code {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  margin-top: 24px;
+  gap: var(--space-6);
+  margin-top: var(--space-6);
 }
 .reservation-code span {
   display: block;
@@ -752,8 +752,8 @@ strong {
 .login-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-  gap: 80px;
-  margin: 48px 0;
+  gap: var(--space-12);
+  margin: var(--space-12) 0;
 }
 .login-intro h1 {
   font-size: clamp(32px, 4vw, 50px);
@@ -761,20 +761,20 @@ strong {
 .login-intro > p:last-child {
   max-width: 460px;
   color: var(--muted);
-  margin-top: 24px;
+  margin-top: var(--space-6);
 }
 .login-form {
   border-left: 1px solid var(--border);
-  padding-left: 48px;
+  padding-left: var(--space-12);
 }
 .login-form > p {
-  margin-top: 12px;
+  margin-top: var(--space-3);
 }
 .login-form form {
-  margin-top: 28px;
+  margin-top: var(--space-6);
 }
 .login-form form > .button {
-  margin-top: 24px;
+  margin-top: var(--space-6);
   width: 100%;
 }
 .admin-heading h1 {
@@ -782,17 +782,17 @@ strong {
   letter-spacing: -0.04em;
 }
 .admin-heading .muted {
-  margin-top: 8px;
+  margin-top: var(--space-2);
 }
 .agenda-toolbar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(150px, 190px) auto;
   align-items: end;
-  gap: 16px 20px;
-  padding: 20px 24px;
+  gap: var(--space-4) var(--space-6);
+  padding: var(--space-6) var(--space-6);
   border: 1px solid var(--border);
   border-top: 2px solid var(--primary);
-  background: #f7f9fc;
+  background: var(--surface);
 }
 .agenda-toolbar .field {
   min-width: 0;
@@ -806,22 +806,22 @@ strong {
 }
 .date-navigation {
   display: flex;
-  gap: 4px;
+  gap: var(--space-1);
   padding-bottom: 2px;
 }
 .agenda-caption {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 16px;
-  margin: 24px 0;
+  gap: var(--space-4);
+  margin: var(--space-6) 0;
   font-size: 14px;
 }
 .agenda-doctor-meta {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--space-3);
 }
 .agenda-caption span {
   color: var(--muted);
@@ -830,25 +830,25 @@ strong {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 24px;
-  margin: 24px 0;
+  gap: var(--space-6);
+  margin: var(--space-6) 0;
 }
 .agenda-filters > .field {
   width: 280px;
 }
 .filter-tabs {
   display: flex;
-  gap: 20px;
+  gap: var(--space-6);
   flex-wrap: wrap;
 }
 .filter-tabs button {
   display: inline-flex;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
   min-height: 44px;
   border: 0;
   border-bottom: 2px solid transparent;
-  padding: 8px 0;
+  padding: var(--space-2) 0;
   background: transparent;
   font-size: 14px;
   color: var(--muted);
@@ -869,8 +869,8 @@ strong {
 .agenda-row {
   display: grid;
   grid-template-columns: 130px minmax(0, 1fr) 160px;
-  gap: 24px;
-  padding: 14px 16px;
+  gap: var(--space-6);
+  padding: var(--space-3) var(--space-4);
 }
 .agenda-columns {
   font-size: 13px;
@@ -881,7 +881,7 @@ strong {
   border-bottom: 1px solid var(--border);
 }
 .agenda-entry.is-expanded {
-  background: #f2f5fb;
+  background: var(--surface);
   box-shadow: inset 3px 0 var(--primary);
 }
 .agenda-row {
@@ -900,7 +900,7 @@ strong {
   display: block;
   font-size: 13px;
   color: var(--muted);
-  margin-top: 3px;
+  margin-top: var(--space-1);
 }
 .agenda-time {
   font-size: 18px;
@@ -911,7 +911,7 @@ strong {
 }
 .status {
   display: inline-flex;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
   font-size: 13px;
 }
@@ -931,8 +931,8 @@ strong {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
-  padding: 0 16px 16px 170px;
+  gap: var(--space-3);
+  padding: 0 var(--space-4) var(--space-4) calc(130px + var(--space-6) + var(--space-4));
 }
 .agenda-context > .button-group:empty {
   display: none;
@@ -943,13 +943,13 @@ strong {
 }
 .professionals-intro {
   max-width: 72ch;
-  margin: 0 0 24px;
+  margin: 0 0 var(--space-6);
 }
 .professionals-filters {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(190px, 240px) minmax(150px, 200px);
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
 }
 @media (max-width: 767px) {
   .professionals-filters {
@@ -963,8 +963,8 @@ strong {
   display: grid;
   grid-template-columns: 72px minmax(0, 1fr) auto;
   align-items: start;
-  gap: 20px;
-  padding: 24px 16px;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-4);
   border-bottom: 1px solid var(--border);
 }
 .professionals-photo {
@@ -978,7 +978,7 @@ strong {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px 12px;
+  gap: var(--space-2) var(--space-3);
 }
 .professional-name-line h2 {
   font-size: 17px;
@@ -987,9 +987,9 @@ strong {
 .professional-status {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 2px 8px;
-  border-radius: 2px;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius);
   font-size: 12px;
   font-weight: 700;
 }
@@ -1015,7 +1015,7 @@ strong {
   font-size: 14px;
 }
 .professional-specialty {
-  margin-top: 3px;
+  margin-top: var(--space-1);
 }
 .professional-rut,
 .professional-audit {
@@ -1023,23 +1023,23 @@ strong {
 }
 .professional-appointments,
 .professional-audit {
-  margin-top: 8px;
+  margin-top: var(--space-2);
 }
 .professional-actions {
   display: flex;
   align-items: flex-end;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .history-list {
-  margin-top: 20px;
+  margin-top: var(--space-6);
   border-top: 1px solid var(--border);
 }
 .history-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 20px;
-  padding: 12px 0;
+  gap: var(--space-2) var(--space-6);
+  padding: var(--space-3) 0;
   border-bottom: 1px solid var(--border);
   font-size: 14px;
 }
@@ -1047,8 +1047,8 @@ strong {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 24px;
-  margin-top: 24px;
+  gap: var(--space-6);
+  margin-top: var(--space-6);
 }
 .dialog {
   width: min(680px, calc(100% - 32px));
@@ -1066,18 +1066,18 @@ strong {
   background: #17233288;
 }
 .dialog-heading {
-  padding: 20px 24px;
+  padding: var(--space-6) var(--space-6);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--space-4);
 }
 .dialog-content {
-  padding: 24px;
+  padding: var(--space-6);
 }
 .booking-dialog-note {
-  margin: -8px 0;
+  margin: calc(var(--space-2) * -1) 0;
 }
 .booking-dialog[open] {
   display: flex;
@@ -1096,57 +1096,57 @@ strong {
 }
 .booking-dialog .appointment-details {
   align-items: start;
-  gap: 20px 24px;
-  padding: 20px 0;
+  gap: var(--space-6) var(--space-6);
+  padding: var(--space-6) 0;
   border-top: 0;
-  margin: 0 0 20px;
+  margin: 0 0 var(--space-6);
 }
 .booking-dialog .appointment-details > div {
   min-width: 0;
 }
 .booking-dialog .booking-dialog-note {
   max-width: 64ch;
-  margin: 0 0 20px;
+  margin: 0 0 var(--space-6);
   line-height: 1.5;
 }
 .booking-dialog .form-grid {
   align-items: start;
-  gap: 20px 24px;
-  margin: 20px 0;
+  gap: var(--space-6) var(--space-6);
+  margin: var(--space-6) 0;
 }
 .booking-dialog .form-actions {
-  margin-top: 20px;
+  margin-top: var(--space-6);
 }
 .dialog-content > form > .field {
-  margin: 20px 0;
+  margin: var(--space-6) 0;
 }
 .context-line {
-  padding-bottom: 20px;
+  padding-bottom: var(--space-6);
   border-bottom: 1px solid var(--border);
-  margin-bottom: 24px;
+  margin-bottom: var(--space-6);
   font-size: 14px;
 }
 .doctor-registration h1 {
   font-size: 36px;
 }
 .doctor-registration .section-heading .muted {
-  margin-top: 12px;
+  margin-top: var(--space-3);
 }
 .doctor-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 48px;
+  gap: var(--space-12);
 }
 .doctor-preview {
   border-left: 1px solid var(--border);
-  padding-left: 32px;
+  padding-left: var(--space-8);
 }
 .doctor-preview h2 {
   font-size: 18px;
-  margin-bottom: 24px;
+  margin-bottom: var(--space-6);
 }
 .doctor-preview dd {
-  margin-bottom: 20px;
+  margin-bottom: var(--space-6);
 }
 .doctor-layout .form-grid {
   margin-top: 0;
@@ -1159,21 +1159,21 @@ strong {
 }
 .response-page > h1 {
   font-size: 40px;
-  margin-bottom: 16px;
+  margin-bottom: var(--space-4);
 }
 
 @media (max-width: 1023px) {
   .patient-search-layout {
     grid-template-columns: 1fr;
-    gap: 32px;
+    gap: var(--space-8);
   }
   .professional-context {
     border-right: 0;
-    padding: 0 0 24px;
+    padding: 0 0 var(--space-6);
     border-bottom: 1px solid var(--border);
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 20px 24px;
+    gap: var(--space-6) var(--space-6);
   }
   .professional-context h2,
   .professional-context > p,
@@ -1186,7 +1186,7 @@ strong {
     margin: 0;
   }
   .professional-caption {
-    padding-top: 20px;
+    padding-top: var(--space-6);
   }
   .professional-context select,
   .agenda-toolbar select {
@@ -1217,19 +1217,19 @@ strong {
   .doctor-preview {
     border-left: 0;
     border-top: 1px solid var(--border);
-    padding: 24px 0 0;
+    padding: var(--space-6) 0 0;
   }
   .login-layout {
-    gap: 40px;
+    gap: var(--space-8);
   }
   .login-form {
-    padding-left: 32px;
+    padding-left: var(--space-8);
   }
 }
 @media (max-width: 639px) {
   .header-inner {
-    padding: 16px;
-    gap: 20px;
+    padding: var(--space-4);
+    gap: var(--space-6);
     flex-wrap: wrap;
   }
   .wordmark {
@@ -1238,19 +1238,19 @@ strong {
   .main-nav {
     width: 100%;
     justify-content: space-between;
-    gap: 16px;
+    gap: var(--space-4);
   }
   .main-content {
-    padding: 28px 16px;
+    padding: var(--space-6) var(--space-4);
   }
   .site-footer {
     width: calc(100% - 32px);
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-2);
   }
   .patient-heading {
-    gap: 20px;
-    margin-bottom: 28px;
+    gap: var(--space-6);
+    margin-bottom: var(--space-6);
   }
   .step-display {
     font-size: 52px;
@@ -1259,16 +1259,16 @@ strong {
     font-size: 34px;
   }
   .patient-heading p {
-    margin-top: 16px;
+    margin-top: var(--space-4);
     font-size: 14px;
   }
   .booking-steps {
-    gap: 12px;
+    gap: var(--space-3);
     justify-content: space-between;
     font-size: 12px;
   }
   .booking-steps li {
-    gap: 6px;
+    gap: var(--space-2);
   }
   .booking-steps li > span {
     width: 22px;
@@ -1280,7 +1280,7 @@ strong {
   .date-heading {
     flex-direction: column;
     align-items: stretch;
-    gap: 16px;
+    gap: var(--space-4);
   }
   .date-heading .field {
     max-width: none;
@@ -1289,11 +1289,11 @@ strong {
     padding: 0;
   }
   .date-strip {
-    gap: 4px;
+    gap: var(--space-1);
   }
   .date-option {
     min-height: 66px;
-    padding: 8px 2px;
+    padding: var(--space-2) var(--space-1);
   }
   .date-option span {
     font-size: 12px;
@@ -1303,10 +1303,10 @@ strong {
   }
   .time-slots {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
+    gap: var(--space-2);
   }
   .time-slot svg {
-    right: 5px;
+    right: var(--space-1);
     width: 13px;
   }
   .slot-group-heading {
@@ -1325,12 +1325,12 @@ strong {
   .form-grid,
   .appointment-details {
     grid-template-columns: 1fr;
-    gap: 20px;
+    gap: var(--space-6);
   }
   .section-heading {
     align-items: flex-start;
     flex-direction: column;
-    gap: 20px;
+    gap: var(--space-6);
   }
   .form-actions > .button {
     width: 100%;
@@ -1340,13 +1340,13 @@ strong {
   }
   .login-layout {
     grid-template-columns: 1fr;
-    gap: 32px;
-    margin-top: 8px;
+    gap: var(--space-8);
+    margin-top: var(--space-2);
   }
   .login-form {
     border-left: 0;
     border-top: 1px solid var(--border);
-    padding: 32px 0 0;
+    padding: var(--space-8) 0 0;
   }
   .admin-heading h1 {
     font-size: 32px;
@@ -1356,10 +1356,10 @@ strong {
   }
   .agenda-toolbar {
     grid-template-columns: 1fr;
-    padding: 16px;
+    padding: var(--space-4);
   }
   .filter-tabs {
-    gap: 8px 16px;
+    gap: var(--space-2) var(--space-4);
   }
   .filter-tabs button {
     font-size: 13px;
@@ -1369,14 +1369,14 @@ strong {
   }
   .agenda-row {
     grid-template-columns: 70px minmax(0, 1fr);
-    gap: 8px 16px;
-    padding: 16px 8px;
+    gap: var(--space-2) var(--space-4);
+    padding: var(--space-4) var(--space-2);
   }
   .agenda-row > .status {
     grid-column: 2;
   }
   .agenda-context {
-    padding: 0 8px 16px 94px;
+    padding: 0 var(--space-2) var(--space-4) calc(70px + var(--space-4) + var(--space-2));
   }
   .agenda-context > .button-group {
     width: 100%;
@@ -1386,8 +1386,8 @@ strong {
   }
   .professional-row {
     grid-template-columns: 56px minmax(0, 1fr);
-    gap: 12px 16px;
-    padding: 20px 0;
+    gap: var(--space-3) var(--space-4);
+    padding: var(--space-6) 0;
   }
   .professionals-filters {
     grid-template-columns: 1fr;
@@ -1403,32 +1403,32 @@ strong {
   .admin-footnote {
     align-items: flex-start;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-2);
   }
   .dialog {
     width: calc(100% - 16px);
     max-height: calc(100dvh - 16px);
   }
   .dialog-heading {
-    padding: 16px;
+    padding: var(--space-4);
   }
   .dialog-content {
-    padding: 20px 16px;
+    padding: var(--space-6) var(--space-4);
   }
   .booking-dialog .dialog-content {
-    padding: 0 16px 16px;
+    padding: 0 var(--space-4) var(--space-4);
   }
   .booking-dialog .appointment-details {
-    gap: 16px;
-    padding: 16px 0;
-    margin-bottom: 16px;
+    gap: var(--space-4);
+    padding: var(--space-4) 0;
+    margin-bottom: var(--space-4);
   }
   .booking-dialog .booking-dialog-note {
-    margin-bottom: 16px;
+    margin-bottom: var(--space-4);
   }
   .booking-dialog .form-grid {
-    gap: 16px;
-    margin: 16px 0;
+    gap: var(--space-4);
+    margin: var(--space-4) 0;
   }
   .doctor-registration h1,
   .response-page > h1 {
@@ -1438,11 +1438,11 @@ strong {
 @media (max-width: 374px) {
   .date-strip {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 8px;
+    gap: var(--space-2);
   }
   .booking-steps {
     flex-direction: column;
-    gap: 10px;
+    gap: var(--space-2);
   }
   .time-slots {
     grid-template-columns: repeat(2, minmax(0, 1fr));

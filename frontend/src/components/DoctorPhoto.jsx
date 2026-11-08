@@ -17,6 +17,11 @@ export default function DoctorPhoto({ url, name, className = '' }) {
 
   const hasPhoto = Boolean(url && !failed);
   const photoSrc = hasPhoto ? url : '/profesional-generico.svg';
+  const imageDimensions = className.includes('professionals-photo')
+    ? { width: 72, height: 82 }
+    : className.includes('doctor-photo-sm')
+      ? { width: 48, height: 48 }
+      : { width: 56, height: 56 };
 
   return (
     <>
@@ -28,7 +33,13 @@ export default function DoctorPhoto({ url, name, className = '' }) {
         aria-haspopup={hasPhoto ? 'dialog' : undefined}
         className={`doctor-photo ${hasPhoto ? 'doctor-photo-zoomable' : ''} ${className}`.trim()}
       >
-        <img src={photoSrc} alt={`Foto de ${name}`} onError={() => setFailed(true)} />
+        <img
+          src={photoSrc}
+          alt={`Foto de ${name}`}
+          width={imageDimensions.width}
+          height={imageDimensions.height}
+          onError={() => setFailed(true)}
+        />
         {hasPhoto && (
           <span className="doctor-photo-badge" aria-hidden="true">
             <Maximize2 size={12} />
@@ -62,7 +73,7 @@ export default function DoctorPhoto({ url, name, className = '' }) {
             </button>
           </div>
           <div className="dialog-content doctor-photo-dialog-body">
-            <img src={url} alt={`Foto ampliada de ${name}`} />
+            <img src={url} alt={`Foto ampliada de ${name}`} width={440} height={440} />
           </div>
         </dialog>
       )}
