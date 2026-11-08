@@ -14,6 +14,16 @@ globalThis.HTMLElement = dom.window.HTMLElement;
 globalThis.Node = dom.window.Node;
 Object.defineProperty(globalThis, 'navigator', { configurable: true, value: dom.window.navigator });
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+globalThis.IntersectionObserver = class {
+  constructor(callback) {
+    this.callback = callback;
+  }
+  observe(target) {
+    this.callback([{ isIntersecting: true, target }]);
+  }
+  unobserve() {}
+  disconnect() {}
+};
 const { act, cleanup, fireEvent, render, waitFor } = await import('@testing-library/react');
 const server = await createServer({
   root: fileURLToPath(new URL('../', import.meta.url)),
@@ -1412,6 +1422,71 @@ test('la barra de navegación de secretaría permanece visible en todos los pane
     fireEvent.click(agendaNavBtn);
     await screen.findByRole('heading', { name: 'Agenda del día' });
     assert.equal(agendaNavBtn.getAttribute('aria-current'), 'page');
+  } finally {
+    cleanup();
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('la landing page permite conocer el servicio, seleccionar una especialidad directa y acceder a secretaría', async () => {
+  const originalFetch = globalThis.fetch;
+  const json = (data, status = 200) =>
+    new Response(JSON.stringify(data), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  globalThis.fetch = async (url) => {
+    if (url === '/api/especialidades')
+      return json({
+        ok: true,
+        especialidades: [
+          { id: 1, nombre: 'Medicina General', descripcion: 'Atención primaria general' },
+          { id: 2, nombre: 'Pediatría', descripcion: 'Atención infantil' },
+        ],
+      });
+    if (url === '/api/medicos')
+      return json({
+        ok: true,
+        medicos: [
+          { id: 1, nombre: 'Dr. Soto', especialidad_id: 1, activo: true },
+          { id: 2, nombre: 'Dra. Morales', especialidad_id: 2, activo: true },
+        ],
+      });
+    if (url.startsWith('/api/disponibilidad')) return json({ ok: true, bloques: [] });
+    throw new Error(`Unexpected request: ${url}`);
+  };
+
+  try {
+    const { default: App } = await server.ssrLoadModule('/src/App.jsx');
+    const screen = render(React.createElement(App));
+
+    // Por defecto abre en "Reserva tu hora"
+    assert.ok(screen.getByRole('heading', { name: /Tu próxima hora/i }));
+
+    // 1. Navegar a Inicio
+    fireEvent.click(screen.getByRole('button', { name: 'Inicio' }));
+    assert.ok(await screen.findByRole('heading', { name: /Tu salud a tiempo/i }));
+    assert.ok(screen.getByText('Monitoreo de Agenda'));
+    assert.ok(screen.getByRole('heading', { name: '¿Cómo agendar tu hora?' }));
+    assert.ok(screen.getByRole('heading', { name: 'Especialidades médicas' }));
+
+    // 2. Al hacer clic en una tarjeta de especialidad (ej. Pediatría), navega a Reserva tu hora con filtro
+    fireEvent.click(screen.getByRole('button', { name: 'Reservar en Pediatría' }));
+    assert.ok(await screen.findByRole('heading', { name: /Tu próxima hora/i }));
+    assert.equal(screen.getByLabelText('Especialidad').value, '2');
+
+    // 3. Volver a Inicio usando el logo wordmark
+    fireEvent.click(screen.getByLabelText('Medisalud, inicio'));
+    assert.ok(await screen.findByRole('heading', { name: /Tu salud a tiempo/i }));
+
+    // 4. CTA de Acceso Secretaría en el Hero
+    fireEvent.click(screen.getByRole('button', { name: 'Acceso Secretaría' }));
+    assert.ok(await screen.findByRole('heading', { name: 'Iniciar sesión' }));
+
+    // 5. Volver a Inicio y usar CTA "Agendar hora"
+    fireEvent.click(screen.getByRole('button', { name: 'Inicio' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Agendar hora' }));
+    assert.ok(await screen.findByRole('heading', { name: /Tu próxima hora/i }));
   } finally {
     cleanup();
     globalThis.fetch = originalFetch;
