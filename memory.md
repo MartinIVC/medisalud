@@ -61,6 +61,12 @@ No sumar por segunda vez los puntos de las subtareas si el esfuerzo ya está inc
 
 ## Verificación segura
 
+- El 8 de noviembre se implementó la corrección de movimiento planificada en `docs/PLAN_CORRECCION_MOTION.md`: indicador de fecha y progreso, entrada de horarios con demora acotada, transiciones entre vistas y filas administrativas, adaptación de movimiento reducido, protección contra horarios de filtros anteriores y corrección del catálogo/textos de inicio. El cierre de los diálogos sigue siendo inmediato para preservar foco y evitar duplicar formularios. Se revisaron inicio, calendario y diálogo en navegador de escritorio, sin crear reservas; quedan pendientes las comprobaciones visuales en móvil, movimiento reducido y secretaría autenticada.
+
+- El diálogo de datos del paciente muestra una cabecera con la foto disponible del profesional, su nombre y especialidad, seguida de la fecha y el box. La foto conserva la ampliación; cuando no existe se muestra el recurso genérico. Se mantiene el formulario y el retorno del foco al cerrar.
+
+- En la edición de fotos de profesionales se recomienda una imagen cuadrada de 600 × 600 píxeles, con el rostro centrado y margen alrededor. La resolución es orientativa; siguen vigentes PNG/JPEG y el límite de 2 MiB.
+
 - Para cambios rutinarios, `npm run check` ejecuta lint, Prettier, pruebas unitarias, revisión de sintaxis del backend y build del frontend.
 - Las pruebas de aceptación modifican datos: usar exclusivamente el entorno descartable descrito en `README.md` y `docker-compose.test.yml`. `TEST_DATABASE_URL` debe apuntar a una base local cuyo nombre termine en `_test`; nunca apuntarlas a una base compartida o real.
 - La suite de gestión de citas se invoca en el servicio aislado con `npm run test:gestion-reservas` desde backend. No confundir que el script exista con evidencia de que se volvió a ejecutar después de cambios posteriores.

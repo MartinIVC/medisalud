@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { requestApi } from '../../api/client.js';
 import { Alert, Button, Dialog, Field } from '../../components/ui';
 import DoctorPhoto from '../../components/DoctorPhoto.jsx';
+import DoctorPhotoHint from '../../components/DoctorPhotoHint.jsx';
 import { validateRutClient } from '../../utils/rut.js';
 
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -61,6 +62,7 @@ export default function EditarProfesionalModal({
   const [photoError, setPhotoError] = useState('');
   const [saving, setSaving] = useState(false);
   const refs = useRef({});
+  const photoHintId = useId();
 
   useEffect(() => {
     if (!file) {
@@ -188,8 +190,10 @@ export default function EditarProfesionalModal({
                 onChange={choosePhoto}
                 className="sr-only"
                 aria-label={`Foto de ${form.nombre || doctor?.nombre || 'profesional'}`}
+                aria-describedby={photoHintId}
               />
             </label>
+            <DoctorPhotoHint id={photoHintId} />
             {file && (
               <Button onClick={clearPhoto} disabled={saving}>
                 Quitar foto nueva

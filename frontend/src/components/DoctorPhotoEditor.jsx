@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { requestApi } from '../api/client.js';
 import DoctorPhoto from './DoctorPhoto.jsx';
+import DoctorPhotoHint from './DoctorPhotoHint.jsx';
 import { Button } from './ui/index.jsx';
 
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -17,6 +18,7 @@ export default function DoctorPhotoEditor({
   const [preview, setPreview] = useState(null);
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
+  const photoHintId = useId();
 
   useEffect(() => {
     if (!file) return undefined;
@@ -98,8 +100,10 @@ export default function DoctorPhotoEditor({
           onChange={chooseFile}
           className="sr-only"
           aria-label={`Foto de ${doctor.nombre}`}
+          aria-describedby={photoHintId}
         />
       </label>
+      <DoctorPhotoHint id={photoHintId} />
       {file && (
         <div className="doctor-photo-pending">
           <DoctorPhoto url={preview} name={doctor.nombre} className="doctor-photo-sm" />

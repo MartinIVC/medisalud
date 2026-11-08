@@ -32,7 +32,7 @@ El alta crea un médico activo, pero **no crea horarios**. Hasta configurar una 
 
 En **Profesionales**, busca al profesional activo y selecciona **Editar profesional**.
 1. En el diálogo podrás actualizar su RUT, nombre completo, correo electrónico, especialidad y box de atención.
-2. Si deseas actualizar o incorporar su foto, selecciona **Añadir foto** o **Reemplazar foto** (PNG o JPEG de hasta 2 MiB).
+2. Si deseas actualizar o incorporar su foto, selecciona **Añadir foto** o **Reemplazar foto** (PNG o JPEG de hasta 2 MiB). Se recomienda una imagen cuadrada de 600 × 600 píxeles, con el rostro centrado y espacio alrededor; algunas vistas recortan los bordes. La medida es orientativa, no un requisito.
 3. Selecciona **Guardar cambios**. Se actualizarán sus datos y su foto, refrescando el directorio y los catálogos. Si la carga de foto falla o se omite, los datos se conservan y se puede volver a intentar. Solo una sesión de secretaría vigente permite guardar cambios.
 
 ### Desvincular un profesional
