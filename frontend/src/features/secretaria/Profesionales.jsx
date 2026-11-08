@@ -52,7 +52,6 @@ export default function Profesionales({
   token,
   specialties = [],
   onUnauthorized,
-  onBack,
   onCreate,
   onAgenda,
   onRefresh,
@@ -217,14 +216,13 @@ export default function Profesionales({
   }
 
   return (
-    <div className="secretary-portal">
+    <div className="professionals-view">
       <div className="section-heading admin-heading">
         <div>
           <p className="section-context">Secretaría</p>
           <h1>Profesionales</h1>
         </div>
         <div className="button-group">
-          <Button onClick={onBack}>Volver a la agenda</Button>
           <Button variant="primary" onClick={onCreate}>
             Registrar médico
           </Button>

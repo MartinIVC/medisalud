@@ -54,7 +54,7 @@ function formatDetailSummary(accion, detalles) {
   }
 }
 
-export default function Auditoria({ token, onUnauthorized, onBack }) {
+export default function Auditoria({ token, onUnauthorized }) {
   const [registros, setRegistros] = useState([]);
   const [secretarias, setSecretarias] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -127,7 +127,7 @@ export default function Auditoria({ token, onUnauthorized, onBack }) {
   }
 
   return (
-    <div className="secretary-portal audit-portal">
+    <div className="audit-portal">
       <div className="section-heading admin-heading">
         <div>
           <p className="section-context">Secretaría / Gobernanza</p>
@@ -137,7 +137,6 @@ export default function Auditoria({ token, onUnauthorized, onBack }) {
           <p className="muted">Bitácora persistente e inmutable de operaciones administrativas</p>
         </div>
         <div className="button-group">
-          <Button onClick={onBack}>Volver a la agenda</Button>
           <Button variant="secondary" onClick={fetchLogs} disabled={loading}>
             {loading ? 'Actualizando…' : 'Actualizar'}
           </Button>

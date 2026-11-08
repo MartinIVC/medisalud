@@ -1341,12 +1341,79 @@ test('el portal de secretaria permite navegar a auditoría, filtrar e inspeccion
       assert.equal(screen.queryByRole('heading', { name: 'Detalle de Auditoría #101' }), null);
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Volver a la agenda' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Agenda del día' }));
     await screen.findByRole('heading', { name: 'Agenda del día' });
   } finally {
     cleanup();
     globalThis.fetch = originalFetch;
     prototype.showModal = originalShow;
     prototype.close = originalClose;
+  }
+});
+
+test('la barra de navegación de secretaría permanece visible en todos los paneles y resalta el activo', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/api/secretaria/medicos')) {
+      return new Response(JSON.stringify({ ok: true, medicos: [] }), { status: 200 });
+    }
+    if (String(url).includes('/api/secretaria/auditoria')) {
+      return new Response(JSON.stringify({ ok: true, registros: [], secretarias: [] }), {
+        status: 200,
+      });
+    }
+    return new Response(
+      JSON.stringify({ ok: true, medicos: [], especialidades: [], bloques: [] }),
+      {
+        status: 200,
+      },
+    );
+  };
+
+  try {
+    const screen = render(React.createElement(SecretaryHarness));
+
+    // 1. En vista Agenda del día
+    const agendaNavBtn = screen.getByRole('button', { name: 'Agenda del día' });
+    const profNavBtn = screen.getByRole('button', { name: 'Profesionales' });
+    const auditNavBtn = screen.getByRole('button', { name: 'Auditoría' });
+    const logoutBtn = screen.getByRole('button', { name: 'Cerrar sesión' });
+
+    assert.equal(agendaNavBtn.getAttribute('aria-current'), 'page');
+    assert.equal(agendaNavBtn.classList.contains('button-primary'), true);
+    assert.equal(profNavBtn.getAttribute('aria-current'), null);
+    assert.equal(auditNavBtn.getAttribute('aria-current'), null);
+    assert.ok(logoutBtn);
+    assert.ok(screen.getAllByRole('button', { name: 'Configurar horarios' })[0]);
+
+    // 2. Navegar a Profesionales
+    fireEvent.click(profNavBtn);
+    await screen.findByRole('heading', { name: 'Profesionales' });
+
+    assert.equal(profNavBtn.getAttribute('aria-current'), 'page');
+    assert.equal(profNavBtn.classList.contains('button-primary'), true);
+    assert.equal(agendaNavBtn.getAttribute('aria-current'), null);
+    assert.equal(auditNavBtn.getAttribute('aria-current'), null);
+    assert.ok(screen.getByRole('button', { name: 'Registrar médico' }));
+    assert.equal(screen.queryByRole('button', { name: 'Volver a la agenda' }), null);
+
+    // 3. Navegar a Auditoría directamente desde Profesionales
+    fireEvent.click(auditNavBtn);
+    await screen.findByRole('heading', { name: 'Auditoría de acciones' });
+
+    assert.equal(auditNavBtn.getAttribute('aria-current'), 'page');
+    assert.equal(auditNavBtn.classList.contains('button-primary'), true);
+    assert.equal(agendaNavBtn.getAttribute('aria-current'), null);
+    assert.equal(profNavBtn.getAttribute('aria-current'), null);
+    assert.ok(screen.getByRole('button', { name: 'Actualizar' }));
+    assert.equal(screen.queryByRole('button', { name: 'Volver a la agenda' }), null);
+
+    // 4. Volver a Agenda del día desde la barra de navegación
+    fireEvent.click(agendaNavBtn);
+    await screen.findByRole('heading', { name: 'Agenda del día' });
+    assert.equal(agendaNavBtn.getAttribute('aria-current'), 'page');
+  } finally {
+    cleanup();
+    globalThis.fetch = originalFetch;
   }
 });

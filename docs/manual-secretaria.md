@@ -109,6 +109,6 @@ La aplicación prepara confirmaciones por email y recordatorios por email y What
    - **Rango de fechas:** fechas evaluadas según el huso horario oficial de Chile Continental (`America/Santiago`).
    - **Búsqueda rápida:** filtra en tiempo real por texto en responsable, acción o entidad.
 4. Para auditar los valores modificados, selecciona **Inspeccionar** en la fila correspondiente: se abrirá un diálogo con el detalle del cambio y los valores anteriores y posteriores (sin almacenar ni exponer datos sensibles o de contacto de pacientes).
-5. Para volver al trabajo operativo regular, selecciona **Volver a la agenda**.
+5. Para volver al trabajo operativo regular, selecciona **Agenda del día** en la barra superior de navegación.
 
 El PO y el Jefe de Recepción deben completar antes de la capacitación: **responsable de soporte:** ____________________ · **canal:** ____________________.
