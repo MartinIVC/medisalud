@@ -69,3 +69,4 @@ jobs:
       - run: npm --prefix backend run test:sprint3
       - run: npm --prefix backend run test:secretarias
       - run: node backend/tests/verify-desvinculacion-medico.js
+      - run: npm --prefix backend run test:auditoria

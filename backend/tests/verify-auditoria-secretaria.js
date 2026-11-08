@@ -134,6 +134,42 @@ async function verify() {
   assert.equal(auditDocCreate.rows[0].origen_identidad, 'SESION_INDIVIDUAL');
   assert.equal(auditDocCreate.rows[0].entidad_tipo, AUDIT_ENTITY_TYPES.MEDICO);
 
+  // Una operación fallida no debe generar un evento de creación.
+  const createAuditCountBefore = await pool.query(
+    'SELECT COUNT(*)::int AS total FROM auditoria_acciones_secretaria WHERE accion = $1',
+    [AUDIT_ACTIONS.MEDICO_CREAR],
+  );
+  const duplicateDocRes = await fetch(`${API_URL}/medicos`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${sec2.token}`,
+    },
+    body: JSON.stringify({
+      rut: doctorRut,
+      nombre: 'Dr. Auditoria Duplicado',
+      email: 'dr.auditoria.duplicado@example.invalid',
+      box_atencion: 'Box AUD-3',
+      especialidad_id: especialidadId,
+    }),
+  });
+  const duplicateDocData = await duplicateDocRes.json();
+  assert.equal(
+    duplicateDocRes.status,
+    409,
+    `Debe rechazar RUT duplicado: ${JSON.stringify(duplicateDocData)}`,
+  );
+  assert.equal(duplicateDocData.code, 'DUPLICATE_RUT');
+  const createAuditCountAfter = await pool.query(
+    'SELECT COUNT(*)::int AS total FROM auditoria_acciones_secretaria WHERE accion = $1',
+    [AUDIT_ACTIONS.MEDICO_CREAR],
+  );
+  assert.equal(
+    createAuditCountAfter.rows[0].total,
+    createAuditCountBefore.rows[0].total,
+    'Una alta rechazada no debe dejar un registro de auditoría.',
+  );
+
   // 2.2 Actualizar médico con sec2
   const updateDocRes = await fetch(`${API_URL}/medicos/${doctorId}`, {
     method: 'PUT',
@@ -429,22 +465,24 @@ async function verify() {
 
   // 6.2 Atomicidad con rollback
   const uniqueId = `atomic-test-${crypto.randomBytes(4).toString('hex')}`;
-  let rollbackCaught = false;
-  try {
-    await withTransaction(pool, async (client) => {
-      await recordAuditEvent(client, {
-        secretaryId: sec1.id,
-        action: AUDIT_ACTIONS.MEDICO_CREAR,
-        entityType: AUDIT_ENTITY_TYPES.MEDICO,
-        entityId: uniqueId,
-        details: { prueba: 'debe revertirse' },
-      });
-      throw new Error('Simulación de fallo posterior en transacción');
-    });
-  } catch (_err) {
-    rollbackCaught = true;
-  }
-  assert.equal(rollbackCaught, true);
+  const rollbackMessage = 'Simulación de fallo posterior en transacción';
+  let insertedAuditId = null;
+  await assert.rejects(
+    () =>
+      withTransaction(pool, async (client) => {
+        const audit = await recordAuditEvent(client, {
+          secretary: { id: sec1.id },
+          accion: AUDIT_ACTIONS.MEDICO_CREAR,
+          entidadTipo: AUDIT_ENTITY_TYPES.MEDICO,
+          entidadId: uniqueId,
+          detalles: { prueba: 'debe revertirse' },
+        });
+        insertedAuditId = audit.id;
+        throw new Error(rollbackMessage);
+      }),
+    (error) => error.message === rollbackMessage,
+  );
+  assert.ok(insertedAuditId, 'La prueba debe insertar auditoría antes de provocar el rollback.');
 
   const phantomAudit = await pool.query(
     'SELECT 1 FROM auditoria_acciones_secretaria WHERE entidad_id = $1',
@@ -517,6 +555,20 @@ async function verify() {
     ),
     'Debe retornar registros de origen desconocido',
   );
+
+  // CA-05 / CA-07: Las credenciales nunca deben persistirse en los detalles auditados.
+  const storedDetailsRes = await pool.query(
+    "SELECT COALESCE(string_agg(detalles::text, ' '), '') AS detalles FROM auditoria_acciones_secretaria",
+  );
+  const storedDetails = storedDetailsRes.rows[0].detalles;
+  for (const [label, credential] of [
+    ['token de sesión de sec1', sec1.token],
+    ['token de sesión de sec2', sec2.token],
+    ['contraseña de sec1', 'ClaveSegura123!'],
+    ['contraseña de sec2', 'ClaveSegura456!'],
+  ]) {
+    assert.equal(storedDetails.includes(credential), false, `No debe persistir ${label}.`);
+  }
 
   console.log('--- Verificación MED-27 exitosa: Todos los criterios de aceptación validados ---');
 }
