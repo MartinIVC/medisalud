@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { requestApi } from '../../api/client.js';
 import { Alert, Button, Dialog, EmptyState, Field } from '../../components/ui';
 import DoctorPhoto from '../../components/DoctorPhoto.jsx';
-import DoctorPhotoEditor from '../../components/DoctorPhotoEditor.jsx';
+import EditarProfesionalModal from './EditarProfesionalModal.jsx';
 
 function normalizeSearch(value) {
   return String(value || '')
@@ -61,6 +61,7 @@ export default function Profesionales({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [target, setTarget] = useState(null);
+  const [editingDoctor, setEditingDoctor] = useState(null);
   const [linkTarget, setLinkTarget] = useState(null);
   const [linkError, setLinkError] = useState('');
   const [reason, setReason] = useState('');
@@ -328,15 +329,7 @@ export default function Profesionales({
               <div className="professional-actions">
                 {doctor.activo ? (
                   <>
-                    <DoctorPhotoEditor
-                      doctor={doctor}
-                      token={token}
-                      onSaved={async () => {
-                        await load();
-                        onRefresh?.();
-                      }}
-                      onUnauthorized={onUnauthorized}
-                    />
+                    <Button onClick={() => setEditingDoctor(doctor)}>Editar profesional</Button>
                     {doctor.citas_futuras > 0 && (
                       <Button onClick={() => onAgenda(doctor.id, doctor.proxima_cita_fecha)}>
                         Gestionar citas en agenda
@@ -490,6 +483,20 @@ export default function Profesionales({
         )}
         {error && target?.citas_futuras > 0 && <Alert>{error}</Alert>}
       </Dialog>
+      {editingDoctor && (
+        <EditarProfesionalModal
+          doctor={editingDoctor}
+          specialties={specialties}
+          token={token}
+          onClose={() => setEditingDoctor(null)}
+          onSaved={async () => {
+            await load();
+            onRefresh?.();
+            setMessage('Datos del profesional actualizados con éxito.');
+          }}
+          onUnauthorized={onUnauthorized}
+        />
+      )}
     </div>
   );
 }

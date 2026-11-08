@@ -325,6 +325,7 @@ for (const providerConfigured of [true, false]) {
       await waitFor(() => assert.ok(screen.getByText(expectedMessage)));
       assert.doesNotMatch(screen.getByText(expectedMessage).textContent, /entregado|recibido/i);
     } finally {
+      cleanup();
       globalThis.fetch = originalFetch;
       dialogPrototype.showModal = originalShowModal;
       dialogPrototype.close = originalClose;
@@ -648,12 +649,17 @@ test('portals render doctor photos with zoom dialog and secretary photo upload c
       const secretaryPortalScreen = render(React.createElement(SecretaryHarness));
       fireEvent.click(secretaryPortalScreen.getByRole('button', { name: 'Profesionales' }));
       await secretaryPortalScreen.findByRole('heading', { name: 'Dra. Prueba', level: 2 });
+      assert.ok(secretaryPortalScreen.getByText('Editar profesional'));
+      fireEvent.click(secretaryPortalScreen.getByText('Editar profesional'));
+      assert.ok(secretaryPortalScreen.getByRole('dialog', { name: 'Editar profesional' }));
       assert.ok(secretaryPortalScreen.getByText('Añadir foto'));
       assert.ok(secretaryPortalScreen.getByLabelText('Foto de Dra. Prueba'));
+      cleanup();
     } finally {
       globalThis.fetch = originalFetch;
     }
   } finally {
+    cleanup();
     prototype.showModal = originalShow;
     prototype.close = originalClose;
   }
@@ -730,8 +736,14 @@ test('desvinculación exige gestionar citas futuras y confirma con motivo cuando
       '/profesional-generico.svg',
     );
     assert.ok(screen.getByText(/Profesional inactivo/));
+    assert.equal(screen.getAllByRole('button', { name: 'Editar profesional' }).length, 2);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Editar profesional' })[0]);
+    assert.ok(screen.getByRole('dialog', { name: 'Editar profesional' }));
     assert.ok(screen.getByText('Reemplazar foto'));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Editar profesional' })[1]);
     assert.ok(screen.getByText('Añadir foto'));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
     fireEvent.click(screen.getAllByRole('button', { name: 'Desvincular' })[0]);
     assert.ok(screen.getByText(/Tiene 2 citas futuras confirmadas/));
     assert.equal(screen.queryByRole('button', { name: 'Confirmar desvinculación' }), null);

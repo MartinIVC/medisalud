@@ -576,6 +576,24 @@ strong {
   font-size: 13px;
   color: var(--muted);
 }
+.edit-doctor-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.edit-doctor-photo-section {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) 0 var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+.edit-doctor-photo-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
 .date-heading {
   display: flex;
   align-items: flex-end;

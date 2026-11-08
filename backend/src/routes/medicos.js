@@ -22,7 +22,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const database = req.app.locals.database || pool;
     const result = await database.query(`
-      SELECT m.id, m.nombre, m.rut, m.activo, m.especialidad_id, m.foto_actualizada_en,
+      SELECT m.id, m.nombre, m.rut, m.email, m.box_atencion, m.activo, m.especialidad_id, m.foto_actualizada_en,
              e.nombre AS especialidad_nombre,
              d.motivo, d.desvinculado_en, s.usuario AS responsable,
              (SELECT COUNT(*)::int FROM citas_medicas c JOIN agendas a ON a.id = c.agenda_id
@@ -272,6 +272,84 @@ router.post(
           'DUPLICATE_RUT',
           'Ya existe un médico registrado con ese RUT. Revisa el registro existente.',
           { rut: 'Este RUT ya está registrado. Revisa el registro existente.' },
+        );
+      }
+      if (error.code === '23503') {
+        return sendError(
+          res,
+          400,
+          'SPECIALTY_NOT_FOUND',
+          'La especialidad seleccionada ya no existe. Recarga el catálogo e inténtalo nuevamente.',
+          { especialidad_id: 'Selecciona una especialidad disponible.' },
+        );
+      }
+
+      throw error;
+    }
+  }),
+);
+
+router.put(
+  '/medicos/:id',
+  requireSecretary,
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!validDoctorId(id))
+      return sendError(res, 400, 'VALIDATION_ERROR', 'Indica un profesional válido.');
+
+    const fields = fieldErrorsFor(req.body);
+    if (Object.keys(fields).length) {
+      return sendError(res, 400, 'VALIDATION_ERROR', 'Revisa los datos del médico.', fields);
+    }
+
+    const rutValidation = validateRut(req.body.rut.trim());
+    const values = {
+      rut: rutValidation.formatted,
+      nombre: req.body.nombre.trim(),
+      email: req.body.email.trim(),
+      especialidadId: req.body.especialidad_id,
+      boxAtencion: req.body.box_atencion.trim(),
+    };
+
+    const database = req.app.locals.database || pool;
+    try {
+      const specialty = await database.query('SELECT id FROM especialidades WHERE id = $1', [
+        values.especialidadId,
+      ]);
+      if (!specialty.rowCount) {
+        return sendError(
+          res,
+          400,
+          'SPECIALTY_NOT_FOUND',
+          'La especialidad seleccionada no existe.',
+          { especialidad_id: 'Selecciona una especialidad disponible.' },
+        );
+      }
+
+      const result = await database.query(
+        `UPDATE medicos
+         SET rut = $1, nombre = $2, email = $3, box_atencion = $4, especialidad_id = $5
+         WHERE id = $6
+         RETURNING id, rut, nombre, email, box_atencion, especialidad_id, activo, foto_actualizada_en`,
+        [values.rut, values.nombre, values.email, values.boxAtencion, values.especialidadId, id],
+      );
+
+      if (!result.rowCount) {
+        return sendError(res, 404, 'DOCTOR_NOT_FOUND', 'El profesional no existe.');
+      }
+
+      return res.json({ ok: true, medico: result.rows[0] });
+    } catch (error) {
+      if (
+        error.code === '23505' &&
+        ['medicos_rut_key', 'uq_medicos_rut_normalizado'].includes(error.constraint)
+      ) {
+        return sendError(
+          res,
+          409,
+          'DUPLICATE_RUT',
+          'Ya existe otro médico registrado con ese RUT. Revisa el registro existente.',
+          { rut: 'Este RUT ya está registrado por otro profesional.' },
         );
       }
       if (error.code === '23503') {

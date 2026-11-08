@@ -81,7 +81,7 @@ export function Dialog({
     dialog.showModal();
     document.body.style.overflow = 'hidden';
     return () => {
-      dialog.close();
+      dialog?.close?.();
       document.body.style.overflow = previousOverflow;
       if (opener?.isConnected) opener.focus({ preventScroll: true });
       else document.getElementById('main-content')?.focus({ preventScroll: true });

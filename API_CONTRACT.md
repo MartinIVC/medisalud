@@ -57,6 +57,12 @@ Solo se pueden gestionar citas activas cuya hora de inicio aún no haya pasado. 
 
 La respuesta exitosa incluye `estado`, `codigo_reserva`, `mensaje` y `correo_aviso`. `correo_aviso.estado: "PENDIENTE"` significa que el aviso quedó en cola; `proveedor_configurado` indica si hay SMTP o SendGrid configurado, pero no acredita envío ni entrega. La cancelación encola un aviso por correo y omite confirmaciones y recordatorios obsoletos. La reprogramación encola un aviso por correo con el horario anterior y el nuevo, y sustituye el enlace de respuesta del paciente.
 
+## Gestión y edición de profesionales (MED-19)
+
+`POST /api/medicos` exige sesión de secretaría (`Authorization: Bearer <token>`) y registra un nuevo profesional médico. Recibe `{ rut, nombre, email, especialidad_id, box_atencion }`. Valida formato y dígito verificador del RUT (Módulo 11), longitud de campos, formato de correo y existencia de la especialidad. Responde `201 CREATED` con `{ "ok": true, "medico": { "id": 1, ... } }`. Si el RUT ya existe, responde `409 DUPLICATE_RUT`.
+
+`PUT /api/medicos/:id` exige sesión de secretaría y permite actualizar los datos de un profesional existente (`rut`, `nombre`, `email`, `especialidad_id`, `box_atencion`). Aplica las mismas validaciones de formato, Módulo 11 y existencia de especialidad. Si el RUT ingresado ya pertenece a otro profesional, responde `409 DUPLICATE_RUT`. Si el profesional no existe, responde `404 DOCTOR_NOT_FOUND`. Responde `200 OK` con `{ "ok": true, "medico": { ... } }`.
+
 ## Foto de profesionales (MED-23)
 
 `GET /api/medicos` y `GET /api/disponibilidad` incluyen `foto_url` para cada profesional o bloque. El valor es `null` cuando no hay foto. La URL apunta a `GET /api/medicos/:id/foto`, que devuelve la imagen PNG/JPEG del profesional activo con `Content-Type` y `X-Content-Type-Options: nosniff`; si no existe, responde `404 PHOTO_NOT_FOUND`. El portal muestra una imagen genérica si `foto_url` es nulo o la imagen no carga. La foto no bloquea la reserva.

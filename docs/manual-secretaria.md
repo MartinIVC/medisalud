@@ -28,9 +28,12 @@ El alta crea un médico activo, pero **no crea horarios**. Hasta configurar una 
 
 **Capturas 2 y 3 pendientes:** formulario nuevo, error de validación y confirmación de alta.
 
-### Foto de un profesional existente
+### Editar un profesional y su foto
 
-En **Profesionales**, busca al profesional activo. En su fila, elige **Añadir foto** o **Reemplazar foto**. Se admiten archivos PNG o JPEG de hasta 2 MiB. Revisa la vista previa y selecciona **Guardar foto**. Si la carga falla, la ficha y el catálogo muestran una imagen genérica y puedes volver a intentarlo; las reservas siguen disponibles. Solo una sesión de secretaría vigente permite guardar la foto.
+En **Profesionales**, busca al profesional activo y selecciona **Editar profesional**.
+1. En el diálogo podrás actualizar su RUT, nombre completo, correo electrónico, especialidad y box de atención.
+2. Si deseas actualizar o incorporar su foto, selecciona **Añadir foto** o **Reemplazar foto** (PNG o JPEG de hasta 2 MiB).
+3. Selecciona **Guardar cambios**. Se actualizarán sus datos y su foto, refrescando el directorio y los catálogos. Si la carga de foto falla o se omite, los datos se conservan y se puede volver a intentar. Solo una sesión de secretaría vigente permite guardar cambios.
 
 ### Desvincular un profesional
 
