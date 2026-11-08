@@ -43,6 +43,8 @@ Las reservas se ejecutan en PostgreSQL con aislamiento `SERIALIZABLE`, bloqueo p
 
 ## Configuración y bloqueo de agendas (MED-10)
 
+`GET /api/agendas` requiere una sesión de secretaría vigente (`Authorization: Bearer <token>`). Retorna la lista de bloques de un médico y fecha (`DISPONIBLE`, `RESERVADO`, `BLOQUEADO`). Para bloques en estado `RESERVADO`, incluye los datos de la cita médica confirmada (`cita_id`, `codigo_reserva`, `paciente_rut`, `paciente_nombre`, `paciente_email`) y el estado de confirmación de asistencia del paciente (`asistencia_estado`: `"PENDIENTE"` o `"ASISTIRA"`).
+
 `POST /api/agendas/configurar`, `POST /api/agendas/bloquear` y `POST /api/agendas/desbloquear` requieren una sesión de secretaría vigente y evalúan la vigencia temporal en `America/Santiago`:
 
 - `POST /api/agendas/configurar` exige que `((fecha + hora_inicio) AT TIME ZONE 'America/Santiago') > NOW()`; si la fecha u hora de inicio ya transcurrió, responde `409 AGENDA_PAST`.

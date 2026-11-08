@@ -26,7 +26,7 @@ router.get(
   asyncHandler(async (_req, res) => {
     const result = await pool.query(`
     SELECT c.id, c.codigo_reserva, c.agenda_id, c.paciente_rut, c.paciente_nombre,
-      c.paciente_email, c.paciente_telefono, c.estado, c.correo_enviado, c.created_at,
+      c.paciente_email, c.paciente_telefono, c.estado, c.asistencia_estado, c.correo_enviado, c.created_at,
       TO_CHAR(a.fecha, 'YYYY-MM-DD') AS fecha,
       TO_CHAR(a.hora_inicio, 'HH24:MI') AS hora_inicio,
       TO_CHAR(a.hora_fin, 'HH24:MI') AS hora_fin,

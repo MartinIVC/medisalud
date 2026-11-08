@@ -583,7 +583,25 @@ export default function SecretaryPortal({ state, actions }) {
                       : `${block.duracion_min} minutos · ${block.box_atencion}`}
                   </small>
                 </span>
-                <StatusIndicator status={block.estado} />
+                <div className="agenda-status-cell">
+                  <StatusIndicator status={block.estado} />
+                  {block.estado === 'RESERVADO' && (
+                    <span
+                      className={`asistencia-badge ${
+                        block.asistencia_estado === 'ASISTIRA' ? 'is-confirmed' : 'is-pending'
+                      }`}
+                      title={
+                        block.asistencia_estado === 'ASISTIRA'
+                          ? 'El paciente confirmó que asistirá a la cita'
+                          : 'El paciente aún no confirma asistencia'
+                      }
+                    >
+                      {block.asistencia_estado === 'ASISTIRA'
+                        ? 'Asistencia confirmada'
+                        : 'Sin confirmar'}
+                    </span>
+                  )}
+                </div>
               </button>
               {selectedBlock?.agenda_id === block.agenda_id && (
                 <section className="agenda-context" aria-label="Acciones del horario seleccionado">

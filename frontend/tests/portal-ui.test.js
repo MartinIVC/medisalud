@@ -260,6 +260,42 @@ test('secretary actions expand beside the selected schedule and follow its statu
   assert.match(panel.textContent, /No se puede modificar ni reservar un horario cuya hora ya pasó/);
 });
 
+test('la agenda de secretaria visualiza el estado de asistencia de las citas reservadas', () => {
+  const agendas = [
+    {
+      agenda_id: 1,
+      hora_inicio: '09:00',
+      hora_fin: '09:30',
+      estado: 'RESERVADO',
+      paciente_nombre: 'Paciente Confirmado',
+      paciente_rut: '11.111.111-1',
+      codigo_reserva: 'CONF-01',
+      asistencia_estado: 'ASISTIRA',
+      futuro: true,
+      cita_id: 10,
+    },
+    {
+      agenda_id: 2,
+      hora_inicio: '09:30',
+      hora_fin: '10:00',
+      estado: 'RESERVADO',
+      paciente_nombre: 'Paciente Pendiente',
+      paciente_rut: '22.222.222-2',
+      codigo_reserva: 'PEND-02',
+      asistencia_estado: 'PENDIENTE',
+      futuro: true,
+      cita_id: 20,
+    },
+  ];
+  const screen = render(React.createElement(SecretaryHarness, { agendas }));
+  assert.ok(screen.getByText('Asistencia confirmada'));
+  assert.ok(screen.getByText('Sin confirmar'));
+
+  const rows = [...screen.container.querySelectorAll('.agenda-row')];
+  assert.ok(rows[0].querySelector('.asistencia-badge.is-confirmed'));
+  assert.ok(rows[1].querySelector('.asistencia-badge.is-pending'));
+});
+
 for (const providerConfigured of [true, false]) {
   test(`appointment management reports a pending email when provider is ${providerConfigured ? 'configured' : 'missing'}`, async () => {
     const originalFetch = globalThis.fetch;

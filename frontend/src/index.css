@@ -885,7 +885,7 @@ strong {
 .agenda-columns,
 .agenda-row {
   display: grid;
-  grid-template-columns: 130px minmax(0, 1fr) 160px;
+  grid-template-columns: 130px minmax(0, 1fr) 180px;
   gap: var(--space-6);
   padding: var(--space-3) var(--space-4);
 }
@@ -943,6 +943,43 @@ strong {
 }
 .status-blocked {
   color: var(--blocked);
+}
+.agenda-status-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+.asistencia-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.asistencia-badge::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  content: '';
+  flex-shrink: 0;
+}
+.asistencia-badge.is-confirmed {
+  color: var(--available);
+  background: var(--available-surface);
+}
+.asistencia-badge.is-pending {
+  color: var(--blocked);
+  background: var(--blocked-surface);
+}
+.agenda-context-patient-info {
+  width: 100%;
+  padding-bottom: var(--space-2);
 }
 .agenda-context {
   display: flex;
@@ -1407,7 +1444,8 @@ strong {
     gap: var(--space-2) var(--space-4);
     padding: var(--space-4) var(--space-2);
   }
-  .agenda-row > .status {
+  .agenda-row > .status,
+  .agenda-row > .agenda-status-cell {
     grid-column: 2;
   }
   .agenda-context {
