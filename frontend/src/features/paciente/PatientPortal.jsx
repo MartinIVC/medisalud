@@ -474,7 +474,7 @@ export default function PatientPortal({ state, actions }) {
           </div>
           <AppointmentDetails appointment={reservaResult.data.reserva} />
           <p>
-            El comprobante quedó en cola para enviarse a <strong>{pacienteEmail}</strong>.
+            El comprobante se enviará a <strong>{pacienteEmail}</strong>.
           </p>
           {copyError && <Alert>{copyError}</Alert>}
           <div className="form-actions no-print">

@@ -238,7 +238,7 @@ async function createReservation({
         jira: 'MED-11 / MED-16',
         criterio: 'CA-02 Sin conflicto (Recorrido exitoso)',
         actividad_bpmn: 'A-05 Registrar reserva y encolar confirmación',
-        mensaje: `Reserva confirmada exitosamente con código ${codigoReserva}. El comprobante quedó en cola de envío.`,
+        mensaje: `Reserva confirmada exitosamente con código ${codigoReserva}. El comprobante se enviará al correo del paciente.`,
         reserva: {
           id: appointment.id,
           codigo_reserva: codigoReserva,
