@@ -5,6 +5,7 @@ import { cleanRut, validateRutClient } from '../../utils/rut.js';
 import CrearMedico from '../../components/CrearMedico';
 import DoctorPhoto from '../../components/DoctorPhoto.jsx';
 import Profesionales from './Profesionales.jsx';
+import Auditoria from './Auditoria.jsx';
 import {
   Alert,
   Button,
@@ -303,6 +304,15 @@ export default function SecretaryPortal({ state, actions }) {
     telefono: receptionData.telefono,
   };
 
+  if (secretaryView === 'auditoria')
+    return (
+      <Auditoria
+        token={secretaryToken}
+        onUnauthorized={handleSecretaryUnauthorized}
+        onBack={() => setSecretaryView('agenda')}
+      />
+    );
+
   if (secretaryView === 'profesionales')
     return (
       <Profesionales
@@ -368,6 +378,7 @@ export default function SecretaryPortal({ state, actions }) {
         </div>
         <div className="button-group">
           <Button onClick={() => setSecretaryView('profesionales')}>Profesionales</Button>
+          <Button onClick={() => setSecretaryView('auditoria')}>Auditoría</Button>
           <Button
             variant="primary"
             disabled={!selectedDoctor || isPastDate}

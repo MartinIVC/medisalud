@@ -207,3 +207,39 @@ test('bloquear y desbloquear por fecha rechazan fechas pasadas y solo actualizan
     assert.match(updateSql, /AT TIME ZONE 'America\/Santiago'\) > NOW\(\)/);
   }
 });
+
+test('las operaciones de agenda registran auditoría cuando se pasa secretaria', async () => {
+  const auditStatements = [];
+  const pool = {
+    async connect() {
+      return {
+        async query(sql, params) {
+          auditStatements.push({ sql, params });
+          if (sql.startsWith('SELECT id FROM medicos')) return { rowCount: 1, rows: [{ id: 2 }] };
+          if (sql.includes('AS vigente')) return { rowCount: 1, rows: [{ vigente: true }] };
+          if (sql.startsWith('UPDATE agendas')) return { rowCount: 1, rows: [{ id: 10 }] };
+          if (sql.startsWith('INSERT INTO auditoria_acciones_secretaria')) {
+            return { rowCount: 1, rows: [{ id: 1 }] };
+          }
+          return { rowCount: 0, rows: [] };
+        },
+        release() {},
+      };
+    },
+  };
+
+  const secretary = { id: 5, usuario: 'sec.agenda' };
+  await blockAgenda(pool, {
+    medicoId: 2,
+    fecha: '2026-11-20',
+    motivo: 'Reunión clínica',
+    secretary,
+  });
+
+  const auditEntry = auditStatements.find((s) =>
+    s.sql.startsWith('INSERT INTO auditoria_acciones_secretaria'),
+  );
+  assert.ok(auditEntry, 'Debe registrar auditoría al bloquear con sesión de secretaría');
+  assert.equal(auditEntry.params[0], 5);
+  assert.equal(auditEntry.params[2], 'AGENDA_BLOQUEAR');
+});

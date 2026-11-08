@@ -1238,3 +1238,115 @@ test('la agenda de un profesional inactivo se consulta en modo de solo lectura',
     prototype.close = originalClose;
   }
 });
+
+test('el portal de secretaria permite navegar a auditoría, filtrar e inspeccionar detalles', async () => {
+  const originalFetch = globalThis.fetch;
+  const prototype = dom.window.HTMLDialogElement.prototype;
+  const originalShow = prototype.showModal;
+  const originalClose = prototype.close;
+  prototype.showModal = function () {
+    this.setAttribute('open', '');
+  };
+  prototype.close = function () {
+    this.removeAttribute('open');
+  };
+
+  const auditData = {
+    ok: true,
+    jira: 'MED-27',
+    total: 2,
+    limit: 100,
+    offset: 0,
+    secretarias: [
+      { id: 1, usuario: 'ana.secretaria', activo: true },
+      { id: 2, usuario: 'carlos.secretario', activo: true },
+    ],
+    registros: [
+      {
+        id: 101,
+        creado_en: '2026-11-08T15:30:00.000Z',
+        fecha_santiago: '2026-11-08',
+        hora_santiago: '12:30',
+        origen_identidad: 'SESION_INDIVIDUAL',
+        secretaria: { id: 1, usuario: 'ana.secretaria' },
+        responsable: 'ana.secretaria',
+        accion: 'CITA_CANCELAR',
+        entidad_tipo: 'CITA',
+        entidad_id: '42',
+        detalles: {
+          codigo_reserva: 'MED-2026-ABCD1234',
+          motivo: 'Solicitud del paciente por teléfono',
+          anterior: { estado: 'CONFIRMADA' },
+          nuevo: { estado: 'CANCELADA' },
+        },
+      },
+      {
+        id: 100,
+        creado_en: '2026-10-20T10:00:00.000Z',
+        fecha_santiago: '2026-10-20',
+        hora_santiago: '07:00',
+        origen_identidad: 'ANTERIOR_O_DESCONOCIDO',
+        secretaria: null,
+        responsable: 'Origen anterior o desconocido',
+        accion: 'AGENDA_BLOQUEAR',
+        entidad_tipo: 'AGENDA',
+        entidad_id: 'GLOBAL:2026-10-25',
+        detalles: {
+          alcance: 'FERIADO_GLOBAL',
+          motivo: 'Feriado nacional',
+          bloques_afectados: 15,
+        },
+      },
+    ],
+  };
+
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    calls.push(String(url));
+    if (String(url).includes('/api/secretaria/auditoria')) {
+      return new Response(JSON.stringify(auditData), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return new Response(
+      JSON.stringify({ ok: true, medicos: [], especialidades: [], bloques: [] }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
+  };
+
+  try {
+    const screen = render(React.createElement(SecretaryHarness));
+    const auditBtn = await screen.findByRole('button', { name: 'Auditoría' });
+    fireEvent.click(auditBtn);
+
+    await screen.findByRole('heading', { name: 'Auditoría de acciones' });
+    assert.ok(screen.getAllByText('@ana.secretaria').length >= 1);
+    assert.ok(screen.getAllByText('Origen anterior o desconocido').length >= 1);
+    assert.ok(screen.getAllByText('Cancelación de cita').length >= 1);
+    assert.ok(screen.getAllByText('Bloqueo de horarios').length >= 1);
+
+    const inspectButtons = screen.getAllByRole('button', { name: 'Inspeccionar' });
+    assert.equal(inspectButtons.length, 2);
+    fireEvent.click(inspectButtons[0]);
+
+    await screen.findByRole('heading', { name: 'Detalle de Auditoría #101' });
+    assert.ok(screen.getAllByText(/Solicitud del paciente por teléfono/).length >= 2);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar' }));
+    await waitFor(() => {
+      assert.equal(screen.queryByRole('heading', { name: 'Detalle de Auditoría #101' }), null);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Volver a la agenda' }));
+    await screen.findByRole('heading', { name: 'Agenda del día' });
+  } finally {
+    cleanup();
+    globalThis.fetch = originalFetch;
+    prototype.showModal = originalShow;
+    prototype.close = originalClose;
+  }
+});

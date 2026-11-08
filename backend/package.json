@@ -15,7 +15,8 @@
     "test:sprint3": "node tests/verify-sprint3-medicos.js",
     "test:gestion-reservas": "node tests/verify-gestion-reservas.js",
     "test:secretarias": "node tests/verify-secretarias.js",
-    "test:fotos-medicos": "node tests/verify-fotos-medicos.js"
+    "test:fotos-medicos": "node tests/verify-fotos-medicos.js",
+    "test:auditoria": "node tests/verify-auditoria-secretaria.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

@@ -57,6 +57,8 @@ function fakePool({ slot = {}, previous = null, failQuery } = {}) {
               rows: [{ id: 21, codigo_reserva: 'MED-2026-ABCDEF', created_at: 'now' }],
             };
           if (sql.startsWith('INSERT INTO notificaciones')) return { rowCount: 1, rows: [] };
+          if (sql.startsWith('INSERT INTO auditoria_acciones_secretaria'))
+            return { rowCount: 1, rows: [{ id: 1 }] };
           if (sql.startsWith('UPDATE citas_medicas SET solicitud_respuesta'))
             return { rowCount: 1, rows: [] };
           return { rowCount: 0, rows: [] };
@@ -249,6 +251,25 @@ test('agendamiento presencial y telefónico encola confirmación por correo igua
     assert.match(enqueuedDetails.responseUrl, /\/\?cita_token=/);
     assert.equal(result.response.reserva.response_url, enqueuedDetails.responseUrl);
   }
+});
+
+test('la reserva por secretaría registra auditoría transaccional', async () => {
+  const database = fakePool();
+  const secretary = { id: 3, usuario: 'secretaria.test' };
+  const result = await createReservation({
+    database,
+    values: { ...values, origen: 'PRESENCIAL' },
+    secretary,
+    enqueueConfirmation: async () => ({ id: '100', status: 'PENDIENTE' }),
+  });
+
+  assert.equal(result.response.ok, true);
+  const auditQuery = database.queries.find((q) =>
+    q.sql.startsWith('INSERT INTO auditoria_acciones_secretaria'),
+  );
+  assert.ok(auditQuery, 'Debe insertar auditoría para reserva presencial');
+  assert.equal(auditQuery.values[0], 3); // secretaria_id
+  assert.equal(auditQuery.values[2], 'CITA_RESERVAR_MANUAL'); // accion
 });
 
 test('buildConfirmation incluye el enlace de confirmación si se proporciona responseUrl', () => {

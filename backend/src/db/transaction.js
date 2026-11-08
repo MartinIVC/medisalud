@@ -3,7 +3,7 @@ async function withTransaction(pool, operation, { isolation = 'READ COMMITTED' }
     throw new TypeError('Nivel de aislamiento de transacción no permitido.');
   }
 
-  const client = await pool.connect();
+  const client = typeof pool.connect === 'function' ? await pool.connect() : pool;
   let transactionStarted = false;
   try {
     await client.query(`BEGIN ISOLATION LEVEL ${isolation}`);
@@ -22,7 +22,9 @@ async function withTransaction(pool, operation, { isolation = 'READ COMMITTED' }
     }
     throw error;
   } finally {
-    client.release();
+    if (typeof client.release === 'function') {
+      client.release();
+    }
   }
 }
 

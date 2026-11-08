@@ -108,7 +108,11 @@ router.post(
       );
     }
     const { duracion } = parsed.value;
-    const result = await configureAgenda(pool, parsed.value);
+    const database = req.app.locals.database || pool;
+    const result = await configureAgenda(database, {
+      ...parsed.value,
+      secretary: req.secretary,
+    });
     return res.status(201).json({
       ok: true,
       jira: 'MED-10',
@@ -160,12 +164,14 @@ router.post(
         fields,
       );
     }
-    const result = await blockAgenda(pool, {
+    const database = req.app.locals.database || pool;
+    const result = await blockAgenda(database, {
       agendaId: agenda_id,
       medicoId: medico_id,
       fecha,
       global: es_feriado_global,
       motivo: motivo.trim(),
+      secretary: req.secretary,
     });
     return res.json({
       ok: true,
@@ -204,11 +210,13 @@ router.post(
         parsed.errors,
       );
     }
-    const result = await unblockAgenda(pool, {
+    const database = req.app.locals.database || pool;
+    const result = await unblockAgenda(database, {
       agendaId: agenda_id,
       medicoId: medico_id,
       fecha,
       global: es_feriado_global,
+      secretary: req.secretary,
     });
     return res.json({
       ok: true,

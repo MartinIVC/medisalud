@@ -1,5 +1,6 @@
 const { withTransaction } = require('../db/transaction');
 const { HttpError } = require('../middleware/errors');
+const { recordAuditEvent } = require('./auditoria');
 
 function timeToMinutes(value) {
   const [hours, minutes] = value.split(':').map(Number);
@@ -30,7 +31,10 @@ async function assertFutureOrCurrentDate(client, fecha, message) {
   }
 }
 
-async function configureAgenda(pool, { medicoId, fecha, horaInicio, horaFin, duracion }) {
+async function configureAgenda(
+  pool,
+  { medicoId, fecha, horaInicio, horaFin, duracion, secretary },
+) {
   const intervals = generateIntervals(horaInicio, horaFin, duracion);
   const startTimes = intervals.map(({ start }) => start);
   const endTimes = intervals.map(({ end }) => end);
@@ -101,6 +105,25 @@ async function configureAgenda(pool, { medicoId, fecha, horaInicio, horaFin, dur
       [medicoId, fecha, startTimes, endTimes, duracion],
     );
 
+    if (secretary) {
+      await recordAuditEvent(client, {
+        secretary,
+        accion: 'AGENDA_CONFIGURAR',
+        entidadTipo: 'AGENDA',
+        entidadId: `${medicoId}:${fecha}`,
+        detalles: {
+          medico_id: medicoId,
+          fecha,
+          hora_inicio: horaInicio,
+          hora_fin: horaFin,
+          duracion_min: duracion,
+          bloques_creados: inserted.rows.length,
+          bloques_reemplazados: deleted.rowCount,
+          bloques_con_historial_conservados: Number(history.rows[0]?.total || 0),
+        },
+      });
+    }
+
     return {
       blocks: inserted.rows,
       deletedCount: deleted.rowCount,
@@ -119,7 +142,7 @@ async function lockAllDoctors(client) {
   await client.query('SELECT id FROM medicos ORDER BY id FOR UPDATE');
 }
 
-async function blockAgenda(pool, { agendaId, medicoId, fecha, global, motivo }) {
+async function blockAgenda(pool, { agendaId, medicoId, fecha, global, motivo, secretary }) {
   return withTransaction(pool, async (client) => {
     if (agendaId !== undefined) {
       const target = await client.query('SELECT medico_id FROM agendas WHERE id=$1', [agendaId]);
@@ -146,6 +169,22 @@ async function blockAgenda(pool, { agendaId, medicoId, fecha, global, motivo }) 
          WHERE id=$1 AND estado='DISPONIBLE' RETURNING id`,
         [agendaId, motivo],
       );
+
+      if (secretary) {
+        await recordAuditEvent(client, {
+          secretary,
+          accion: 'AGENDA_BLOQUEAR',
+          entidadTipo: 'AGENDA',
+          entidadId: String(agendaId),
+          detalles: {
+            alcance: 'BLOQUE',
+            agenda_id: agendaId,
+            motivo,
+            bloques_afectados: result.rowCount,
+          },
+        });
+      }
+
       return { affected: result.rowCount };
     }
 
@@ -172,6 +211,22 @@ async function blockAgenda(pool, { agendaId, medicoId, fecha, global, motivo }) 
          RETURNING id`,
         [fecha, motivo],
       );
+
+      if (secretary) {
+        await recordAuditEvent(client, {
+          secretary,
+          accion: 'AGENDA_BLOQUEAR',
+          entidadTipo: 'AGENDA',
+          entidadId: `GLOBAL:${fecha}`,
+          detalles: {
+            alcance: 'FERIADO_GLOBAL',
+            fecha,
+            motivo,
+            bloques_afectados: updated.rowCount,
+          },
+        });
+      }
+
       return { affected: updated.rowCount };
     }
 
@@ -190,11 +245,28 @@ async function blockAgenda(pool, { agendaId, medicoId, fecha, global, motivo }) 
        RETURNING id`,
       [medicoId, fecha, motivo],
     );
+
+    if (secretary) {
+      await recordAuditEvent(client, {
+        secretary,
+        accion: 'AGENDA_BLOQUEAR',
+        entidadTipo: 'AGENDA',
+        entidadId: `${medicoId}:${fecha}`,
+        detalles: {
+          alcance: 'MEDICO_FECHA',
+          medico_id: medicoId,
+          fecha,
+          motivo,
+          bloques_afectados: updated.rowCount,
+        },
+      });
+    }
+
     return { affected: updated.rowCount };
   });
 }
 
-async function unblockAgenda(pool, { agendaId, medicoId, fecha, global }) {
+async function unblockAgenda(pool, { agendaId, medicoId, fecha, global, secretary }) {
   return withTransaction(pool, async (client) => {
     if (agendaId !== undefined) {
       const target = await client.query('SELECT medico_id, fecha FROM agendas WHERE id=$1', [
@@ -233,6 +305,21 @@ async function unblockAgenda(pool, { agendaId, medicoId, fecha, global }) {
          WHERE id=$1 AND estado='BLOQUEADO' RETURNING id`,
         [agendaId],
       );
+
+      if (secretary) {
+        await recordAuditEvent(client, {
+          secretary,
+          accion: 'AGENDA_DESBLOQUEAR',
+          entidadTipo: 'AGENDA',
+          entidadId: String(agendaId),
+          detalles: {
+            alcance: 'BLOQUE',
+            agenda_id: agendaId,
+            bloques_habilitados: updated.rowCount,
+          },
+        });
+      }
+
       return { affected: updated.rowCount };
     }
 
@@ -264,6 +351,21 @@ async function unblockAgenda(pool, { agendaId, medicoId, fecha, global }) {
          RETURNING a.id`,
         [fecha],
       );
+
+      if (secretary) {
+        await recordAuditEvent(client, {
+          secretary,
+          accion: 'AGENDA_DESBLOQUEAR',
+          entidadTipo: 'AGENDA',
+          entidadId: `GLOBAL:${fecha}`,
+          detalles: {
+            alcance: 'FERIADO_GLOBAL',
+            fecha,
+            bloques_habilitados: updated.rowCount,
+          },
+        });
+      }
+
       return { affected: updated.rowCount };
     }
 
@@ -292,6 +394,22 @@ async function unblockAgenda(pool, { agendaId, medicoId, fecha, global }) {
        RETURNING a.id`,
       [medicoId, fecha],
     );
+
+    if (secretary) {
+      await recordAuditEvent(client, {
+        secretary,
+        accion: 'AGENDA_DESBLOQUEAR',
+        entidadTipo: 'AGENDA',
+        entidadId: `${medicoId}:${fecha}`,
+        detalles: {
+          alcance: 'MEDICO_FECHA',
+          medico_id: medicoId,
+          fecha,
+          bloques_habilitados: updated.rowCount,
+        },
+      });
+    }
+
     return { affected: updated.rowCount };
   });
 }
