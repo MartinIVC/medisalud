@@ -151,74 +151,80 @@ export default function Auditoria({ token, onUnauthorized, onBack }) {
         </Alert>
       )}
 
-      <div
-        className="agenda-toolbar"
-        style={{ flexWrap: 'wrap', gap: '0.75rem', alignItems: 'flex-end' }}
-      >
-        <Field id="audit-secretary" label="Secretaría">
-          <select
-            id="audit-secretary"
-            value={filterSecretary}
-            onChange={(e) => setFilterSecretary(e.target.value)}
-          >
-            <option value="">Todas las secretarías</option>
-            {secretarias.map((s) => (
-              <option key={s.id} value={s.id}>
-                @{s.usuario} {s.activo ? '' : '(Inactiva)'}
-              </option>
-            ))}
-            <option value="desconocido">Origen anterior o desconocido</option>
-          </select>
-        </Field>
+      <div className="audit-toolbar">
+        <div className="audit-toolbar-filters">
+          <Field id="audit-secretary" label="Secretaría">
+            <select
+              id="audit-secretary"
+              value={filterSecretary}
+              onChange={(e) => setFilterSecretary(e.target.value)}
+            >
+              <option value="">Todas las secretarías</option>
+              {secretarias.map((s) => (
+                <option key={s.id} value={s.id}>
+                  @{s.usuario} {s.activo ? '' : '(Inactiva)'}
+                </option>
+              ))}
+              <option value="desconocido">Origen anterior o desconocido</option>
+            </select>
+          </Field>
 
-        <Field id="audit-action" label="Tipo de acción">
-          <select
-            id="audit-action"
-            value={filterAction}
-            onChange={(e) => setFilterAction(e.target.value)}
-          >
-            <option value="">Todas las acciones</option>
-            {Object.entries(ACCION_LABELS).map(([code, label]) => (
-              <option key={code} value={code}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </Field>
+          <Field id="audit-action" label="Tipo de acción">
+            <select
+              id="audit-action"
+              value={filterAction}
+              onChange={(e) => setFilterAction(e.target.value)}
+            >
+              <option value="">Todas las acciones</option>
+              {Object.entries(ACCION_LABELS).map(([code, label]) => (
+                <option key={code} value={code}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </Field>
 
-        <Field id="audit-date-from" label="Desde">
-          <input
-            type="date"
-            id="audit-date-from"
-            value={filterDateFrom}
-            onChange={(e) => setFilterDateFrom(e.target.value)}
-          />
-        </Field>
+          <Field id="audit-date-from" label="Desde">
+            <input
+              type="date"
+              id="audit-date-from"
+              value={filterDateFrom}
+              onChange={(e) => setFilterDateFrom(e.target.value)}
+            />
+          </Field>
 
-        <Field id="audit-date-to" label="Hasta">
-          <input
-            type="date"
-            id="audit-date-to"
-            value={filterDateTo}
-            onChange={(e) => setFilterDateTo(e.target.value)}
-          />
-        </Field>
+          <Field id="audit-date-to" label="Hasta">
+            <input
+              type="date"
+              id="audit-date-to"
+              value={filterDateTo}
+              onChange={(e) => setFilterDateTo(e.target.value)}
+            />
+          </Field>
+        </div>
 
-        <Field id="audit-search" label="Buscar en bitácora">
-          <input
-            type="search"
-            id="audit-search"
-            placeholder="Responsable, motivo, código…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </Field>
+        <div className="audit-toolbar-search-row">
+          <Field id="audit-search" label="Buscar en bitácora" className="audit-search-field">
+            <input
+              type="search"
+              id="audit-search"
+              placeholder="Buscar por responsable, motivo, código de reserva, entidad…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </Field>
 
-        {(filterSecretary || filterAction || filterDateFrom || filterDateTo || searchQuery) && (
-          <Button variant="text" onClick={handleResetFilters} style={{ alignSelf: 'flex-end' }}>
-            Limpiar filtros
-          </Button>
-        )}
+          <div className="audit-toolbar-actions">
+            <span className="audit-count-badge">
+              {filteredRegistros.length} {filteredRegistros.length === 1 ? 'registro' : 'registros'}
+            </span>
+            {(filterSecretary || filterAction || filterDateFrom || filterDateTo || searchQuery) && (
+              <Button variant="text" onClick={handleResetFilters}>
+                Limpiar filtros
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
 
       {loading && registros.length === 0 ? (
@@ -232,64 +238,85 @@ export default function Auditoria({ token, onUnauthorized, onBack }) {
           action={<Button onClick={handleResetFilters}>Restablecer filtros</Button>}
         />
       ) : (
-        <div className="table-responsive">
-          <table className="portal-table" aria-label="Registros de auditoría">
+        <div className="audit-table-wrapper">
+          <table className="audit-table portal-table" aria-label="Registros de auditoría">
             <thead>
               <tr>
-                <th scope="col">Fecha / Hora</th>
-                <th scope="col">Responsable</th>
-                <th scope="col">Acción</th>
-                <th scope="col">Elemento</th>
+                <th scope="col" style={{ width: '120px' }}>
+                  Fecha / Hora
+                </th>
+                <th scope="col" style={{ width: '150px' }}>
+                  Responsable
+                </th>
+                <th scope="col" style={{ width: '180px' }}>
+                  Acción
+                </th>
+                <th scope="col" style={{ width: '130px' }}>
+                  Elemento
+                </th>
                 <th scope="col">Resumen</th>
-                <th scope="col" aria-label="Acciones">
+                <th
+                  scope="col"
+                  style={{ width: '110px', textAlign: 'right' }}
+                  aria-label="Acciones"
+                >
                   Detalles
                 </th>
               </tr>
             </thead>
             <tbody>
-              {filteredRegistros.map((item) => (
-                <tr key={item.id}>
-                  <td style={{ whiteSpace: 'nowrap' }}>
-                    <strong>{item.fecha_santiago}</strong>
-                    <br />
-                    <span className="muted">{item.hora_santiago}</span>
-                  </td>
-                  <td>
-                    {item.origen_identidad === 'SESION_INDIVIDUAL' ? (
-                      <span className="user-badge">@{item.responsable}</span>
-                    ) : (
-                      <span
-                        className="muted-badge"
-                        title="Acción anterior a la creación de cuentas individuales"
-                      >
-                        {item.responsable}
+              {filteredRegistros.map((item) => {
+                const categoryClass = item.accion.startsWith('CITA_')
+                  ? 'is-cita'
+                  : item.accion.startsWith('MEDICO_')
+                    ? 'is-medico'
+                    : 'is-agenda';
+
+                return (
+                  <tr key={item.id}>
+                    <td className="audit-cell-timestamp">
+                      <strong className="numeric">{item.fecha_santiago}</strong>
+                      <span className="muted numeric">{item.hora_santiago}</span>
+                    </td>
+                    <td>
+                      {item.origen_identidad === 'SESION_INDIVIDUAL' ? (
+                        <span className="user-badge audit-user-badge">@{item.responsable}</span>
+                      ) : (
+                        <span
+                          className="muted-badge audit-muted-badge"
+                          title="Acción anterior a la creación de cuentas individuales"
+                        >
+                          {item.responsable}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <span className={`action-tag audit-action-tag ${categoryClass}`}>
+                        {ACCION_LABELS[item.accion] || item.accion}
                       </span>
-                    )}
-                  </td>
-                  <td>
-                    <span className="action-tag">{ACCION_LABELS[item.accion] || item.accion}</span>
-                  </td>
-                  <td style={{ whiteSpace: 'nowrap' }}>
-                    <span className="entity-tag">
-                      {item.entidad_tipo} #{item.entidad_id}
-                    </span>
-                  </td>
-                  <td>
-                    <span className="summary-text">
-                      {formatDetailSummary(item.accion, item.detalles)}
-                    </span>
-                  </td>
-                  <td>
-                    <Button
-                      variant="secondary"
-                      className="button-sm"
-                      onClick={() => setSelectedLog(item)}
-                    >
-                      Inspeccionar
-                    </Button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td>
+                      <span className="entity-tag audit-entity-tag">
+                        {item.entidad_tipo} #{item.entidad_id}
+                      </span>
+                    </td>
+                    <td>
+                      <span className="summary-text audit-summary-text">
+                        {formatDetailSummary(item.accion, item.detalles)}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <Button
+                        variant="secondary"
+                        className="button-sm"
+                        onClick={() => setSelectedLog(item)}
+                      >
+                        Inspeccionar
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -301,44 +328,97 @@ export default function Auditoria({ token, onUnauthorized, onBack }) {
           title={`Detalle de Auditoría #${selectedLog.id}`}
           onClose={() => setSelectedLog(null)}
         >
-          <div
-            className="audit-detail-content"
-            style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
-          >
-            <p>
-              <strong>Acción:</strong> {ACCION_LABELS[selectedLog.accion] || selectedLog.accion}
-            </p>
-            <p>
-              <strong>Fecha y Hora:</strong> {selectedLog.fecha_santiago} a las{' '}
-              {selectedLog.hora_santiago} (Santiago)
-            </p>
-            <p>
-              <strong>Responsable:</strong> {selectedLog.responsable} (
-              {selectedLog.origen_identidad})
-            </p>
-            <p>
-              <strong>Entidad afectada:</strong> {selectedLog.entidad_tipo} (ID:{' '}
-              {selectedLog.entidad_id})
-            </p>
-
-            <div style={{ marginTop: '0.5rem' }}>
-              <strong>Valores registrados:</strong>
-              <pre
-                style={{
-                  background: '#f8fafc',
-                  padding: '0.75rem',
-                  borderRadius: '4px',
-                  fontSize: '0.85rem',
-                  overflowX: 'auto',
-                  border: '1px solid #e2e8f0',
-                  marginTop: '0.25rem',
-                }}
-              >
-                {JSON.stringify(selectedLog.detalles, null, 2)}
-              </pre>
+          <div className="audit-detail-body">
+            <div className="audit-detail-meta">
+              <div className="audit-detail-item">
+                <span className="audit-detail-label">Acción</span>
+                <div className="audit-detail-value">
+                  <span
+                    className={`action-tag audit-action-tag ${
+                      selectedLog.accion.startsWith('CITA_')
+                        ? 'is-cita'
+                        : selectedLog.accion.startsWith('MEDICO_')
+                          ? 'is-medico'
+                          : 'is-agenda'
+                    }`}
+                  >
+                    {ACCION_LABELS[selectedLog.accion] || selectedLog.accion}
+                  </span>
+                </div>
+              </div>
+              <div className="audit-detail-item">
+                <span className="audit-detail-label">Fecha y Hora (Santiago)</span>
+                <span className="audit-detail-value numeric">
+                  {selectedLog.fecha_santiago} a las {selectedLog.hora_santiago}
+                </span>
+              </div>
+              <div className="audit-detail-item">
+                <span className="audit-detail-label">Responsable</span>
+                <div className="audit-detail-value">
+                  {selectedLog.origen_identidad === 'SESION_INDIVIDUAL' ? (
+                    <span className="user-badge audit-user-badge">@{selectedLog.responsable}</span>
+                  ) : (
+                    <span className="muted-badge audit-muted-badge">{selectedLog.responsable}</span>
+                  )}
+                </div>
+              </div>
+              <div className="audit-detail-item">
+                <span className="audit-detail-label">Entidad Afectada</span>
+                <div className="audit-detail-value">
+                  <span className="entity-tag audit-entity-tag">
+                    {selectedLog.entidad_tipo} #{selectedLog.entidad_id}
+                  </span>
+                </div>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
+            {selectedLog.detalles?.motivo && (
+              <div
+                style={{
+                  padding: 'var(--space-3) var(--space-4)',
+                  background: 'var(--surface)',
+                  borderLeft: '3px solid var(--primary)',
+                  borderRadius: 'var(--radius)',
+                }}
+              >
+                <span
+                  className="audit-detail-label"
+                  style={{ display: 'block', marginBottom: '2px' }}
+                >
+                  Motivo registrado
+                </span>
+                <span style={{ fontStyle: 'italic', color: 'var(--foreground)' }}>
+                  &ldquo;{selectedLog.detalles.motivo}&rdquo;
+                </span>
+              </div>
+            )}
+
+            {selectedLog.detalles?.anterior || selectedLog.detalles?.nuevo ? (
+              <div className="audit-diff-container">
+                <span className="audit-diff-heading">Comparativa de cambios</span>
+                <div className="audit-diff-cards">
+                  <div className="audit-diff-card is-prev">
+                    <span className="audit-diff-card-title">Valor anterior</span>
+                    <pre className="audit-diff-code">
+                      {JSON.stringify(selectedLog.detalles.anterior || {}, null, 2)}
+                    </pre>
+                  </div>
+                  <div className="audit-diff-card is-next">
+                    <span className="audit-diff-card-title">Valor nuevo</span>
+                    <pre className="audit-diff-code">
+                      {JSON.stringify(selectedLog.detalles.nuevo || {}, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="audit-raw-section">
+              <span className="audit-diff-heading">Valores registrados completos</span>
+              <pre className="audit-diff-code">{JSON.stringify(selectedLog.detalles, null, 2)}</pre>
+            </div>
+
+            <div className="audit-modal-footer">
               <Button onClick={() => setSelectedLog(null)}>Cerrar</Button>
             </div>
           </div>
