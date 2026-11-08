@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { requestApi } from '../../api/client';
-import { Alert, AppointmentDetails, Button, Dialog } from '../../components/ui';
+import { Alert, AppointmentDetails, Button, Dialog, formatDate } from '../../components/ui';
 
 export default function AppointmentResponse({ token }) {
   const [reply, setReply] = useState('');
@@ -119,8 +119,9 @@ export default function AppointmentResponse({ token }) {
           onClose={() => setConfirmCancel(false)}
         >
           <p>
-            Se cancelará la cita con {appointment?.medico_nombre}, el {appointment?.fecha} a las{' '}
-            {appointment?.hora_inicio}. El horario quedará disponible.
+            Se cancelará la cita con {appointment?.medico_nombre}, el{' '}
+            {formatDate(appointment?.fecha)} a las {appointment?.hora_inicio}. El horario quedará
+            disponible.
           </p>
           <div className="form-actions">
             <Button disabled={submitting} onClick={() => setConfirmCancel(false)}>
