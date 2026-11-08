@@ -185,6 +185,7 @@ router.post(
       action: parsed.value.action,
       agendaId: parsed.value.agendaId,
       motivo: parsed.value.motivo,
+      secretary: req.secretary,
     });
     triggerNotifications(req);
     return res.json(result);
@@ -217,7 +218,11 @@ router.post(
 
     const startHr = process.hrtime.bigint();
     const database = req.app.locals.database || pool;
-    const result = await createReservation({ database, values: parsed.value });
+    const result = await createReservation({
+      database,
+      values: parsed.value,
+      secretary: req.secretary,
+    });
     const elapsedMs = Number(process.hrtime.bigint() - startHr) / 1e6;
     triggerNotifications(req);
     if (result.repeated) {

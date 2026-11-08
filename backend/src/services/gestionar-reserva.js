@@ -3,6 +3,7 @@ const { pool: defaultPool } = require('../db');
 const { withTransaction } = require('../db/transaction');
 const { HttpError } = require('../middleware/errors');
 const { buildCancellationNotice, buildRescheduleNotice } = require('../notifications/templates');
+const { recordAuditEvent } = require('./auditoria');
 
 function isEmailProviderConfigured(env = process.env) {
   return Boolean((env.SENDGRID_API_KEY && env.SENDGRID_FROM) || env.SMTP_HOST);
@@ -101,6 +102,7 @@ async function manageReservation({
   action,
   agendaId,
   motivo,
+  secretary,
   publicWebUrl = process.env.PUBLIC_WEB_URL || 'http://localhost:5173',
   randomBytes = crypto.randomBytes,
 }) {
@@ -222,6 +224,31 @@ async function manageReservation({
         tipo: 'CANCELACION',
         message,
       });
+
+      if (secretary) {
+        await recordAuditEvent(client, {
+          secretary,
+          accion: 'CITA_CANCELAR',
+          entidadTipo: 'CITA',
+          entidadId: String(reservationId),
+          detalles: {
+            codigo_reserva: appointment.codigo_reserva,
+            motivo: reason,
+            anterior: {
+              agenda_id: appointment.agenda_id,
+              medico_id: appointment.medico_id,
+              fecha: appointment.fecha,
+              hora_inicio: appointment.hora_inicio,
+              hora_fin: appointment.hora_fin,
+              estado: 'CONFIRMADA',
+            },
+            nuevo: {
+              estado: 'CANCELADA',
+            },
+          },
+        });
+      }
+
       return {
         ok: true,
         estado: 'CANCELADA',
@@ -350,6 +377,33 @@ async function manageReservation({
       tipo: 'REPROGRAMACION',
       message,
     });
+
+    if (secretary) {
+      await recordAuditEvent(client, {
+        secretary,
+        accion: 'CITA_REPROGRAMAR',
+        entidadTipo: 'CITA',
+        entidadId: String(reservationId),
+        detalles: {
+          codigo_reserva: appointment.codigo_reserva,
+          motivo: reason,
+          anterior: {
+            agenda_id: appointment.agenda_id,
+            medico_id: appointment.medico_id,
+            fecha: appointment.fecha,
+            hora_inicio: appointment.hora_inicio,
+            hora_fin: appointment.hora_fin,
+          },
+          nuevo: {
+            agenda_id: Number(agendaId),
+            medico_id: target.medico_id,
+            fecha: target.fecha,
+            hora_inicio: target.hora_inicio,
+            hora_fin: target.hora_fin,
+          },
+        },
+      });
+    }
 
     return {
       ok: true,

@@ -83,6 +83,26 @@ El servidor devuelve `400 VALIDATION_ERROR` para ID o motivo inválidos, `401 UN
 
 `POST /api/secretaria/medicos/:id/revincular` exige sesión vigente y no recibe cuerpo. Marca como activo al profesional inactivo y devuelve `200` con `{ "ok": true, "revinculacion": { "medico_id": 1, "activo": true } }`. No altera sus agendas, citas ni el último registro de desvinculación; el profesional vuelve al catálogo público y sus horarios disponibles se pueden reservar. El servidor devuelve `400 VALIDATION_ERROR` para un ID inválido, `401 UNAUTHORIZED` sin sesión, `404 DOCTOR_NOT_FOUND` para un ID inexistente, `409 DOCTOR_ALREADY_ACTIVE` si ya estaba activo y `409 DOCTOR_BUSY` si vence la espera del bloqueo. La actualización bloquea primero al profesional y se serializa con reservas y cambios de agenda.
 
+## Bitácora de auditoría de secretaría (MED-27)
+
+`GET /api/secretaria/auditoria` exige sesión vigente de secretaría (`Authorization: Bearer <token>`) y responde con `Cache-Control: private, no-store` y `X-Content-Type-Options: nosniff`. Devuelve `200` con `{ "ok": true, "jira": "MED-27", "total": N, "limit": L, "offset": O, "secretarias": [...], "registros": [...] }`.
+
+Parámetros de consulta opcionales:
+- `secretaria_id`: ID numérico de una cuenta de secretaría, o `'desconocido'` para consultar acciones de origen anterior o no atribuibles individualmente.
+- `fecha_desde` / `fecha_hasta`: fechas en formato `AAAA-MM-DD`, evaluadas bajo la zona horaria `America/Santiago`.
+- `accion`: código de acción exacto (`MEDICO_CREAR`, `MEDICO_ACTUALIZAR`, `MEDICO_FOTO_ACTUALIZAR`, `MEDICO_DESVINCULAR`, `MEDICO_REVINCULAR`, `AGENDA_CONFIGURAR`, `AGENDA_BLOQUEAR`, `AGENDA_DESBLOQUEAR`, `CITA_RESERVAR_MANUAL`, `CITA_CANCELAR`, `CITA_REPROGRAMAR`).
+- `entidad_tipo`: `'MEDICO'`, `'AGENDA'` o `'CITA'`.
+- `limit`: cantidad máxima de registros (1 a 100, valor por defecto: 50).
+- `offset`: desplazamiento inicial para paginación (entero `>= 0`, valor por defecto: 0).
+
+Cada elemento de `registros` incluye `id`, `creado_en`, `fecha_santiago`, `hora_santiago`, `origen_identidad` (`'SESION_INDIVIDUAL'` o `'ANTERIOR_O_DESCONOCIDO'`), `secretaria` (`{ "id": ..., "usuario": "..." }` o `null`), `responsable`, `accion`, `entidad_tipo`, `entidad_id` y `detalles` (objeto JSON con valores anteriores y nuevos relevantes, sin contraseñas, tokens ni PII sensible innecesario).
+
+Errores estructurados:
+- `401 UNAUTHORIZED`: Si la petición no incluye cabecera `Authorization` con sesión válida.
+- `400 VALIDATION_ERROR`: Si los parámetros de filtro son inválidos (formato de fecha no canónico, `fecha_desde > fecha_hasta`, IDs o acciones fuera de catálogo), detallando el motivo en `fields`.
+
+Todas las operaciones administrativas de escritura registran su asiento de auditoría en la misma transacción (`withTransaction`). Si la operación falla, se interrumpe o hace rollback, el registro de auditoría también se revierte. Reintentos con la misma `Idempotency-Key` devuelven el comprobante original sin duplicar el registro de auditoría. Los registros confirmados son inmutables a nivel de base de datos.
+
 ## Notificaciones
 
 `ACEPTADO` significa que el proveedor aceptó la solicitud, no que el destinatario la recibió. Los errores del proveedor pueden reintentarse; una caída después de la aceptación puede producir duplicados si el proveedor no ofrece deduplicación. Las pruebas no envían mensajes a proveedores reales.
@@ -99,5 +119,6 @@ Las instalaciones nuevas reciben el esquema actual desde `database/01_init.sql`.
 6. `20261103_medicos_foto.sql`
 7. `20261107_cuentas_secretaria.sql`
 8. `20261107_desvinculaciones_medico.sql`
+9. `20261108_auditoria_acciones_secretaria.sql`
 
 La migración Sprint 2 no se puede repetir y requiere resolver solapamientos de agenda antes de ejecutarla.

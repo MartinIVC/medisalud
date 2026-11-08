@@ -96,4 +96,19 @@ La aplicación prepara confirmaciones por email y recordatorios por email y What
 - **Sesión expirada:** vuelve a iniciar sesión. El borrador de creación de médico se conserva temporalmente en la página; no se guarda en el navegador.
 - **Incidente que impide operar:** informa fecha, turno, pantalla, acción y texto del error al responsable designado. No incluyas datos de pacientes en mensajes o capturas.
 
+## 9. Auditoría de acciones administrativas
+
+1. En **Agenda del día**, selecciona **Auditoría**.
+2. Esta vista muestra la bitácora persistente e inmutable de operaciones administrativas realizadas en el centro médico:
+   - **Médicos:** alta, actualización de datos, actualización de foto, desvinculación y revinculación.
+   - **Agendas:** parametrización de bloques, bloqueo individual o por fecha, y desbloqueo.
+   - **Citas:** agendamiento manual presencial o telefónico, reprogramación y cancelación.
+3. Puedes filtrar los registros por:
+   - **Secretaría:** cuenta responsable individual (`@usuario`) u `Origen anterior o desconocido` para acciones previas a la provisión de cuentas individuales.
+   - **Tipo de acción:** filtrar por operación específica.
+   - **Rango de fechas:** fechas evaluadas según el huso horario oficial de Chile Continental (`America/Santiago`).
+   - **Búsqueda rápida:** filtra en tiempo real por texto en responsable, acción o entidad.
+4. Para auditar los valores modificados, selecciona **Inspeccionar** en la fila correspondiente: se abrirá un diálogo con el detalle del cambio y los valores anteriores y posteriores (sin almacenar ni exponer datos sensibles o de contacto de pacientes).
+5. Para volver al trabajo operativo regular, selecciona **Volver a la agenda**.
+
 El PO y el Jefe de Recepción deben completar antes de la capacitación: **responsable de soporte:** ____________________ · **canal:** ____________________.

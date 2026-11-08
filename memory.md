@@ -15,8 +15,9 @@ Completar el Sprint 3 del proyecto académico Medisalud. Jira muestra el sprint 
 | MED-23 | Foto de perfil de profesionales               |           5 | Implementación terminada y registrada en Git: foto persistente, carga protegida, fallback y ampliación desde el catálogo/resumen de reserva. Jira no se modificó en esta tarea. |
 | MED-24 | Desvincular profesional conservando historial |           5 | Implementación local terminada; conserva agendas y citas, exige gestionar citas futuras y registra fecha, motivo y cuenta. Seguimiento local: filtro por especialidad y revinculación protegida, preservando agendas, citas y el último registro de desvinculación. Jira permanece En curso. |
 | MED-25 | Acceso individual de secretarías              |           8 | Finalizado en Jira; integrado en `develop` mediante el PR #3 junto con MED-26.                                                                      |
+| MED-27 | Auditoría de acciones de secretaría           |           8 | Implementación completada en rama `feature/MED-27-auditoria-secretaria` (ADR-0004, migración inmutable, API de consulta protegida, sección en portal y suite automatizada).    |
 
-Total visible en Jira: **26 puntos**. MED-20, MED-23 y MED-25 (18 puntos) están Finalizados; MED-19 y MED-24 (8 puntos) siguen En curso. Los puntos son estimaciones del tamaño de cada historia, no horas ni una garantía de capacidad.
+Total visible en Jira: **34 puntos**. MED-20, MED-23, MED-25 y MED-27 implementados; los puntos son estimaciones del tamaño de cada historia, no horas ni una garantía de capacidad.
 
 ### Subtareas
 
@@ -24,7 +25,7 @@ Total visible en Jira: **26 puntos**. MED-20, MED-23 y MED-25 (18 puntos) están
 - **MED-22**, hija de MED-20: manual, contrato API y UAT. Finalizada en Jira el 7 de noviembre. El manual aclara que el aviso está pendiente, el contrato incluye `20261030_gestion_reservas.sql` y UAT-08 comprueba ambos cupos y el aviso pendiente.
 - **MED-26**, hija de MED-25: provisión inicial y migración de cuentas. Finalizada en Jira; no se habilitó autorregistro público.
 
-**MED-27** queda pendiente como historia independiente de 8 puntos para asociar y auditar las acciones administrativas por cuenta. Depende de MED-25: la identidad de sesión prepara esa integración, pero no implementa la bitácora.
+**MED-27** implementada con bitácora de auditoría persistente e inmutable de operaciones administrativas asociadas a la cuenta de secretaría autenticada (`req.secretary.id`), con soporte de diff mínimo, prevención de PII/credenciales, endpoint `GET /api/secretaria/auditoria` con filtros y vista en el portal de secretaría.
 
 No sumar por segunda vez los puntos de las subtareas si el esfuerzo ya está incluido en los puntos de su historia padre.
 
@@ -40,8 +41,9 @@ No sumar por segunda vez los puntos de las subtareas si el esfuerzo ya está inc
 - El aviso de cancelación o cambio se encola para su envío; la interfaz indica que se solicitó el envío, no que llegó. La aceptación por un proveedor no prueba entrega.
 - ADR-0001 registra la transacción y el orden de bloqueo de las operaciones de secretaría: `docs/adr/0001-gestion-atomica-citas-secretaria.md`.
 - El panel de profesionales reúne el registro de médicos, filtros de búsqueda y estado, fotos y acciones por fila; las fotos y la agenda de profesionales inactivos se consultan con sesión de secretaría; la agenda se presenta en modo de solo lectura.
-- ADR-0003 registra la desvinculación, revinculación y su serialización con reservas: `docs/adr/0003-desvinculacion-profesionales.md`. No reemplaza la auditoría general de MED-27.
-- El panel de profesionales filtra por especialidad y estado. La revinculación restaura la visibilidad pública del profesional y la reserva de sus horarios disponibles; conserva las citas, agendas y el último registro de desvinculación. La tabla específica mantiene solo la desvinculación más reciente; la bitácora de acciones queda pendiente en MED-27.
+- ADR-0003 registra la desvinculación, revinculación y su serialización con reservas: `docs/adr/0003-desvinculacion-profesionales.md`.
+- ADR-0004 registra la arquitectura de auditoría persistente e inmutable de acciones de secretaría: `docs/adr/0004-auditoria-acciones-secretaria.md`. Garantiza inmutabilidad en BD vía trigger (`trg_auditoria_inmutable`), transaccionalidad atómica (`withTransaction`), sanitización estricta excluyendo credenciales/tokens y PII de pacientes (RUT, nombre, teléfono, email), y evaluación temporal en `America/Santiago`.
+- El panel de profesionales filtra por especialidad y estado. La revinculación restaura la visibilidad pública del profesional y la reserva de sus horarios disponibles; conserva las citas, agendas y el último registro de desvinculación. La tabla específica mantiene solo la desvinculación más reciente; la bitácora general de auditoría registra todas las operaciones históricas.
 - En la agenda de secretaría, las acciones del horario aparecen debajo del detalle de la fila seleccionada, sin repetir sus datos; si una cita o un horario pasado no se puede gestionar ni modificar, se ocultan los botones de acción y se explica el motivo. En fechas pasadas (`secFecha < hoy`), la agenda permanece consultable en modo de solo lectura (con «Configurar horarios» y «Registrar ausencia o feriado» deshabilitados), y el backend rechaza con `409` (`SLOT_PAST`, `AGENDA_DATE_PAST`, `AGENDA_PAST`) cualquier intento de configurar, bloquear o desbloquear horarios o fechas vencidas. Pueden cerrarse al volver a seleccionar la fila.
 - En el portal de pacientes, el horario seleccionado abre el formulario en un diálogo; al cerrarlo o elegir «Cambiar hora», una franja junto a ese grupo conserva la hora seleccionada para retomarla. «Elegir otra hora» después de un conflicto sí limpia la selección.
 
@@ -54,6 +56,7 @@ No sumar por segunda vez los puntos de las subtareas si el esfuerzo ya está inc
 - `AGENTS.md` contiene convenciones y comandos del proyecto; leerlo antes de modificar código.
 - MED-23 está implementada y adaptada al diseño Swiss Signal (`880f866`, `55cf4a9`, `efa2343`). Incluye la migración `20261103_medicos_foto.sql`, carga de secretaría (`DoctorPhotoEditor`), fallback y ampliación de fotos en la experiencia paciente (`DoctorPhoto`). Jira no se modificó ni se verificó su estado de cierre en esta tarea.
 - MED-24 está implementada localmente y validada en PostgreSQL descartable; no se ha cambiado el estado de Jira. Las bases existentes requieren `20261107_desvinculaciones_medico.sql` después de la migración de cuentas. MED-25 está integrada en `develop`.
+- MED-27 implementada completamente en la rama `feature/MED-27-auditoria-secretaria`. Incluye migración `20261108_auditoria_acciones_secretaria.sql` con backfill retroactivo, trigger inmutable, endpoints en backend, pruebas unitarias y de integración en PostgreSQL descartable (`npm run test:auditoria`), sección de Auditoría en la UI de secretaría, actualización de `API_CONTRACT.md`, manual y ADR-0004.
 
 ## Verificación segura
 
@@ -62,4 +65,5 @@ No sumar por segunda vez los puntos de las subtareas si el esfuerzo ya está inc
 - La suite de gestión de citas se invoca en el servicio aislado con `npm run test:gestion-reservas` desde backend. No confundir que el script exista con evidencia de que se volvió a ejecutar después de cambios posteriores.
 - Las cuentas individuales se validan con `npm run test:secretarias` sobre PostgreSQL descartable; la migración debe probarse tanto en bases nuevas como anteriores.
 - MED-24 se valida en el servicio descartable con `node tests/verify-desvinculacion-medico.js`; cubre permisos, conservación, citas futuras, auditoría y reservas concurrentes.
+- MED-27 se valida con `npm run test:auditoria` en `backend-test` (o `node tests/verify-auditoria-secretaria.js`), cubriendo CRUD de médicos, fotos, agendas, bloqueos, reservas manuales con idempotencia, reprogramación/cancelación sin PII, desvinculación/revinculación, inmutabilidad y filtros de consulta.
 - Cuando cambie API, persistencia o comportamiento de usuario, mantener al día `API_CONTRACT.md`, el README y los manuales relevantes.

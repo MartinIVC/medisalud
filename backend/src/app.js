@@ -5,6 +5,7 @@ const disponibilidadRoutes = require('./routes/disponibilidad');
 const agendasRoutes = require('./routes/agendas');
 const reservasRoutes = require('./routes/reservas');
 const medicosRoutes = require('./routes/medicos');
+const auditoriaRoutes = require('./routes/auditoria');
 const { requireSecretary } = require('./middleware/auth');
 const { authenticateSecretary, revokeSecretarySession } = require('./services/secretary-accounts');
 const { createNotificationWorker, processNotificationQueue } = require('./notifications/queue');
@@ -79,6 +80,7 @@ function createApp({ database = pool, notificationWorker } = {}) {
   app.use('/api', agendasRoutes);
   app.use('/api', reservasRoutes);
   app.use('/api', medicosRoutes);
+  app.use('/api', auditoriaRoutes);
 
   app.use(errorHandler);
 

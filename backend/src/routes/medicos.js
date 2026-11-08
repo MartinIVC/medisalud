@@ -7,6 +7,7 @@ const { MAX_PHOTO_BYTES, imageMime, photoUrl } = require('../services/foto-medic
 const { positiveInteger } = require('../schemas/inputs');
 const { withTransaction } = require('../db/transaction');
 const { HttpError } = require('../middleware/errors');
+const { recordAuditEvent, computeMinimalDiff } = require('../services/auditoria');
 
 const router = express.Router();
 const allowedFields = new Set(['rut', 'nombre', 'email', 'especialidad_id', 'box_atencion']);
@@ -130,6 +131,17 @@ router.post(
           RETURNING medico_id, motivo, desvinculado_en`,
           [id, req.secretary.id, body.motivo.trim()],
         );
+        await recordAuditEvent(client, {
+          secretary: req.secretary,
+          accion: 'MEDICO_DESVINCULAR',
+          entidadTipo: 'MEDICO',
+          entidadId: String(id),
+          detalles: {
+            motivo: body.motivo.trim(),
+            anterior: { activo: true },
+            nuevo: { activo: false },
+          },
+        });
         return audit.rows[0];
       });
       return res.json({ ok: true, desvinculacion: record });
@@ -165,6 +177,16 @@ router.post(
         if (doctor.rows[0].activo)
           throw new HttpError(409, 'DOCTOR_ALREADY_ACTIVE', 'El profesional ya está activo.');
         await client.query('UPDATE medicos SET activo=TRUE WHERE id=$1', [id]);
+        await recordAuditEvent(client, {
+          secretary: req.secretary,
+          accion: 'MEDICO_REVINCULAR',
+          entidadTipo: 'MEDICO',
+          entidadId: String(id),
+          detalles: {
+            anterior: { activo: false },
+            nuevo: { activo: true },
+          },
+        });
       });
       return res.json({ ok: true, revinculacion: { medico_id: id, activo: true } });
     } catch (error) {
@@ -239,28 +261,51 @@ router.post(
       boxAtencion: req.body.box_atencion.trim(),
     };
 
+    const database = req.app.locals.database || pool;
     try {
-      const specialty = await pool.query('SELECT id FROM especialidades WHERE id = $1', [
-        values.especialidadId,
-      ]);
-      if (!specialty.rowCount) {
-        return sendError(
-          res,
-          400,
-          'SPECIALTY_NOT_FOUND',
-          'La especialidad seleccionada no existe.',
-          { especialidad_id: 'Selecciona una especialidad disponible.' },
+      const medico = await withTransaction(database, async (client) => {
+        await client.query("SET LOCAL lock_timeout = '1500ms'");
+        const specialty = await client.query('SELECT id FROM especialidades WHERE id = $1', [
+          values.especialidadId,
+        ]);
+        if (!specialty.rowCount) {
+          throw new HttpError(
+            400,
+            'SPECIALTY_NOT_FOUND',
+            'La especialidad seleccionada no existe.',
+            { especialidad_id: 'Selecciona una especialidad disponible.' },
+          );
+        }
+
+        const result = await client.query(
+          `INSERT INTO medicos (rut, nombre, email, box_atencion, especialidad_id, activo)
+         VALUES ($1, $2, $3, $4, $5, TRUE)
+         RETURNING id, rut, nombre, email, box_atencion, especialidad_id, activo`,
+          [values.rut, values.nombre, values.email, values.boxAtencion, values.especialidadId],
         );
-      }
+        const createdDoctor = result.rows[0];
 
-      const result = await pool.query(
-        `INSERT INTO medicos (rut, nombre, email, box_atencion, especialidad_id, activo)
-       VALUES ($1, $2, $3, $4, $5, TRUE)
-       RETURNING id, rut, nombre, email, box_atencion, especialidad_id, activo`,
-        [values.rut, values.nombre, values.email, values.boxAtencion, values.especialidadId],
-      );
+        await recordAuditEvent(client, {
+          secretary: req.secretary,
+          accion: 'MEDICO_CREAR',
+          entidadTipo: 'MEDICO',
+          entidadId: String(createdDoctor.id),
+          detalles: {
+            nuevo: {
+              rut: createdDoctor.rut,
+              nombre: createdDoctor.nombre,
+              email: createdDoctor.email,
+              box_atencion: createdDoctor.box_atencion,
+              especialidad_id: createdDoctor.especialidad_id,
+              activo: true,
+            },
+          },
+        });
 
-      return res.status(201).json({ ok: true, medico: result.rows[0] });
+        return createdDoctor;
+      });
+
+      return res.status(201).json({ ok: true, medico });
     } catch (error) {
       if (
         error.code === '23505' &&
@@ -313,32 +358,68 @@ router.put(
 
     const database = req.app.locals.database || pool;
     try {
-      const specialty = await database.query('SELECT id FROM especialidades WHERE id = $1', [
-        values.especialidadId,
-      ]);
-      if (!specialty.rowCount) {
-        return sendError(
-          res,
-          400,
-          'SPECIALTY_NOT_FOUND',
-          'La especialidad seleccionada no existe.',
-          { especialidad_id: 'Selecciona una especialidad disponible.' },
+      const medico = await withTransaction(database, async (client) => {
+        await client.query("SET LOCAL lock_timeout = '1500ms'");
+        const existing = await client.query(
+          `SELECT id, rut, nombre, email, box_atencion, especialidad_id, activo, foto_actualizada_en
+           FROM medicos WHERE id = $1 FOR UPDATE`,
+          [id],
         );
-      }
+        if (!existing.rowCount) {
+          throw new HttpError(404, 'DOCTOR_NOT_FOUND', 'El profesional no existe.');
+        }
 
-      const result = await database.query(
-        `UPDATE medicos
-         SET rut = $1, nombre = $2, email = $3, box_atencion = $4, especialidad_id = $5
-         WHERE id = $6
-         RETURNING id, rut, nombre, email, box_atencion, especialidad_id, activo, foto_actualizada_en`,
-        [values.rut, values.nombre, values.email, values.boxAtencion, values.especialidadId, id],
-      );
+        const specialty = await client.query('SELECT id FROM especialidades WHERE id = $1', [
+          values.especialidadId,
+        ]);
+        if (!specialty.rowCount) {
+          throw new HttpError(
+            400,
+            'SPECIALTY_NOT_FOUND',
+            'La especialidad seleccionada no existe.',
+            { especialidad_id: 'Selecciona una especialidad disponible.' },
+          );
+        }
 
-      if (!result.rowCount) {
-        return sendError(res, 404, 'DOCTOR_NOT_FOUND', 'El profesional no existe.');
-      }
+        const prevData = existing.rows[0];
+        const nextData = {
+          rut: values.rut,
+          nombre: values.nombre,
+          email: values.email,
+          box_atencion: values.boxAtencion,
+          especialidad_id: values.especialidadId,
+        };
+        const diff = computeMinimalDiff(prevData, nextData, [
+          'rut',
+          'nombre',
+          'email',
+          'box_atencion',
+          'especialidad_id',
+        ]);
 
-      return res.json({ ok: true, medico: result.rows[0] });
+        const result = await client.query(
+          `UPDATE medicos
+           SET rut = $1, nombre = $2, email = $3, box_atencion = $4, especialidad_id = $5
+           WHERE id = $6
+           RETURNING id, rut, nombre, email, box_atencion, especialidad_id, activo, foto_actualizada_en`,
+          [values.rut, values.nombre, values.email, values.boxAtencion, values.especialidadId, id],
+        );
+
+        await recordAuditEvent(client, {
+          secretary: req.secretary,
+          accion: 'MEDICO_ACTUALIZAR',
+          entidadTipo: 'MEDICO',
+          entidadId: String(id),
+          detalles: {
+            anterior: diff.anterior,
+            nuevo: diff.nuevo,
+          },
+        });
+
+        return result.rows[0];
+      });
+
+      return res.json({ ok: true, medico });
     } catch (error) {
       if (
         error.code === '23505' &&
@@ -398,14 +479,54 @@ router.put(
     const detected = imageMime(bytes);
     if (!detected || detected !== req.get('Content-Type')?.split(';')[0].trim().toLowerCase())
       return sendError(res, 400, 'INVALID_PHOTO', 'Selecciona una imagen PNG o JPEG válida.');
-    const result = await pool.query(
-      `UPDATE medicos SET foto_mime = $1, foto_datos = $2, foto_actualizada_en = clock_timestamp()
-       WHERE id = $3 AND activo = TRUE RETURNING id, foto_actualizada_en`,
-      [detected, bytes, id],
-    );
-    if (!result.rowCount)
-      return sendError(res, 404, 'DOCTOR_NOT_FOUND', 'El profesional no está disponible.');
-    return res.json({ ok: true, foto_url: photoUrl(id, result.rows[0].foto_actualizada_en) });
+
+    const database = req.app.locals.database || pool;
+    try {
+      const updated = await withTransaction(database, async (client) => {
+        await client.query("SET LOCAL lock_timeout = '1500ms'");
+        const doctor = await client.query(
+          'SELECT id, foto_actualizada_en FROM medicos WHERE id = $1 AND activo = TRUE FOR UPDATE',
+          [id],
+        );
+        if (!doctor.rowCount) {
+          throw new HttpError(404, 'DOCTOR_NOT_FOUND', 'El profesional no está disponible.');
+        }
+
+        const result = await client.query(
+          `UPDATE medicos SET foto_mime = $1, foto_datos = $2, foto_actualizada_en = clock_timestamp()
+           WHERE id = $3 AND activo = TRUE RETURNING id, foto_actualizada_en`,
+          [detected, bytes, id],
+        );
+
+        await recordAuditEvent(client, {
+          secretary: req.secretary,
+          accion: 'MEDICO_FOTO_ACTUALIZAR',
+          entidadTipo: 'MEDICO',
+          entidadId: String(id),
+          detalles: {
+            nuevo: {
+              foto_mime: detected,
+              tamano_bytes: bytes.length,
+              reemplazo: Boolean(doctor.rows[0].foto_actualizada_en),
+            },
+          },
+        });
+
+        return result.rows[0];
+      });
+
+      return res.json({ ok: true, foto_url: photoUrl(id, updated.foto_actualizada_en) });
+    } catch (error) {
+      if (error.code === '55P03') {
+        return sendError(
+          res,
+          409,
+          'DOCTOR_BUSY',
+          'El profesional está siendo actualizado. Inténtalo nuevamente.',
+        );
+      }
+      throw error;
+    }
   }),
 );
 

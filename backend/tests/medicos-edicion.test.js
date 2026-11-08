@@ -64,8 +64,28 @@ test('PUT /api/medicos/:id actualiza los datos del profesional exitosamente', as
   const queries = [];
   const server = await setupTestServer(t, async (sql, params) => {
     queries.push({ sql, params });
+    if (sql.includes('FROM medicos WHERE id = $1 FOR UPDATE')) {
+      return {
+        rowCount: 1,
+        rows: [
+          {
+            id: 1,
+            rut: '12.345.678-5',
+            nombre: 'Dr. Alejandro Soto Rojas',
+            email: 'alejandro@medisalud.cl',
+            box_atencion: 'Box 101',
+            especialidad_id: 1,
+            activo: true,
+            foto_actualizada_en: null,
+          },
+        ],
+      };
+    }
     if (sql.includes('SELECT id FROM especialidades')) {
       return { rowCount: 1, rows: [{ id: 1 }] };
+    }
+    if (sql.includes('INSERT INTO auditoria_acciones_secretaria')) {
+      return { rowCount: 1, rows: [{ id: 10, creado_en: new Date().toISOString() }] };
     }
     if (sql.includes('UPDATE medicos')) {
       return {
@@ -108,4 +128,5 @@ test('PUT /api/medicos/:id actualiza los datos del profesional exitosamente', as
   assert.equal(data.ok, true);
   assert.equal(data.medico.nombre, 'Dr. Alejandro Soto Rojas Actualizado');
   assert.equal(data.medico.box_atencion, 'Box 202');
+  assert.ok(queries.some((q) => q.sql.includes('INSERT INTO auditoria_acciones_secretaria')));
 });

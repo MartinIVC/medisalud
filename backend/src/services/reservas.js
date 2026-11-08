@@ -3,6 +3,7 @@ const { pool: defaultPool } = require('../db');
 const { withTransaction } = require('../db/transaction');
 const { HttpError } = require('../middleware/errors');
 const { enqueueConfirmationEmail } = require('../notifications/queue');
+const { recordAuditEvent } = require('./auditoria');
 
 const SERIALIZATION_MAX_ATTEMPTS = 5;
 const RESERVATION_LOCK_TIMEOUT = '1500ms';
@@ -62,6 +63,7 @@ async function readIdempotentResponse(database, requestKey, fingerprint) {
 async function createReservation({
   database = defaultPool,
   values,
+  secretary,
   publicWebUrl = process.env.PUBLIC_WEB_URL || 'http://localhost:5173',
   enqueueConfirmation = enqueueConfirmationEmail,
   randomBytes = crypto.randomBytes,
@@ -259,6 +261,27 @@ async function createReservation({
         },
         comprobante_correo: emailComprobante,
       };
+      if (['PRESENCIAL', 'TELEFONO'].includes(values.origen) && secretary) {
+        await recordAuditEvent(client, {
+          secretary,
+          accion: 'CITA_RESERVAR_MANUAL',
+          entidadTipo: 'CITA',
+          entidadId: String(appointment.id),
+          detalles: {
+            codigo_reserva: codigoReserva,
+            origen: values.origen,
+            nuevo: {
+              agenda_id: slot.id,
+              medico_id: slot.medico_id,
+              fecha: slot.fecha,
+              hora_inicio: slot.hora_inicio,
+              hora_fin: slot.hora_fin,
+              estado: 'CONFIRMADA',
+            },
+          },
+        });
+      }
+
       if (values.requestKey) {
         await client.query(
           'UPDATE citas_medicas SET solicitud_respuesta=$2::jsonb WHERE id=$1 AND solicitud_payload_hash=$3',
