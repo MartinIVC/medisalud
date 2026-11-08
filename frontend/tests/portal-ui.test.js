@@ -296,7 +296,7 @@ test('la agenda de secretaria visualiza el estado de asistencia de las citas res
   assert.ok(rows[1].querySelector('.asistencia-badge.is-pending'));
 });
 
-test('la búsqueda en la agenda encuentra al paciente por RUT con o sin puntos y guión, y visualiza teléfono', () => {
+test('la búsqueda en la agenda encuentra al paciente por RUT con o sin puntos y guión, y visualiza teléfono y correo', () => {
   const agendas = [
     {
       agenda_id: 1,
@@ -306,6 +306,7 @@ test('la búsqueda en la agenda encuentra al paciente por RUT con o sin puntos y
       paciente_nombre: 'Paciente Uno',
       paciente_rut: '12.345.678-5',
       paciente_telefono: '+56911112222',
+      paciente_email: 'uno@example.cl',
       codigo_reserva: 'MED-01',
       asistencia_estado: 'PENDIENTE',
       futuro: true,
@@ -319,6 +320,7 @@ test('la búsqueda en la agenda encuentra al paciente por RUT con o sin puntos y
       paciente_nombre: 'Paciente Dos',
       paciente_rut: '98.765.432-1',
       paciente_telefono: '+56933334444',
+      paciente_email: 'dos@example.cl',
       codigo_reserva: 'MED-02',
       asistencia_estado: 'PENDIENTE',
       futuro: true,
@@ -326,7 +328,7 @@ test('la búsqueda en la agenda encuentra al paciente por RUT con o sin puntos y
     },
   ];
   const screen = render(React.createElement(SecretaryHarness, { agendas }));
-  assert.ok(screen.getByText('12.345.678-5 · +56911112222 · MED-01'));
+  assert.ok(screen.getByText('12.345.678-5 · +56911112222 · uno@example.cl · MED-01'));
   const searchInput = screen.getByLabelText('Buscar en la agenda');
 
   // Búsqueda sin puntos ni guión
@@ -351,6 +353,11 @@ test('la búsqueda en la agenda encuentra al paciente por RUT con o sin puntos y
 
   // Búsqueda por número de teléfono
   fireEvent.change(searchInput, { target: { value: '+56911112222' } });
+  assert.equal(screen.container.querySelectorAll('.agenda-row').length, 1);
+  assert.ok(screen.getByText('Paciente Uno'));
+
+  // Búsqueda por correo electrónico
+  fireEvent.change(searchInput, { target: { value: 'uno@example.cl' } });
   assert.equal(screen.container.querySelectorAll('.agenda-row').length, 1);
   assert.ok(screen.getByText('Paciente Uno'));
 

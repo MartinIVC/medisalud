@@ -118,6 +118,7 @@ export default function SecretaryPortal({ state, actions }) {
         block.paciente_nombre,
         block.paciente_rut,
         block.paciente_telefono,
+        block.paciente_email,
         block.codigo_reserva,
         block.motivo_bloqueo,
       ].some((value) => value?.toLowerCase().includes(trimmedQuery));
@@ -592,7 +593,12 @@ export default function SecretaryPortal({ state, actions }) {
                       : 'Disponible para reservar'}
                   <small>
                     {block.estado === 'RESERVADO'
-                      ? [block.paciente_rut, block.paciente_telefono, block.codigo_reserva]
+                      ? [
+                          block.paciente_rut,
+                          block.paciente_telefono,
+                          block.paciente_email,
+                          block.codigo_reserva,
+                        ]
                           .filter(Boolean)
                           .join(' · ')
                       : `${block.duracion_min} minutos · ${block.box_atencion}`}
@@ -905,10 +911,17 @@ export default function SecretaryPortal({ state, actions }) {
         <p className="context-line">
           {appointmentAction?.appointment.paciente_nombre} ·{' '}
           {appointmentAction?.appointment.codigo_reserva}
-          {appointmentAction?.appointment.paciente_telefono && (
+          {(appointmentAction?.appointment.paciente_telefono ||
+            appointmentAction?.appointment.paciente_email) && (
             <>
               <br />
-              Tel: {appointmentAction?.appointment.paciente_telefono}
+              {[
+                appointmentAction?.appointment.paciente_telefono &&
+                  `Tel: ${appointmentAction?.appointment.paciente_telefono}`,
+                appointmentAction?.appointment.paciente_email,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
             </>
           )}
           <br />
