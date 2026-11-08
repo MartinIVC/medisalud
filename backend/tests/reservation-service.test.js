@@ -223,3 +223,26 @@ test('reutilizar una clave con contenido diferente produce un conflicto antes de
     false,
   );
 });
+
+test('agendamiento presencial y telefónico encola confirmación por correo igual que web', async () => {
+  for (const origen of ['PRESENCIAL', 'TELEFONO']) {
+    let enqueuedDetails = null;
+    const database = fakePool();
+    const result = await createReservation({
+      database,
+      values: { ...values, origen },
+      enqueueConfirmation: async (details) => {
+        enqueuedDetails = details;
+        return { id: '99', status: 'PENDIENTE' };
+      },
+    });
+
+    assert.equal(result.response.ok, true);
+    assert.equal(result.response.comprobante_correo.status, 'PENDIENTE');
+    assert.ok(enqueuedDetails);
+    assert.equal(enqueuedDetails.pacienteEmail, 'ana@example.cl');
+    assert.equal(enqueuedDetails.pacienteNombre, 'Ana Pérez');
+    assert.equal(enqueuedDetails.pacienteRut, '12.345.678-5');
+    assert.equal(enqueuedDetails.medicoNombre, 'Dra. Prueba');
+  }
+});

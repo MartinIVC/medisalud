@@ -21,3 +21,10 @@ test('importar la aplicación crea Express sin arrancar un servidor', () => {
     http.Server.prototype.listen = originalListen;
   }
 });
+
+test('createApp asigna worker de notificaciones por defecto o inyectado', () => {
+  const { createApp } = require('../src/app');
+  const dummyWorker = async () => ({ claimed: 0 });
+  const customApp = createApp({ notificationWorker: dummyWorker });
+  assert.equal(customApp.locals.notificationWorker, dummyWorker);
+});

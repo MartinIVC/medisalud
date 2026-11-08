@@ -7,8 +7,18 @@ const { parseReservation, parseReservationManagement } = require('../schemas/inp
 const { withTransaction } = require('../db/transaction');
 const { createReservation } = require('../services/reservas');
 const { manageReservation } = require('../services/gestionar-reserva');
+const { processNotificationQueue } = require('../notifications/queue');
 
 const router = express.Router();
+
+function triggerNotifications(req) {
+  const worker = req?.app?.locals?.notificationWorker || processNotificationQueue;
+  setImmediate(() => {
+    worker().catch((error) => {
+      console.error('[Notificaciones] Error en despacho inmediato:', error.message);
+    });
+  });
+}
 
 router.get(
   '/reservas',
@@ -136,6 +146,7 @@ router.post(
       );
       return { ok: true, estado: 'ASISTIRA' };
     });
+    triggerNotifications(req);
     return res.json(response);
   }),
 );
@@ -167,12 +178,15 @@ router.post(
       );
     }
 
+    const database = req.app.locals.database || pool;
     const result = await manageReservation({
+      database,
       reservationId,
       action: parsed.value.action,
       agendaId: parsed.value.agendaId,
       motivo: parsed.value.motivo,
     });
+    triggerNotifications(req);
     return res.json(result);
   }),
 );
@@ -202,8 +216,10 @@ router.post(
     }
 
     const startHr = process.hrtime.bigint();
-    const result = await createReservation({ pool, values: parsed.value });
+    const database = req.app.locals.database || pool;
+    const result = await createReservation({ database, values: parsed.value });
     const elapsedMs = Number(process.hrtime.bigint() - startHr) / 1e6;
+    triggerNotifications(req);
     if (result.repeated) {
       return res.status(200).json({ ...result.response, repetida: true });
     }

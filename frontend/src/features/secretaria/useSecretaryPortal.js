@@ -244,7 +244,12 @@ export default function useSecretaryPortal({ activeTab, refreshAvailability }) {
       });
       if (response.ok) {
         closeReceptionBooking();
-        setSecFeedback({ ok: true, mensaje: 'La cita quedó reservada.' });
+        setSecFeedback({
+          ok: true,
+          mensaje:
+            response.data?.mensaje ||
+            'La cita quedó reservada con éxito. Se envió el comprobante por correo al paciente.',
+        });
         setReceptionData({
           nombre: '',
           rut: '',

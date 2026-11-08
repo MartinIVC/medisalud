@@ -5,7 +5,7 @@ const { processNotificationQueue } = require('./notifications/queue');
 function start({
   port = Number(process.env.PORT || 4000),
   database = pool,
-  notificationWorker = processNotificationQueue,
+  notificationWorker = app.locals.notificationWorker || processNotificationQueue,
 } = {}) {
   let processingQueue = false;
   const processNotifications = async () => {
@@ -24,7 +24,7 @@ function start({
     console.log(`[Medisalud Backend] Servidor activo en http://0.0.0.0:${port}`);
   });
   processNotifications();
-  const timer = setInterval(processNotifications, 30_000);
+  const timer = setInterval(processNotifications, 10_000);
   timer.unref();
 
   return {

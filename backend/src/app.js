@@ -7,11 +7,15 @@ const reservasRoutes = require('./routes/reservas');
 const medicosRoutes = require('./routes/medicos');
 const { requireSecretary } = require('./middleware/auth');
 const { authenticateSecretary, revokeSecretarySession } = require('./services/secretary-accounts');
+const { createNotificationWorker, processNotificationQueue } = require('./notifications/queue');
 const { errorHandler, sendError, asyncHandler } = require('./middleware/errors');
 
-function createApp({ database = pool } = {}) {
+function createApp({ database = pool, notificationWorker } = {}) {
   const app = express();
   app.locals.database = database;
+  app.locals.notificationWorker =
+    notificationWorker ||
+    (database === pool ? processNotificationQueue : createNotificationWorker({ database }));
 
   app.use(cors());
   app.use(express.json());
