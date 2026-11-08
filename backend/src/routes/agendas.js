@@ -66,6 +66,7 @@ router.get(
         c.paciente_rut,
         c.paciente_nombre,
         c.paciente_email,
+        c.paciente_telefono,
         c.asistencia_estado
       FROM agendas a
       INNER JOIN medicos m ON m.id = a.medico_id
