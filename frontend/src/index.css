@@ -421,15 +421,14 @@ strong {
 }
 .patient-heading > div {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.8fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: end;
-  gap: var(--space-8);
 }
 .patient-heading p {
   color: var(--muted);
   max-width: 32ch;
   margin: 0;
-  padding-left: var(--space-6);
+  padding-left: var(--space-8);
   border-left: 1px solid var(--border);
   font-size: 18px;
 }
