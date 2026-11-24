@@ -126,10 +126,25 @@ export default function PatientPortal({ state, actions }) {
   const [bookingOpen, setBookingOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState('');
+  const [selectedJornada, setSelectedJornada] = useState('TODAS');
   const headingRef = useRef(null);
   const bookingOpenerRef = useRef(null);
   const dates = useMemo(() => nextDates(selectedFecha, today), [selectedFecha, today]);
   const currentDoctor = medicosFiltrados.find((doctor) => String(doctor.id) === selectedMedico);
+  const visibleGroupedBlocks = useMemo(() => {
+    const entries = Object.entries(groupedBlocks || {});
+    if (selectedJornada === 'TODAS') return entries;
+    const suffix = selectedJornada === 'MANANA' ? '· Mañana' : '· Tarde';
+    return entries.filter(([group]) => group.endsWith(suffix));
+  }, [groupedBlocks, selectedJornada]);
+
+  const hasActiveFilters = Boolean(selectedEsp || selectedMedico || selectedJornada !== 'TODAS');
+
+  function resetPatientFilters() {
+    setSelectedJornada('TODAS');
+    setSelectedEsp?.('');
+    setSelectedMedico?.('');
+  }
   // Reservation progress belongs to the persistent hook, including across portal navigation.
   const activeView =
     submittingReserva || reservaResult || bookingStep === 'revision'
@@ -360,6 +375,17 @@ export default function PatientPortal({ state, actions }) {
                       ))}
                     </select>
                   </Field>
+                  <Field id="patient-period" label="Jornada">
+                    <select
+                      id="patient-period"
+                      value={selectedJornada}
+                      onChange={(event) => setSelectedJornada(event.target.value)}
+                    >
+                      <option value="TODAS">Todas las jornadas</option>
+                      <option value="MANANA">Mañana (antes de las 12:00)</option>
+                      <option value="TARDE">Tarde (desde las 12:00)</option>
+                    </select>
+                  </Field>
                   {currentDoctor ? (
                     <motion.div
                       key={currentDoctor.id}
@@ -445,18 +471,36 @@ export default function PatientPortal({ state, actions }) {
                       Selecciona otra especialidad para consultar horarios.
                     </EmptyState>
                   ) : !disponibilidad.bloques?.length ? (
-                    <EmptyState title="No hay horas para esta fecha">
+                    <EmptyState
+                      title="No hay horas para esta fecha"
+                      action={
+                        hasActiveFilters ? (
+                          <Button onClick={resetPatientFilters}>Limpiar filtros</Button>
+                        ) : null
+                      }
+                    >
                       Prueba otro día o consulta con cualquier profesional.
+                    </EmptyState>
+                  ) : !visibleGroupedBlocks.length ? (
+                    <EmptyState
+                      title="No hay horas en la jornada seleccionada"
+                      action={
+                        <Button onClick={() => setSelectedJornada('TODAS')}>
+                          Ver todas las jornadas
+                        </Button>
+                      }
+                    >
+                      Prueba con otra jornada o selecciona otro día.
                     </EmptyState>
                   ) : (
                     <motion.div
                       className="availability-groups"
-                      key={`${selectedFecha}-${selectedEsp}-${selectedMedico}`}
+                      key={`${selectedFecha}-${selectedEsp}-${selectedMedico}-${selectedJornada}`}
                       variants={staggerContainerVariants}
                       initial={reduceMotion ? false : 'hidden'}
                       animate="visible"
                     >
-                      {Object.entries(groupedBlocks).map(([group, blocks]) => (
+                      {visibleGroupedBlocks.map(([group, blocks]) => (
                         <motion.section
                           className="slot-group"
                           key={group}

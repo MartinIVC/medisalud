@@ -1581,3 +1581,95 @@ test('al cambiar la fecha oculta las horas anteriores hasta recibir la nueva dis
     globalThis.fetch = originalFetch;
   }
 });
+
+test('el portal del paciente filtra horarios por jornada y permite restablecerla si queda vacía', async () => {
+  const { default: PatientPortal } = await server.ssrLoadModule(
+    '/src/features/paciente/PatientPortal.jsx',
+  );
+  const morningSlot = {
+    agenda_id: 11,
+    medico_nombre: 'Dra. Prueba',
+    especialidad_nombre: 'General',
+    box_atencion: 'Box 1',
+    fecha: '2027-01-15',
+    hora_inicio: '09:00',
+    hora_fin: '09:30',
+    duracion_min: 30,
+  };
+  const afternoonSlot = {
+    agenda_id: 12,
+    medico_nombre: 'Dra. Prueba',
+    especialidad_nombre: 'General',
+    box_atencion: 'Box 1',
+    fecha: '2027-01-15',
+    hora_inicio: '15:00',
+    hora_fin: '15:30',
+    duracion_min: 30,
+  };
+
+  const screen = render(
+    React.createElement(PatientPortal, {
+      state: {
+        selectedFecha: '2027-01-15',
+        today: '2027-01-15',
+        selectedEsp: '',
+        selectedMedico: '',
+        selectedBloque: null,
+        especialidades: [{ id: 1, nombre: 'General' }],
+        medicosFiltrados: [{ id: 1, nombre: 'Dra. Prueba', especialidad_nombre: 'General' }],
+        disponibilidad: { bloques: [morningSlot, afternoonSlot] },
+        groupedBlocks: {
+          'Dra. Prueba · Mañana': [morningSlot],
+          'Dra. Prueba · Tarde': [afternoonSlot],
+        },
+        fieldTouched: {},
+        pacienteRut: '',
+        pacienteNombre: '',
+        pacienteEmail: '',
+        pacienteTelefono: '+569',
+        bookingStep: 'datos',
+        reservationFieldErrors: {},
+        reservaResult: null,
+      },
+      actions: {},
+    }),
+  );
+
+  const periodSelect = screen.getByLabelText('Jornada');
+  assert.ok(screen.getByRole('button', { name: '09:00, Dra. Prueba, 30 minutos' }));
+  assert.ok(screen.getByRole('button', { name: '15:00, Dra. Prueba, 30 minutos' }));
+
+  fireEvent.change(periodSelect, { target: { value: 'TARDE' } });
+  assert.equal(screen.queryByRole('button', { name: '09:00, Dra. Prueba, 30 minutos' }), null);
+  assert.ok(screen.getByRole('button', { name: '15:00, Dra. Prueba, 30 minutos' }));
+
+  screen.rerender(
+    React.createElement(PatientPortal, {
+      state: {
+        selectedFecha: '2027-01-15',
+        today: '2027-01-15',
+        selectedEsp: '',
+        selectedMedico: '',
+        selectedBloque: null,
+        especialidades: [{ id: 1, nombre: 'General' }],
+        medicosFiltrados: [{ id: 1, nombre: 'Dra. Prueba', especialidad_nombre: 'General' }],
+        disponibilidad: { bloques: [morningSlot] },
+        groupedBlocks: { 'Dra. Prueba · Mañana': [morningSlot] },
+        fieldTouched: {},
+        pacienteRut: '',
+        pacienteNombre: '',
+        pacienteEmail: '',
+        pacienteTelefono: '+569',
+        bookingStep: 'datos',
+        reservationFieldErrors: {},
+        reservaResult: null,
+      },
+      actions: {},
+    }),
+  );
+
+  assert.ok(screen.getByText('No hay horas en la jornada seleccionada'));
+  fireEvent.click(screen.getByRole('button', { name: 'Ver todas las jornadas' }));
+  assert.equal(periodSelect.value, 'TODAS');
+  assert.ok(screen.getByRole('button', { name: '09:00, Dra. Prueba, 30 minutos' }));
+});
