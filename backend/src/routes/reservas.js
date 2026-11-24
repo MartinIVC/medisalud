@@ -7,6 +7,7 @@ const { parseReservation, parseReservationManagement } = require('../schemas/inp
 const { withTransaction } = require('../db/transaction');
 const { createReservation } = require('../services/reservas');
 const { manageReservation } = require('../services/gestionar-reserva');
+const { getAppointmentsByRut } = require('../services/mis-citas');
 const { processNotificationQueue } = require('../notifications/queue');
 
 const router = express.Router();
@@ -19,6 +20,31 @@ function triggerNotifications(req) {
     });
   });
 }
+
+router.get(
+  '/reservas/mis-citas',
+  asyncHandler(async (req, res) => {
+    const database = req.app.locals.database || pool;
+    const rawRut = typeof req.query?.rut === 'string' ? req.query.rut : '';
+    try {
+      const { rut, citas } = await getAppointmentsByRut({ database, rut: rawRut });
+      res.set('Cache-Control', 'no-store');
+      res.set('X-Content-Type-Options', 'nosniff');
+      return res.json({
+        ok: true,
+        jira: 'MED-29',
+        rut,
+        total: citas.length,
+        citas,
+      });
+    } catch (error) {
+      if (error instanceof HttpError && error.code === 'INVALID_RUT') {
+        return sendError(res, 400, 'INVALID_RUT', error.message, error.fields, 'RUT_INVALIDO');
+      }
+      throw error;
+    }
+  }),
+);
 
 router.get(
   '/reservas',

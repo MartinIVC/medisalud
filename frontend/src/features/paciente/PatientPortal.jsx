@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { CalendarDays, Check, Copy, MapPin, Printer } from 'lucide-react';
 import DoctorPhoto from '../../components/DoctorPhoto.jsx';
+import MisCitas from './MisCitas.jsx';
 import {
   EASE_OUT_EXPO,
   EASE_OUT_QUART,
@@ -120,6 +121,7 @@ export default function PatientPortal({ state, actions }) {
     retryCatalogos,
   } = actions;
   const reduceMotion = useReducedMotion();
+  const [portalTab, setPortalTab] = useState('reservar');
   const [view, setView] = useState(() =>
     submittingReserva || reservaResult || bookingStep === 'revision' ? 'reserva' : 'horarios',
   );
@@ -130,6 +132,7 @@ export default function PatientPortal({ state, actions }) {
   const bookingOpenerRef = useRef(null);
   const dates = useMemo(() => nextDates(selectedFecha, today), [selectedFecha, today]);
   const currentDoctor = medicosFiltrados.find((doctor) => String(doctor.id) === selectedMedico);
+  const isLookupTab = portalTab === 'mis-citas' && !submittingReserva;
   // Reservation progress belongs to the persistent hook, including across portal navigation.
   const activeView =
     submittingReserva || reservaResult || bookingStep === 'revision'
@@ -258,7 +261,9 @@ export default function PatientPortal({ state, actions }) {
       <div className="patient-heading no-print">
         <div>
           <h1>
-            {activeView === 'horarios' ? (
+            {isLookupTab ? (
+              'Consulta tus citas.'
+            ) : activeView === 'horarios' ? (
               <>
                 Tu próxima hora,
                 <br />
@@ -273,37 +278,82 @@ export default function PatientPortal({ state, actions }) {
             )}
           </h1>
           <p>
-            {activeView === 'horarios'
-              ? 'Elige profesional, fecha y horario de atención.'
-              : successful
-                ? 'Conserva este comprobante para tu atención.'
-                : 'La hora quedará reservada cuando confirmes.'}
+            {isLookupTab
+              ? 'Ingresa tu RUT para revisar tus horas médicas reservadas y su estado.'
+              : activeView === 'horarios'
+                ? 'Elige profesional, fecha y horario de atención.'
+                : successful
+                  ? 'Conserva este comprobante para tu atención.'
+                  : 'La hora quedará reservada cuando confirmes.'}
           </p>
         </div>
       </div>
-      <div className="booking-steps-wrap no-print">
-        <motion.span
-          className="booking-progress"
-          aria-hidden="true"
-          initial={false}
-          animate={{ scaleX: stage / 2 }}
-          transition={reduceMotion ? { duration: 0 } : { duration: 0.25, ease: EASE_OUT_QUART }}
-        />
-        <ol className="booking-steps" aria-label="Etapas de reserva">
-          {['Profesional', 'Fecha y hora', 'Datos y reserva'].map((label, index) => (
-            <li
-              key={label}
-              aria-current={stage === index ? 'step' : undefined}
-              data-completed={index < stage ? 'true' : undefined}
-            >
-              <span>{index < stage ? <Check size={14} aria-hidden="true" /> : index + 1}</span>
-              {label}
-            </li>
-          ))}
-        </ol>
-      </div>
 
-      {activeView === 'horarios' ? (
+      <nav className="patient-tabs no-print" aria-label="Secciones del portal del paciente">
+        <div className="filter-tabs">
+          {[
+            { id: 'reservar', label: 'Reservar hora' },
+            { id: 'mis-citas', label: 'Consultar mis citas' },
+          ].map((tab) => {
+            const selected = (isLookupTab ? 'mis-citas' : 'reservar') === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                aria-pressed={selected}
+                disabled={submittingReserva}
+                onClick={() => setPortalTab(tab.id)}
+              >
+                {tab.label}
+                {selected && (
+                  <motion.span
+                    className="nav-active-indicator"
+                    layoutId="patient-portal-tab-indicator"
+                    initial={false}
+                    transition={reduceMotion ? { duration: 0 } : SPRING_CRISP}
+                    aria-hidden="true"
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      {!isLookupTab && (
+        <div className="booking-steps-wrap no-print">
+          <motion.span
+            className="booking-progress"
+            aria-hidden="true"
+            initial={false}
+            animate={{ scaleX: stage / 2 }}
+            transition={reduceMotion ? { duration: 0 } : { duration: 0.25, ease: EASE_OUT_QUART }}
+          />
+          <ol className="booking-steps" aria-label="Etapas de reserva">
+            {['Profesional', 'Fecha y hora', 'Datos y reserva'].map((label, index) => (
+              <li
+                key={label}
+                aria-current={stage === index ? 'step' : undefined}
+                data-completed={index < stage ? 'true' : undefined}
+              >
+                <span>{index < stage ? <Check size={14} aria-hidden="true" /> : index + 1}</span>
+                {label}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {isLookupTab ? (
+        <motion.div
+          key="mis-citas"
+          variants={stageVariants}
+          initial={reduceMotion ? false : 'initial'}
+          animate="animate"
+        >
+          <MisCitas onGoToBooking={() => setPortalTab('reservar')} />
+        </motion.div>
+      ) : activeView === 'horarios' ? (
         <motion.div
           key="horarios"
           variants={stageVariants}
@@ -657,7 +707,7 @@ export default function PatientPortal({ state, actions }) {
         </motion.div>
       )}
       <Dialog
-        open={bookingOpen && activeView === 'horarios' && Boolean(selectedBloque)}
+        open={!isLookupTab && bookingOpen && activeView === 'horarios' && Boolean(selectedBloque)}
         className="booking-dialog"
         title="Completa tus datos"
         onClose={() => setBookingOpen(false)}

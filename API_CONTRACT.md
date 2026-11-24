@@ -41,6 +41,14 @@ Credenciales incorrectas, una cuenta inexistente o inactiva y el límite tempora
 
 Las reservas se ejecutan en PostgreSQL con aislamiento `SERIALIZABLE`, bloqueo pesimista y un límite de 1,5 s por espera de bloqueo. Los abortos de serialización se reintentan hasta cinco veces en total; si el conflicto persiste o vence la espera de bloqueo, la API devuelve `409 CONCURRENT_RESERVATION`.
 
+## Consulta de citas por RUT para pacientes (MED-29)
+
+`GET /api/reservas/mis-citas?rut=...` es un endpoint público de solo lectura que valida el RUT chileno mediante Módulo 11 (`rutValidator.js`) y devuelve las citas asociadas al RUT normalizado (`XX.XXX.XXX-X` con `K` mayúscula). Responde con `Cache-Control: no-store` y `X-Content-Type-Options: nosniff`.
+
+- Si el RUT es válido y tiene citas registradas, devuelve `200 OK` con `{ "ok": true, "jira": "MED-29", "rut": "12.345.678-5", "total": N, "citas": [...] }`, donde cada elemento incluye `id`, `codigo_reserva`, `fecha` (`AAAA-MM-DD`), `hora_inicio`, `hora_fin`, `medico_nombre`, `especialidad_nombre`, `box_atencion`, `estado` (`CONFIRMADA` o `CANCELADA`), `asistencia_estado` y `futuro` (evaluado en `America/Santiago`).
+- Si el RUT es válido y no tiene citas, devuelve `200 OK` con `total: 0` y `citas: []`.
+- Si el parámetro `rut` falta, está vacío o no supera la validación Módulo 11, responde `400` con `code: "INVALID_RUT"`, `codigo_error: "RUT_INVALIDO"` y el detalle en `fields.rut`.
+
 ## Configuración y bloqueo de agendas (MED-10)
 
 `GET /api/agendas` requiere una sesión de secretaría vigente (`Authorization: Bearer <token>`). Retorna la lista de bloques de un médico y fecha (`DISPONIBLE`, `RESERVADO`, `BLOQUEADO`). Para bloques en estado `RESERVADO`, incluye los datos de la cita médica confirmada (`cita_id`, `codigo_reserva`, `paciente_rut`, `paciente_nombre`, `paciente_email`, `paciente_telefono`) y el estado de confirmación de asistencia del paciente (`asistencia_estado`: `"PENDIENTE"` o `"ASISTIRA"`).

@@ -2558,3 +2558,115 @@ strong {
 .admin-heading .muted::first-letter {
   text-transform: uppercase;
 }
+
+.patient-tabs {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-6);
+}
+.my-appointments-section {
+  max-width: 850px;
+}
+.my-appointments-toolbar {
+  padding: var(--space-6);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--primary);
+  background: var(--surface);
+}
+.my-appointments-toolbar > div:first-child p {
+  margin-top: var(--space-2);
+}
+.my-appointments-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+}
+.my-appointments-form input {
+  background: var(--background);
+}
+.my-appointments-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-top: 30px;
+}
+.my-appointments-results {
+  margin-top: var(--space-8);
+}
+.my-appointments-summary {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: var(--space-4);
+}
+.my-appointments-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 2px solid var(--primary);
+}
+.my-appointment-item {
+  padding: var(--space-6) 0;
+  border-bottom: 1px solid var(--border);
+}
+.my-appointment-item .appointment-details {
+  margin: var(--space-4) 0 0;
+  padding: var(--space-4) 0 0;
+  border-bottom: 0;
+}
+.my-appointment-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-6);
+}
+.my-appointment-code-label {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: var(--space-1);
+}
+.my-appointment-code {
+  font-size: 18px;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+.my-appointment-statuses {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.appointment-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 700;
+}
+.appointment-status-badge.is-confirmed {
+  color: var(--available);
+  background: var(--available-surface);
+}
+.appointment-status-badge.is-cancelled {
+  color: var(--error);
+  background: var(--error-surface);
+}
+@media (max-width: 639px) {
+  .my-appointments-toolbar {
+    padding: var(--space-4);
+  }
+  .my-appointments-form {
+    grid-template-columns: 1fr;
+  }
+  .my-appointments-actions {
+    padding-top: 0;
+    flex-wrap: wrap;
+  }
+  .my-appointments-actions .button {
+    flex: 1;
+  }
+}
