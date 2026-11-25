@@ -80,6 +80,8 @@ La práctica de capacitación prepara estos ejercicios; la aprobación final deb
 | UAT-06 | Cancelar una cita y volver a consultar | Estado y disponibilidad coherentes con bloqueos vigentes | ____________________ | ____________________ | ____________________ |
 | UAT-07 | Resolver una sesión expirada y comunicar una incidencia | Se aplica el procedimiento del manual | ____________________ | ____________________ | ____________________ |
 | UAT-08 | Mover una cita futura a otro cupo y revisar ambos horarios | Nuevo cupo reservado, anterior disponible o bloqueado según corresponda y aviso por correo pendiente | ____________________ | ____________________ | ____________________ |
+| UAT-09 | Reservar una hora web con verificación de correo en Mailpit local (`127.0.0.1:8025`) y consultar el historial en **Consultar mis citas** con un código nuevo | Código de reserva válido por 10 min, reserva confirmada y visible en el historial solo para el par (RUT, correo verificado); otros correos o RUTs no ven esas citas | ____________________ | ____________________ | ____________________ |
+| UAT-10 | Incorporar una cita presencial mediante **Recuperación de citas** y confirmar el código en el buzón de destino | Solicitud auditada sin PII, traslado aplicado únicamente tras confirmación del código de recuperación y trazabilidad original conservada | ____________________ | ____________________ | ____________________ |
 
 Para cada ejecución, conservar fecha, participante, resultado esperado y real, evidencia sin datos personales y aprobación del PO.
 

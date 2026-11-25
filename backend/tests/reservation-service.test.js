@@ -1,10 +1,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createReservation, reservationFingerprint } = require('../src/services/reservas');
+const { hashSecretToken } = require('../src/services/verificacion-correo');
 const { buildConfirmation } = require('../src/notifications/templates');
 const { HttpError } = require('../src/middleware/errors');
 
-function fakePool({ slot = {}, previous = null, failQuery } = {}) {
+const VALID_AUTH_TOKEN = 'A'.repeat(43);
+
+function fakePool({ slot = {}, previous = null, auth = {}, failQuery } = {}) {
   const queries = [];
   let released = false;
   const slotData = {
@@ -22,6 +25,17 @@ function fakePool({ slot = {}, previous = null, failQuery } = {}) {
     bloqueado: false,
     ...slot,
   };
+  const authData =
+    auth === null
+      ? null
+      : {
+          token_hash: hashSecretToken(VALID_AUTH_TOKEN),
+          paciente_rut: '12.345.678-5',
+          correo_normalizado: 'ana@example.cl',
+          expira_en: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+          consumida_en: null,
+          ...auth,
+        };
   let currentClient;
 
   return {
@@ -49,13 +63,19 @@ function fakePool({ slot = {}, previous = null, failQuery } = {}) {
           if (sql.startsWith('SELECT a.id, a.medico_id')) return { rowCount: 1, rows: [slotData] };
           if (sql.startsWith('SELECT solicitud_payload_hash'))
             return previous ? { rowCount: 1, rows: [previous] } : { rowCount: 0, rows: [] };
+          if (sql.includes('FROM autorizaciones_reserva_correo'))
+            return authData ? { rowCount: 1, rows: [authData] } : { rowCount: 0, rows: [] };
           if (sql.startsWith('SELECT id FROM agendas')) return { rowCount: 0, rows: [] };
           if (sql.startsWith('UPDATE agendas')) return { rowCount: 1, rows: [{ id: 12 }] };
+          if (sql.startsWith('INSERT INTO vinculos_consulta_paciente'))
+            return { rowCount: 1, rows: [{ id: 77 }] };
           if (sql.startsWith('INSERT INTO citas_medicas'))
             return {
               rowCount: 1,
               rows: [{ id: 21, codigo_reserva: 'MED-2026-ABCDEF', created_at: 'now' }],
             };
+          if (sql.startsWith('UPDATE autorizaciones_reserva_correo'))
+            return { rowCount: 1, rows: [{ token_hash: authData?.token_hash }] };
           if (sql.startsWith('INSERT INTO notificaciones')) return { rowCount: 1, rows: [] };
           if (sql.startsWith('INSERT INTO auditoria_acciones_secretaria'))
             return { rowCount: 1, rows: [{ id: 1 }] };
@@ -80,6 +100,7 @@ const values = {
   telefono: '+56912345678',
   origen: 'WEB',
   requestKey: null,
+  autorizacionReserva: VALID_AUTH_TOKEN,
 };
 
 test('la reserva revalida el estado, la actividad, la hora futura y los bloqueos', async (context) => {

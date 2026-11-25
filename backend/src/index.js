@@ -1,11 +1,13 @@
 const { app } = require('./app');
 const { pool } = require('./db');
 const { processNotificationQueue } = require('./notifications/queue');
+const { processVerificationQueue } = require('./notifications/verification-worker');
 
 function start({
   port = Number(process.env.PORT || 4000),
   database = pool,
   notificationWorker = app.locals.notificationWorker || processNotificationQueue,
+  verificationWorker = app.locals.verificationWorker || processVerificationQueue,
 } = {}) {
   let processingQueue = false;
   const processNotifications = async () => {
@@ -15,6 +17,11 @@ function start({
       await notificationWorker();
     } catch (error) {
       console.error('[Notificaciones] No se pudo procesar la cola:', error.message);
+    }
+    try {
+      await verificationWorker();
+    } catch (error) {
+      console.error('[Verificación] No se pudo procesar la cola de códigos:', error.message);
     } finally {
       processingQueue = false;
     }

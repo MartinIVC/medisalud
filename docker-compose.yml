@@ -39,6 +39,7 @@ services:
       TZ: America/Santiago
       SECRETARY_PASSWORD: ${SECRETARY_PASSWORD:-}
       SECRETARY_TOKEN_SECRET: ${SECRETARY_TOKEN_SECRET:-}
+      VERIFICATION_HMAC_SECRET: ${VERIFICATION_HMAC_SECRET:-medisalud-demo-hmac-secret-local-only}
       PUBLIC_WEB_URL: ${PUBLIC_WEB_URL:-http://localhost:5173}
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
       SENDGRID_FROM: ${SENDGRID_FROM:-}

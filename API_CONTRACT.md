@@ -39,15 +39,28 @@ Credenciales incorrectas, una cuenta inexistente o inactiva y el límite tempora
 
 `POST /api/reservas` acepta `Idempotency-Key` (hasta 100 caracteres). El cliente reutiliza la misma clave únicamente mientras repite el mismo payload tras un resultado incierto. La misma clave y payload devuelve el comprobante persistido; usar la clave con otro payload devuelve `409 IDEMPOTENCY_CONFLICT`.
 
+Para `origen: "WEB"` (por defecto), el payload exige `autorizacion_reserva` emitida por `POST /api/reservas/verificacion-correo/verificar` para exactamente el mismo par `(paciente_rut, paciente_email)` normalizado. Si falta, venció, ya fue usada o no coincide con el par, responde `403 EMAIL_VERIFICATION_REQUIRED`. La clave de idempotencia se vincula a la autorización: un reintento legítimo con la misma clave y autorización devuelve el comprobante previo aunque la autorización ya haya sido consumida; la clave sola sin autorización nunca devuelve el comprobante. Al confirmar una reserva `WEB`, el servidor crea o actualiza el vínculo en `vinculos_consulta_paciente`, asocia `citas_medicas.vinculo_consulta_id` y consume la autorización en la misma transacción; si ocurre un rollback (p. ej. `409 SLOT_TAKEN`), la autorización permanece vigente hasta su caducidad. Las reservas `PRESENCIAL` y `TELEFONO` exigen sesión de secretaría y quedan con `vinculo_consulta_id = NULL` (pendientes de vinculación para el portal).
+
 Las reservas se ejecutan en PostgreSQL con aislamiento `SERIALIZABLE`, bloqueo pesimista y un límite de 1,5 s por espera de bloqueo. Los abortos de serialización se reintentan hasta cinco veces en total; si el conflicto persiste o vence la espera de bloqueo, la API devuelve `409 CONCURRENT_RESERVATION`.
 
-## Consulta de citas por RUT para pacientes (MED-29)
+## Verificación de correo, consulta de citas y recuperación asistida (MED-29)
 
-`GET /api/reservas/mis-citas?rut=...` es un endpoint público de solo lectura que valida el RUT chileno mediante Módulo 11 (`rutValidator.js`) y devuelve las citas asociadas al RUT normalizado (`XX.XXX.XXX-X` con `K` mayúscula). Responde con `Cache-Control: no-store` y `X-Content-Type-Options: nosniff`.
+El antiguo endpoint `GET /api/reservas/mis-citas?rut=...` fue eliminado; no existe consulta pública solo por RUT. Todas las operaciones siguientes responden con `Cache-Control: no-store` y `X-Content-Type-Options: nosniff`, mantienen RUT, correo y secretos fuera de las URL y los logs, y aplican normalización compartida de RUT (`XX.XXX.XXX-X`, `K` mayúscula) y correo (minúsculas, conservando puntos y alias `+`).
 
-- Si el RUT es válido y tiene citas registradas, devuelve `200 OK` con `{ "ok": true, "jira": "MED-29", "rut": "12.345.678-5", "total": N, "citas": [...] }`, donde cada elemento incluye `id`, `codigo_reserva`, `fecha` (`AAAA-MM-DD`), `hora_inicio`, `hora_fin`, `medico_nombre`, `especialidad_nombre`, `box_atencion`, `estado` (`CONFIRMADA` o `CANCELADA`), `asistencia_estado` y `futuro` (evaluado en `America/Santiago`).
-- Si el RUT es válido y no tiene citas, devuelve `200 OK` con `total: 0` y `citas: []`.
-- Si el parámetro `rut` falta, está vacío o no supera la validación Módulo 11, responde `400` con `code: "INVALID_RUT"`, `codigo_error: "RUT_INVALIDO"` y el detalle en `fields.rut`.
+### Verificación de correo previa a reserva web
+- `POST /api/reservas/verificacion-correo/solicitudes`: recibe `{ "rut", "correo" }` (admite pares nuevos). Valida RUT (`400 INVALID_RUT` / `codigo_error: "RUT_INVALIDO"`) y correo (`400 VALIDATION_ERROR`). Encola el envío de un código de 6 dígitos (vigencia 10 min, almacenado solo como HMAC-SHA256 con contexto) y responde `202` con `{ "ok": true, "jira": "MED-29", "solicitud_id", "rut", "correo", "expira_en", "reenvio_disponible_en", "mensaje" }`. Reenvíos dentro de la espera de 60 s o por encima de cuotas responden `429 RATE_LIMITED` sin invalidar el código vigente.
+- `POST /api/reservas/verificacion-correo/verificar`: recibe `{ "solicitud_id", "codigo" }`. Consume el código atómicamente y responde `200` con `{ "ok": true, "jira": "MED-29", "autorizacion_reserva", "expira_en", "rut", "correo" }` (autorización opaca de un solo uso válida por 10 minutos).
+
+### Consulta de citas por RUT y correo verificado
+- `POST /api/reservas/mis-citas/solicitudes`: recibe `{ "rut", "correo" }`. Valida formato de RUT (`400 INVALID_RUT` / `RUT_INVALIDO`) y correo (`400 VALIDATION_ERROR`). Para cualquier entrada válida responde siempre `202` con mensaje genérico indistinguible («Si los datos coinciden, recibirás un código para consultar tus citas.») e ID opaco del mismo formato, tanto para pares conocidos como desconocidos o suprimidos por cuota; solo programa el correo si existe un vínculo activo.
+- `POST /api/reservas/mis-citas/verificar`: recibe `{ "solicitud_id", "codigo" }`. Valida y consume el código atómicamente, comprueba la versión vigente del vínculo y devuelve `200` con `{ "ok": true, "jira": "MED-29", "rut", "total": N, "citas": [...] }` filtrando estrictamente por `vinculo_consulta_id` (ordenado con próximas citas primero en `America/Santiago`). Un historial vacío tras verificar es válido (`total: 0, citas: []`).
+- Errores de código: códigos incorrectos, vencidos, consumidos, revocados, de otro propósito o con intentos agotados (5 por solicitud / 10 por par en 15 min) devuelven el mismo error público `400 VERIFICATION_CODE_INVALID`.
+
+### Recuperación asistida por secretaría
+- `POST /api/secretaria/recuperacion-citas/buscar`: exige sesión vigente de secretaría (`Authorization: Bearer <token>`). Recibe `{ "rut" }` y devuelve las citas del paciente (con estado de vinculación actual) y las solicitudes de recuperación vigentes.
+- `POST /api/secretaria/recuperacion-citas/solicitudes`: exige sesión de secretaría. Recibe `{ "rut", "correo_destino", "citas_ids", "motivo" }`. Fija las citas concretas y el destino, encola el código de recuperación al nuevo correo, registra auditoría `CITA_RECUPERACION_INICIAR` (sin RUT, correo ni código) y responde `202`.
+- `POST /api/secretaria/recuperacion-citas/solicitudes/:id/revocar`: exige sesión de secretaría. Revoca una solicitud pendiente y registra auditoría `CITA_RECUPERACION_REVOCAR`.
+- `POST /api/reservas/mis-citas/recuperacion/confirmar`: operación pública que recibe únicamente `{ "solicitud_id", "codigo" }`. En una transacción revalida RUT y citas fijadas, crea o actualiza el vínculo destino, actualiza `vinculo_consulta_id` solo en esas citas (preservando `paciente_email` original), incrementa la versión e invalida solicitudes de consulta pendientes de los vínculos afectados y registra auditoría `CITA_RECUPERACION_COMPLETAR`.
 
 ## Configuración y bloqueo de agendas (MED-10)
 
@@ -98,7 +111,7 @@ El servidor devuelve `400 VALIDATION_ERROR` para ID o motivo inválidos, `401 UN
 Parámetros de consulta opcionales:
 - `secretaria_id`: ID numérico de una cuenta de secretaría, o `'desconocido'` para consultar acciones de origen anterior o no atribuibles individualmente.
 - `fecha_desde` / `fecha_hasta`: fechas en formato `AAAA-MM-DD`, evaluadas bajo la zona horaria `America/Santiago`.
-- `accion`: código de acción exacto (`MEDICO_CREAR`, `MEDICO_ACTUALIZAR`, `MEDICO_FOTO_ACTUALIZAR`, `MEDICO_DESVINCULAR`, `MEDICO_REVINCULAR`, `AGENDA_CONFIGURAR`, `AGENDA_BLOQUEAR`, `AGENDA_DESBLOQUEAR`, `CITA_RESERVAR_MANUAL`, `CITA_CANCELAR`, `CITA_REPROGRAMAR`).
+- `accion`: código de acción exacto (`MEDICO_CREAR`, `MEDICO_ACTUALIZAR`, `MEDICO_FOTO_ACTUALIZAR`, `MEDICO_DESVINCULAR`, `MEDICO_REVINCULAR`, `AGENDA_CONFIGURAR`, `AGENDA_BLOQUEAR`, `AGENDA_DESBLOQUEAR`, `CITA_RESERVAR_MANUAL`, `CITA_CANCELAR`, `CITA_REPROGRAMAR`, `CITA_RECUPERACION_INICIAR`, `CITA_RECUPERACION_REVOCAR`, `CITA_RECUPERACION_COMPLETAR`).
 - `entidad_tipo`: `'MEDICO'`, `'AGENDA'` o `'CITA'`.
 - `limit`: cantidad máxima de registros (1 a 100, valor por defecto: 50).
 - `offset`: desplazamiento inicial para paginación (entero `>= 0`, valor por defecto: 0).
@@ -128,5 +141,6 @@ Las instalaciones nuevas reciben el esquema actual desde `database/01_init.sql`.
 7. `20261107_cuentas_secretaria.sql`
 8. `20261107_desvinculaciones_medico.sql`
 9. `20261108_auditoria_acciones_secretaria.sql`
+10. `20261125_verificacion_correo_mis_citas.sql`
 
 La migración Sprint 2 no se puede repetir y requiere resolver solapamientos de agenda antes de ejecutarla.

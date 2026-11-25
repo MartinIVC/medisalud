@@ -1,0 +1,33 @@
+# Compose complementario de demostración local con Mailpit (MED-29)
+# Uso: docker compose -f docker-compose.yml -f docker-compose.mailpit.yml up -d --build
+# Bandeja web accesible únicamente desde http://127.0.0.1:8025
+services:
+  mailpit:
+    image: axllent/mailpit:v1.21
+    container_name: medisalud-mailpit
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:8025:8025'
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: '1'
+      MP_SMTP_AUTH_ALLOW_INSECURE: '1'
+
+  backend:
+    depends_on:
+      db:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    environment:
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_SECURE: 'false'
+      SMTP_USER: ''
+      SMTP_PASS: ''
+      SMTP_FROM: no-responder@medisalud.demo
+      SENDGRID_API_KEY: ''
+      SENDGRID_FROM: ''
+      TWILIO_ACCOUNT_SID: ''
+      TWILIO_AUTH_TOKEN: ''
+      TWILIO_WHATSAPP_FROM: ''
+      VERIFICATION_HMAC_SECRET: ${VERIFICATION_HMAC_SECRET:-medisalud-demo-hmac-secret-local-only}

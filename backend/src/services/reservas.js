@@ -4,6 +4,8 @@ const { withTransaction } = require('../db/transaction');
 const { HttpError } = require('../middleware/errors');
 const { enqueueConfirmationEmail } = require('../notifications/queue');
 const { recordAuditEvent } = require('./auditoria');
+const { normalizeEmail } = require('../utils/email');
+const { hashSecretToken } = require('./verificacion-correo');
 
 const SERIALIZATION_MAX_ATTEMPTS = 5;
 const RESERVATION_LOCK_TIMEOUT = '1500ms';
@@ -13,9 +15,10 @@ function reservationFingerprint(values) {
     values.agendaId,
     values.rut,
     values.nombre,
-    values.email.toLowerCase(),
+    normalizeEmail(values.email),
     values.telefono,
     values.origen,
+    values.origen === 'WEB' ? hashSecretToken(values.autorizacionReserva || '') : null,
   ]);
   return crypto.createHash('sha256').update(canonical).digest('hex');
 }
@@ -68,11 +71,22 @@ async function createReservation({
   enqueueConfirmation = enqueueConfirmationEmail,
   randomBytes = crypto.randomBytes,
 }) {
-  const fingerprint = values.requestKey ? reservationFingerprint(values) : null;
+  const normalizedEmail = normalizeEmail(values.email);
+  const isWeb = values.origen === 'WEB';
+  if (isWeb && !values.autorizacionReserva) {
+    throw new HttpError(
+      403,
+      'EMAIL_VERIFICATION_REQUIRED',
+      'Debes verificar tu correo electrónico con el código de 6 dígitos antes de confirmar la reserva.',
+    );
+  }
+  const authTokenHash = isWeb ? hashSecretToken(values.autorizacionReserva) : null;
+  const normalizedValues = { ...values, email: normalizedEmail };
+  const fingerprint = normalizedValues.requestKey ? reservationFingerprint(normalizedValues) : null;
   try {
     const operation = async (client) => {
       const target = await client.query('SELECT medico_id FROM agendas WHERE id=$1', [
-        values.agendaId,
+        normalizedValues.agendaId,
       ]);
       if (!target.rowCount)
         throw new HttpError(404, 'SLOT_NOT_FOUND', 'El bloque horario seleccionado no existe.');
@@ -102,7 +116,7 @@ async function createReservation({
          INNER JOIN especialidades e ON e.id=m.especialidad_id
          WHERE a.id=$1
          FOR UPDATE OF a`,
-        [values.agendaId],
+        [normalizedValues.agendaId],
       );
       if (!slotResult.rowCount)
         throw new HttpError(
@@ -112,11 +126,11 @@ async function createReservation({
         );
       const slot = slotResult.rows[0];
 
-      if (values.requestKey) {
+      if (normalizedValues.requestKey) {
         const previous = await client.query(
           `SELECT solicitud_payload_hash, solicitud_respuesta
            FROM citas_medicas WHERE solicitud_id=$1`,
-          [values.requestKey],
+          [normalizedValues.requestKey],
         );
         if (previous.rowCount) {
           const existing = previous.rows[0];
@@ -132,6 +146,30 @@ async function createReservation({
               ? JSON.parse(existing.solicitud_respuesta)
               : existing.solicitud_respuesta;
           return { repeated: true, response };
+        }
+      }
+
+      if (isWeb) {
+        const authResult = await client.query(
+          `SELECT token_hash, paciente_rut, correo_normalizado, expira_en, consumida_en
+           FROM autorizaciones_reserva_correo
+           WHERE token_hash = $1
+           FOR UPDATE`,
+          [authTokenHash],
+        );
+        const authRow = authResult.rows[0];
+        if (
+          !authRow ||
+          authRow.consumida_en ||
+          new Date(authRow.expira_en).getTime() <= Date.now() ||
+          authRow.paciente_rut !== normalizedValues.rut ||
+          authRow.correo_normalizado !== normalizedEmail
+        ) {
+          throw new HttpError(
+            403,
+            'EMAIL_VERIFICATION_REQUIRED',
+            'La verificación de correo venció, ya fue utilizada o no corresponde al RUT y correo ingresados. Solicita un nuevo código.',
+          );
         }
       }
 
@@ -173,6 +211,19 @@ async function createReservation({
       if (!reserved.rowCount)
         throw new HttpError(409, 'SLOT_TAKEN', 'El horario fue reservado por otra persona.');
 
+      let vinculoConsultaId = null;
+      if (isWeb) {
+        const linkResult = await client.query(
+          `INSERT INTO vinculos_consulta_paciente (paciente_rut, correo_normalizado, verificado_en)
+           VALUES ($1, $2, NOW())
+           ON CONFLICT (paciente_rut, correo_normalizado)
+           DO UPDATE SET verificado_en = NOW(), actualizado_en = NOW()
+           RETURNING id`,
+          [normalizedValues.rut, normalizedEmail],
+        );
+        vinculoConsultaId = Number(linkResult.rows[0].id);
+      }
+
       const codigoReserva = `MED-${new Date().getFullYear()}-${randomBytes(6).toString('hex').toUpperCase()}`;
       const responseToken = randomBytes(32).toString('base64url');
       const responseTokenHash = crypto.createHash('sha256').update(responseToken).digest('hex');
@@ -180,22 +231,23 @@ async function createReservation({
       const insertCita = await client.query(
         `INSERT INTO citas_medicas (
            codigo_reserva, agenda_id, medico_id, paciente_rut, paciente_nombre,
-           paciente_email, paciente_telefono, estado, correo_enviado, origen,
+           paciente_email, paciente_telefono, vinculo_consulta_id, estado, correo_enviado, origen,
            solicitud_id, solicitud_payload_hash, token_respuesta_hash, token_respuesta_expira, reminder_programado
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'CONFIRMADA', FALSE, $8, $9, $10, $11,
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'CONFIRMADA', FALSE, $9, $10, $11, $12,
                    NOW() + INTERVAL '30 days',
-                   ((($12::date + $13::time) AT TIME ZONE 'America/Santiago') - INTERVAL '24 hours'))
+                   ((($13::date + $14::time) AT TIME ZONE 'America/Santiago') - INTERVAL '24 hours'))
          RETURNING id, codigo_reserva, created_at`,
         [
           codigoReserva,
           slot.id,
           slot.medico_id,
-          values.rut,
-          values.nombre,
-          values.email,
-          values.telefono,
-          values.origen,
-          values.requestKey,
+          normalizedValues.rut,
+          normalizedValues.nombre,
+          normalizedEmail,
+          normalizedValues.telefono,
+          vinculoConsultaId,
+          normalizedValues.origen,
+          normalizedValues.requestKey,
           fingerprint,
           responseTokenHash,
           slot.fecha,
@@ -204,12 +256,29 @@ async function createReservation({
       );
 
       const appointment = insertCita.rows[0];
+      if (isWeb) {
+        const consumed = await client.query(
+          `UPDATE autorizaciones_reserva_correo
+           SET consumida_en = NOW(), cita_id = $2
+           WHERE token_hash = $1 AND consumida_en IS NULL
+           RETURNING token_hash`,
+          [authTokenHash, appointment.id],
+        );
+        if (!consumed.rowCount) {
+          throw new HttpError(
+            403,
+            'EMAIL_VERIFICATION_REQUIRED',
+            'La verificación de correo ya fue utilizada. Solicita un nuevo código.',
+          );
+        }
+      }
+
       const emailComprobante = await enqueueConfirmation({
         client,
         codigoReserva,
-        pacienteNombre: values.nombre,
-        pacienteRut: values.rut,
-        pacienteEmail: values.email,
+        pacienteNombre: normalizedValues.nombre,
+        pacienteRut: normalizedValues.rut,
+        pacienteEmail: normalizedEmail,
         medicoNombre: slot.medico_nombre,
         especialidadNombre: slot.especialidad_nombre,
         boxAtencion: slot.box_atencion,
@@ -221,8 +290,8 @@ async function createReservation({
 
       const reminderText = `Medisalud: recuerda tu cita con ${slot.medico_nombre} el ${slot.fecha} a las ${slot.hora_inicio}. Confirma o cancela aquí: ${responseUrl}`;
       for (const [channel, recipient, subject] of [
-        ['EMAIL', values.email, 'Recordatorio de cita — Medisalud'],
-        ['WHATSAPP', values.telefono, null],
+        ['EMAIL', normalizedEmail, 'Recordatorio de cita — Medisalud'],
+        ['WHATSAPP', normalizedValues.telefono, null],
       ]) {
         await client.query(
           `INSERT INTO notificaciones (cita_id, canal, tipo, destinatario, asunto, contenido, programado_en, estado)
@@ -246,10 +315,10 @@ async function createReservation({
           id: appointment.id,
           codigo_reserva: codigoReserva,
           agenda_id: slot.id,
-          paciente_rut: values.rut,
-          paciente_nombre: values.nombre,
-          paciente_email: values.email,
-          paciente_telefono: values.telefono,
+          paciente_rut: normalizedValues.rut,
+          paciente_nombre: normalizedValues.nombre,
+          paciente_email: normalizedEmail,
+          paciente_telefono: normalizedValues.telefono,
           especialidad_nombre: slot.especialidad_nombre,
           medico_nombre: slot.medico_nombre,
           box_atencion: slot.box_atencion,
@@ -261,7 +330,7 @@ async function createReservation({
         },
         comprobante_correo: emailComprobante,
       };
-      if (['PRESENCIAL', 'TELEFONO'].includes(values.origen) && secretary) {
+      if (['PRESENCIAL', 'TELEFONO'].includes(normalizedValues.origen) && secretary) {
         await recordAuditEvent(client, {
           secretary,
           accion: 'CITA_RESERVAR_MANUAL',
@@ -269,7 +338,7 @@ async function createReservation({
           entidadId: String(appointment.id),
           detalles: {
             codigo_reserva: codigoReserva,
-            origen: values.origen,
+            origen: normalizedValues.origen,
             nuevo: {
               agenda_id: slot.id,
               medico_id: slot.medico_id,
@@ -282,7 +351,7 @@ async function createReservation({
         });
       }
 
-      if (values.requestKey) {
+      if (normalizedValues.requestKey) {
         await client.query(
           'UPDATE citas_medicas SET solicitud_respuesta=$2::jsonb WHERE id=$1 AND solicitud_payload_hash=$3',
           [appointment.id, JSON.stringify(response), fingerprint],
@@ -310,10 +379,14 @@ async function createReservation({
       );
     if (
       error.code === '23505' &&
-      values.requestKey &&
+      normalizedValues.requestKey &&
       /solicitud_id/.test(error.constraint || '')
     ) {
-      const repeated = await readIdempotentResponse(database, values.requestKey, fingerprint);
+      const repeated = await readIdempotentResponse(
+        database,
+        normalizedValues.requestKey,
+        fingerprint,
+      );
       if (repeated) return repeated;
       throw new HttpError(
         409,

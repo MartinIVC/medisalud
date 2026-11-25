@@ -9,14 +9,21 @@ const auditoriaRoutes = require('./routes/auditoria');
 const { requireSecretary } = require('./middleware/auth');
 const { authenticateSecretary, revokeSecretarySession } = require('./services/secretary-accounts');
 const { createNotificationWorker, processNotificationQueue } = require('./notifications/queue');
+const {
+  createVerificationWorker,
+  processVerificationQueue,
+} = require('./notifications/verification-worker');
 const { errorHandler, sendError, asyncHandler } = require('./middleware/errors');
 
-function createApp({ database = pool, notificationWorker } = {}) {
+function createApp({ database = pool, notificationWorker, verificationWorker } = {}) {
   const app = express();
   app.locals.database = database;
   app.locals.notificationWorker =
     notificationWorker ||
     (database === pool ? processNotificationQueue : createNotificationWorker({ database }));
+  app.locals.verificationWorker =
+    verificationWorker ||
+    (database === pool ? processVerificationQueue : createVerificationWorker({ database }));
 
   app.use(cors());
   app.use(express.json());

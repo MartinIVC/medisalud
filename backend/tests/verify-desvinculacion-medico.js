@@ -3,6 +3,7 @@ const crypto = require('node:crypto');
 const { Pool } = require('pg');
 const { requireDisposableTestEnvironment } = require('./disposable-env');
 const { ensureTestSecretary } = require('./secretary-fixture');
+const { authorizeWebBookingEmail } = require('./mailpit-fixture');
 const { calculateDv, formatRut } = require('../src/utils/rutValidator');
 
 const environment = requireDisposableTestEnvironment();
@@ -67,20 +68,35 @@ async function verify() {
     (await request('/secretaria/medicos/2147483648/revincular', token, undefined, 'POST')).status,
     400,
   );
+  let bookingSeq = 0;
+  const seenMailpitIds = new Set();
+  async function webBookingPayload(agendaId) {
+    bookingSeq += 1;
+    const correo = `desvinculacion-${Date.now()}-${bookingSeq}@example.invalid`;
+    const auth = await authorizeWebBookingEmail({
+      apiUrl: api,
+      rut: patientRut,
+      correo,
+      seenMessageIds: seenMailpitIds,
+    });
+    return {
+      agenda_id: agendaId,
+      paciente_rut: patientRut,
+      paciente_nombre: 'Paciente de prueba',
+      paciente_email: correo,
+      paciente_telefono: '+56912345678',
+      origen: 'WEB',
+      autorizacion_reserva: auth.autorizacionReserva,
+    };
+  }
+
   assert.equal(
     (await request(`/secretaria/medicos/${doctor.id}/revincular`, null, undefined, 'POST')).status,
     401,
   );
   assert.equal((await request(path, null, { motivo: 'Prueba' })).status, 401);
   assert.equal((await request(path, token, { motivo: '   ' })).status, 400);
-  const reservation = await request('/reservas', null, {
-    agenda_id: doctor.slot,
-    paciente_rut: patientRut,
-    paciente_nombre: 'Paciente de prueba',
-    paciente_email: 'demo@example.invalid',
-    paciente_telefono: '+56912345678',
-    origen: 'WEB',
-  });
+  const reservation = await request('/reservas', null, await webBookingPayload(doctor.slot));
   assert.equal(reservation.status, 201, JSON.stringify(reservation.data));
   const blocked = await request(path, token, { motivo: 'Fin de atención' });
   assert.equal(blocked.status, 409);
@@ -136,14 +152,7 @@ async function verify() {
     duracion_min: 30,
   });
   assert.equal(configure.status, 404);
-  const retry = await request('/reservas', null, {
-    agenda_id: doctor.slot,
-    paciente_rut: patientRut,
-    paciente_nombre: 'Paciente de prueba',
-    paciente_email: 'demo@example.invalid',
-    paciente_telefono: '+56912345678',
-    origen: 'WEB',
-  });
+  const retry = await request('/reservas', null, await webBookingPayload(doctor.slot));
   assert.equal(retry.status, 409);
   assert.equal(retry.data.code, 'SLOT_NOT_BOOKABLE');
 
@@ -183,18 +192,12 @@ async function verify() {
 
   for (let i = 0; i < 6; i += 1) {
     const candidate = await doctorWithSlots();
+    const bookingBody = await webBookingPayload(candidate.slot);
     const [unlink, booking] = await Promise.all([
       request(`/secretaria/medicos/${candidate.id}/desvincular`, token, {
         motivo: 'Fin de atención',
       }),
-      request('/reservas', null, {
-        agenda_id: candidate.slot,
-        paciente_rut: patientRut,
-        paciente_nombre: 'Paciente de prueba',
-        paciente_email: 'demo@example.invalid',
-        paciente_telefono: '+56912345678',
-        origen: 'WEB',
-      }),
+      request('/reservas', null, bookingBody),
     ]);
     assert.ok(
       (unlink.status === 200 && booking.status === 409) ||
@@ -216,16 +219,10 @@ async function verify() {
     ).status,
     200,
   );
+  const reactivationBody = await webBookingPayload(inactiveCandidate.slot);
   const [reactivation, concurrentBooking] = await Promise.all([
     request(`/secretaria/medicos/${inactiveCandidate.id}/revincular`, token, undefined, 'POST'),
-    request('/reservas', null, {
-      agenda_id: inactiveCandidate.slot,
-      paciente_rut: patientRut,
-      paciente_nombre: 'Paciente de prueba',
-      paciente_email: 'demo@example.invalid',
-      paciente_telefono: '+56912345678',
-      origen: 'WEB',
-    }),
+    request('/reservas', null, reactivationBody),
   ]);
   assert.equal(reactivation.status, 200, JSON.stringify(reactivation.data));
   assert.ok(
