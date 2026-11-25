@@ -57,6 +57,19 @@ CREATE TABLE IF NOT EXISTS agendas (
       (medico_id WITH =, tsrange(fecha + hora_inicio, fecha + hora_fin, '[)') WITH &&)
 );
 
+-- 3b. Vínculos verificados por par (RUT canónico, correo normalizado) — MED-29
+CREATE TABLE IF NOT EXISTS vinculos_consulta_paciente (
+    id BIGSERIAL PRIMARY KEY,
+    paciente_rut VARCHAR(15) NOT NULL,
+    correo_normalizado VARCHAR(150) NOT NULL,
+    verificado_en TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    version INTEGER NOT NULL DEFAULT 1 CHECK (version > 0),
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_vinculos_consulta_rut_correo UNIQUE (paciente_rut, correo_normalizado),
+    CONSTRAINT uq_vinculos_consulta_id_rut UNIQUE (id, paciente_rut)
+);
+
 -- 4. Tabla de Citas Médicas Reservadas (MED-11 y MED-16)
 -- Garantiza a nivel de esquema que un bloque_id solo pueda tener una cita activa (UNIQUE)
 CREATE TABLE IF NOT EXISTS citas_medicas (
@@ -68,6 +81,7 @@ CREATE TABLE IF NOT EXISTS citas_medicas (
     paciente_nombre VARCHAR(150) NOT NULL,
     paciente_email VARCHAR(150) NOT NULL,
     paciente_telefono VARCHAR(30) NOT NULL,
+    vinculo_consulta_id BIGINT NULL,
     estado VARCHAR(20) NOT NULL DEFAULT 'CONFIRMADA'
         CHECK (estado IN ('CONFIRMADA', 'CANCELADA')),
     asistencia_estado VARCHAR(20) NOT NULL DEFAULT 'PENDIENTE'
@@ -80,10 +94,15 @@ CREATE TABLE IF NOT EXISTS citas_medicas (
     token_respuesta_hash VARCHAR(64),
     token_respuesta_expira TIMESTAMP WITH TIME ZONE,
     reminder_programado TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_citas_vinculo_consulta_rut
+        FOREIGN KEY (vinculo_consulta_id, paciente_rut)
+        REFERENCES vinculos_consulta_paciente(id, paciente_rut)
+        ON DELETE RESTRICT
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_citas_agenda_activas ON citas_medicas(agenda_id) WHERE estado = 'CONFIRMADA';
+CREATE INDEX IF NOT EXISTS idx_citas_vinculo_consulta ON citas_medicas(vinculo_consulta_id) WHERE vinculo_consulta_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS notificaciones (
     id BIGSERIAL PRIMARY KEY,
@@ -164,7 +183,7 @@ CREATE TABLE IF NOT EXISTS auditoria_acciones_secretaria (
     secretaria_id BIGINT NULL REFERENCES secretarias(id) ON DELETE RESTRICT,
     origen_identidad VARCHAR(24) NOT NULL DEFAULT 'SESION_INDIVIDUAL'
       CHECK (origen_identidad IN ('SESION_INDIVIDUAL', 'ANTERIOR_O_DESCONOCIDO')),
-    accion VARCHAR(40) NOT NULL CHECK (
+    accion VARCHAR(40) NOT NULL CONSTRAINT ck_auditoria_accion_valida CHECK (
       accion IN (
         'MEDICO_CREAR',
         'MEDICO_ACTUALIZAR',
@@ -176,7 +195,10 @@ CREATE TABLE IF NOT EXISTS auditoria_acciones_secretaria (
         'AGENDA_DESBLOQUEAR',
         'CITA_RESERVAR_MANUAL',
         'CITA_CANCELAR',
-        'CITA_REPROGRAMAR'
+        'CITA_REPROGRAMAR',
+        'CITA_RECUPERACION_INICIAR',
+        'CITA_RECUPERACION_REVOCAR',
+        'CITA_RECUPERACION_COMPLETAR'
       )
     ),
     entidad_tipo VARCHAR(20) NOT NULL CHECK (entidad_tipo IN ('MEDICO', 'AGENDA', 'CITA')),
@@ -213,6 +235,73 @@ DROP TRIGGER IF EXISTS trg_auditoria_inmutable ON auditoria_acciones_secretaria;
 CREATE TRIGGER trg_auditoria_inmutable
   BEFORE UPDATE ON auditoria_acciones_secretaria
   FOR EACH ROW EXECUTE FUNCTION forbid_auditoria_update();
+
+-- MED-29: Solicitudes de verificación de correo, autorizaciones de reserva y límites
+CREATE TABLE IF NOT EXISTS solicitudes_verificacion_correo (
+    id VARCHAR(64) PRIMARY KEY,
+    proposito VARCHAR(20) NOT NULL
+      CHECK (proposito IN ('RESERVA', 'CONSULTA', 'RECUPERACION')),
+    paciente_rut VARCHAR(15) NOT NULL,
+    correo_normalizado VARCHAR(150) NOT NULL,
+    vinculo_id BIGINT NULL REFERENCES vinculos_consulta_paciente(id) ON DELETE CASCADE,
+    vinculo_version INTEGER NULL,
+    citas_ids INTEGER[] NULL,
+    secretaria_id BIGINT NULL REFERENCES secretarias(id) ON DELETE RESTRICT,
+    motivo VARCHAR(255) NULL,
+    codigo_hmac VARCHAR(64) NULL,
+    estado_envio VARCHAR(20) NOT NULL DEFAULT 'PENDIENTE'
+      CHECK (estado_envio IN ('PENDIENTE', 'ENVIANDO', 'ACEPTADO', 'FALLIDA', 'OMITIDA')),
+    proveedor VARCHAR(40) NULL,
+    proveedor_id VARCHAR(255) NULL,
+    error_envio TEXT NULL,
+    claim_token UUID NULL,
+    claimed_at TIMESTAMPTZ NULL,
+    lease_until TIMESTAMPTZ NULL,
+    enviado_en TIMESTAMPTZ NULL,
+    intentos_verificacion INTEGER NOT NULL DEFAULT 0 CHECK (intentos_verificacion >= 0),
+    expira_en TIMESTAMPTZ NOT NULL,
+    consumida_en TIMESTAMPTZ NULL,
+    revocada_en TIMESTAMPTZ NULL,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_solicitudes_verif_pendientes
+    ON solicitudes_verificacion_correo(estado_envio, creado_en)
+    WHERE estado_envio IN ('PENDIENTE', 'ENVIANDO');
+CREATE INDEX IF NOT EXISTS idx_solicitudes_verif_expira
+    ON solicitudes_verificacion_correo(expira_en);
+CREATE INDEX IF NOT EXISTS idx_solicitudes_verif_par
+    ON solicitudes_verificacion_correo(proposito, paciente_rut, correo_normalizado, creado_en DESC);
+CREATE INDEX IF NOT EXISTS idx_solicitudes_verif_vinculo
+    ON solicitudes_verificacion_correo(vinculo_id)
+    WHERE vinculo_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS autorizaciones_reserva_correo (
+    token_hash VARCHAR(64) PRIMARY KEY CHECK (token_hash ~ '^[0-9a-f]{64}$'),
+    solicitud_id VARCHAR(64) NOT NULL UNIQUE
+      REFERENCES solicitudes_verificacion_correo(id) ON DELETE CASCADE,
+    paciente_rut VARCHAR(15) NOT NULL,
+    correo_normalizado VARCHAR(150) NOT NULL,
+    expira_en TIMESTAMPTZ NOT NULL,
+    consumida_en TIMESTAMPTZ NULL,
+    cita_id INTEGER NULL REFERENCES citas_medicas(id) ON DELETE SET NULL,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_autorizaciones_reserva_expira
+    ON autorizaciones_reserva_correo(expira_en);
+
+CREATE TABLE IF NOT EXISTS limites_verificacion_correo (
+    clave_hash VARCHAR(64) PRIMARY KEY CHECK (clave_hash ~ '^[0-9a-f]{64}$'),
+    ambito VARCHAR(24) NOT NULL
+      CHECK (ambito IN ('SEND_PAIR', 'SEND_EMAIL', 'SEND_IP', 'VERIFY_PAIR')),
+    conteo INTEGER NOT NULL CHECK (conteo > 0),
+    ventana_inicio TIMESTAMPTZ NOT NULL,
+    ultimo_evento TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_limites_verif_ventana
+    ON limites_verificacion_correo(ventana_inicio);
 
 -- =============================================================================
 -- Índices sobre llaves foráneas y filtros de búsqueda (RNF-01 / MED-9 < 2,0 s)

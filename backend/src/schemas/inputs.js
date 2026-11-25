@@ -1,4 +1,5 @@
 const { validateRut } = require('../utils/rutValidator');
+const { validateEmail } = require('../utils/email');
 
 function isPlainObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -36,8 +37,9 @@ function parseReservation(body, requestKey) {
       'El nombre no puede superar 150 caracteres ni incluir caracteres de control.';
   }
   const email = typeof data.paciente_email === 'string' ? data.paciente_email.trim() : '';
-  if (email && (email.length > 150 || !/^\S+@\S+\.\S+$/.test(email))) {
-    errors.paciente_email = 'Ingresa un correo válido de hasta 150 caracteres.';
+  const emailCheck = email ? validateEmail(email) : null;
+  if (emailCheck && !emailCheck.valid) {
+    errors.paciente_email = emailCheck.reason;
   }
   const telefono = typeof data.paciente_telefono === 'string' ? data.paciente_telefono.trim() : '';
   if (telefono && !/^\+?[0-9 ()-]{8,30}$/.test(telefono)) {
@@ -51,16 +53,27 @@ function parseReservation(body, requestKey) {
     errors.idempotency_key = 'La clave de idempotencia no puede superar 100 caracteres.';
   }
 
+  const rawAuth = data.autorizacion_reserva;
+  let autorizacionReserva = null;
+  if (rawAuth !== undefined && rawAuth !== null && rawAuth !== '') {
+    if (typeof rawAuth !== 'string' || !/^[A-Za-z0-9_-]{32,128}$/.test(rawAuth.trim())) {
+      errors.autorizacion_reserva = 'La autorización de verificación de correo no es válida.';
+    } else {
+      autorizacionReserva = rawAuth.trim();
+    }
+  }
+
   return {
     errors,
     value: {
       agendaId: data.agenda_id,
       rut: rut?.formatted,
       nombre,
-      email,
+      email: emailCheck?.valid ? emailCheck.normalized : email,
       telefono,
       origen,
       requestKey: requestKey || null,
+      autorizacionReserva,
     },
   };
 }

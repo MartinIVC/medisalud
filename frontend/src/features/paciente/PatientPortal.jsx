@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { CalendarDays, Check, Copy, MapPin, Printer } from 'lucide-react';
 import DoctorPhoto from '../../components/DoctorPhoto.jsx';
+import MisCitas from './MisCitas.jsx';
 import {
   EASE_OUT_EXPO,
   EASE_OUT_QUART,
@@ -101,6 +102,12 @@ export default function PatientPortal({ state, actions }) {
     catalogosLoading,
     catalogosError,
     today,
+    verificationRequest,
+    verificationCode = '',
+    verificationLoading = false,
+    verificationError = '',
+    verificationNotice = '',
+    hasValidEmailAuth = false,
   } = state;
   const {
     setSelectedEsp,
@@ -116,21 +123,28 @@ export default function PatientPortal({ state, actions }) {
     setFieldTouched,
     fetchDisponibilidad,
     handleReservarSubmit,
+    requestBookingCode,
+    setVerificationCode,
     resetRequestKey,
     retryCatalogos,
   } = actions;
   const reduceMotion = useReducedMotion();
+  const [portalTab, setPortalTab] = useState('reservar');
   const [view, setView] = useState(() =>
-    submittingReserva || reservaResult || bookingStep === 'revision' ? 'reserva' : 'horarios',
+    submittingReserva || reservaResult || ['verificacion', 'revision'].includes(bookingStep)
+      ? 'reserva'
+      : 'horarios',
   );
   const [bookingOpen, setBookingOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState('');
   const [selectedJornada, setSelectedJornada] = useState('TODAS');
+  const [resendRemainingSec, setResendRemainingSec] = useState(0);
   const headingRef = useRef(null);
   const bookingOpenerRef = useRef(null);
   const dates = useMemo(() => nextDates(selectedFecha, today), [selectedFecha, today]);
   const currentDoctor = medicosFiltrados.find((doctor) => String(doctor.id) === selectedMedico);
+  const isLookupTab = portalTab === 'mis-citas' && !submittingReserva && !verificationLoading;
   const visibleGroupedBlocks = useMemo(() => {
     const entries = Object.entries(groupedBlocks || {});
     if (selectedJornada === 'TODAS') return entries;
@@ -147,7 +161,7 @@ export default function PatientPortal({ state, actions }) {
   }
   // Reservation progress belongs to the persistent hook, including across portal navigation.
   const activeView =
-    submittingReserva || reservaResult || bookingStep === 'revision'
+    submittingReserva || reservaResult || ['verificacion', 'revision'].includes(bookingStep)
       ? 'reserva'
       : selectedBloque
         ? view
@@ -170,6 +184,20 @@ export default function PatientPortal({ state, actions }) {
   useEffect(() => {
     if (activeView === 'reserva') headingRef.current?.focus({ preventScroll: true });
   }, [activeView, bookingStep, successful]);
+
+  useEffect(() => {
+    if (!verificationRequest?.reenvioDisponibleEn || bookingStep !== 'verificacion') {
+      setResendRemainingSec(0);
+      return undefined;
+    }
+    const updateRemaining = () => {
+      const diffMs = new Date(verificationRequest.reenvioDisponibleEn).getTime() - Date.now();
+      setResendRemainingSec(Math.max(0, Math.ceil(diffMs / 1000)));
+    };
+    updateRemaining();
+    const timer = window.setInterval(updateRemaining, 1000);
+    return () => window.clearInterval(timer);
+  }, [verificationRequest?.reenvioDisponibleEn, bookingStep]);
 
   function changeHour(preserveSelectedSlot = false) {
     resetRequestKey();
@@ -213,67 +241,165 @@ export default function PatientPortal({ state, actions }) {
     }
   }
 
-  const bookingForm = (
-    <form onSubmit={submitBooking}>
-      <PatientFields
-        prefix="patient"
-        values={{
-          rut: pacienteRut,
-          nombre: pacienteNombre,
-          email: pacienteEmail,
-          telefono: pacienteTelefono,
-        }}
-        onChange={updatePatient}
-        errors={reservationFieldErrors}
-        rutError={rutError}
-        readOnly={bookingStep === 'revision'}
-      />
-      {reservaResult?.type === 'error' && (
-        <Alert>
-          {retryableConflict
-            ? 'No pudimos confirmar este horario. Puedes reintentar sin volver a ingresar tus datos.'
-            : reservaResult.data.mensaje ||
-              reservaResult.data.error ||
-              'No pudimos completar la reserva.'}
-          {needsAnotherSlot && (
-            <>
-              <p>Elige otro horario. Conservamos tus datos.</p>
-              <Button onClick={changeHour}>Elegir otra hora</Button>
-            </>
-          )}
-        </Alert>
-      )}
-      <div className="form-actions">
-        {bookingStep === 'revision' && (
+  const bookingForm =
+    bookingStep === 'verificacion' ? (
+      <form onSubmit={submitBooking} noValidate>
+        <div className="verification-panel">
+          <p>
+            Enviamos la solicitud de un código de 6 dígitos a{' '}
+            <strong>{verificationRequest?.correo || pacienteEmail}</strong>. Mientras esperas, el
+            horario sigue disponible para otros pacientes.
+          </p>
+          {verificationNotice && <Alert tone="success">{verificationNotice}</Alert>}
+          <Field
+            id="patient-verification-code"
+            label="Código de verificación (6 dígitos)"
+            error={verificationError}
+            hint="Tiene una vigencia de 10 minutos y es de un solo uso."
+          >
+            <input
+              id="patient-verification-code"
+              name="codigo"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="123456"
+              maxLength={6}
+              value={verificationCode}
+              onChange={(event) =>
+                setVerificationCode?.(event.target.value.replace(/\D/g, '').slice(0, 6))
+              }
+              aria-invalid={Boolean(verificationError)}
+              aria-describedby={
+                verificationError
+                  ? 'patient-verification-code-hint patient-verification-code-error'
+                  : 'patient-verification-code-hint'
+              }
+            />
+          </Field>
+          <div className="verification-inline-actions">
+            <Button
+              disabled={verificationLoading || resendRemainingSec > 0}
+              onClick={() => requestBookingCode?.({ isResend: true })}
+            >
+              {resendRemainingSec > 0
+                ? `Reenviar código (${resendRemainingSec} s)`
+                : 'Reenviar código'}
+            </Button>
+            <Button
+              variant="text"
+              disabled={verificationLoading}
+              onClick={() => {
+                setBookingStep('datos');
+                setReservaResult(null);
+              }}
+            >
+              Corregir correo o datos
+            </Button>
+          </div>
+        </div>
+        <div className="form-actions">
           <Button
-            disabled={submittingReserva}
+            disabled={verificationLoading}
             onClick={() => {
               setBookingStep('datos');
               setReservaResult(null);
             }}
           >
-            Editar datos
+            Volver a mis datos
           </Button>
+          <Button variant="primary" type="submit" disabled={verificationLoading}>
+            {verificationLoading ? 'Verificando…' : 'Verificar código'}
+          </Button>
+        </div>
+      </form>
+    ) : (
+      <form onSubmit={submitBooking}>
+        {bookingStep === 'revision' && (
+          <Alert tone="warning">
+            {verificationNotice ||
+              'Correo verificado. Tu hora aún no está reservada: revisa tus datos y pulsa «Confirmar reserva» para finalizar.'}
+          </Alert>
         )}
-        <Button variant="primary" type="submit" disabled={submittingReserva || needsAnotherSlot}>
-          {submittingReserva
-            ? 'Reservando…'
-            : retryableConflict
-              ? 'Reintentar reserva'
-              : bookingStep === 'revision'
-                ? 'Confirmar reserva'
-                : 'Revisar reserva'}
-        </Button>
-      </div>
-    </form>
-  );
+        <PatientFields
+          prefix="patient"
+          values={{
+            rut: pacienteRut,
+            nombre: pacienteNombre,
+            email: pacienteEmail,
+            telefono: pacienteTelefono,
+          }}
+          onChange={updatePatient}
+          errors={reservationFieldErrors}
+          rutError={rutError}
+          readOnly={bookingStep === 'revision'}
+        />
+        {bookingStep === 'datos' && hasValidEmailAuth && (
+          <Alert tone="success">
+            Tu correo sigue verificado para este RUT. Puedes elegir otro horario y confirmar sin
+            pedir un código nuevo.
+          </Alert>
+        )}
+        {bookingStep === 'datos' && verificationError && <Alert>{verificationError}</Alert>}
+        {reservaResult?.type === 'error' && (
+          <Alert>
+            {retryableConflict
+              ? 'No pudimos confirmar este horario. Puedes reintentar sin volver a ingresar tus datos.'
+              : reservaResult.data.mensaje ||
+                reservaResult.data.error ||
+                'No pudimos completar la reserva.'}
+            {needsAnotherSlot && (
+              <>
+                <p>
+                  Elige otro horario. Conservamos tus datos
+                  {hasValidEmailAuth ? ' y tu verificación vigente' : ''}.
+                </p>
+                <Button onClick={() => changeHour(false)}>Elegir otra hora</Button>
+              </>
+            )}
+          </Alert>
+        )}
+        <div className="form-actions">
+          {bookingStep === 'revision' && (
+            <Button
+              disabled={submittingReserva}
+              onClick={() => {
+                setBookingStep('datos');
+                setReservaResult(null);
+              }}
+            >
+              Editar datos
+            </Button>
+          )}
+          <Button
+            variant="primary"
+            type="submit"
+            disabled={submittingReserva || verificationLoading || needsAnotherSlot}
+          >
+            {submittingReserva
+              ? 'Reservando…'
+              : verificationLoading
+                ? 'Enviando código…'
+                : retryableConflict
+                  ? 'Reintentar reserva'
+                  : bookingStep === 'revision'
+                    ? 'Confirmar reserva'
+                    : hasValidEmailAuth
+                      ? 'Revisar reserva'
+                      : 'Verificar correo y continuar'}
+          </Button>
+        </div>
+      </form>
+    );
 
   return (
     <div className="patient-portal">
       <div className="patient-heading no-print">
         <div>
           <h1>
-            {activeView === 'horarios' ? (
+            {isLookupTab ? (
+              'Consulta tus citas.'
+            ) : activeView === 'horarios' ? (
               <>
                 Tu próxima hora,
                 <br />
@@ -281,6 +407,8 @@ export default function PatientPortal({ state, actions }) {
               </>
             ) : successful ? (
               'Tu hora está reservada.'
+            ) : bookingStep === 'verificacion' ? (
+              'Verifica tu correo.'
             ) : bookingStep === 'revision' ? (
               'Revisa tu reserva.'
             ) : (
@@ -288,37 +416,84 @@ export default function PatientPortal({ state, actions }) {
             )}
           </h1>
           <p>
-            {activeView === 'horarios'
-              ? 'Elige profesional, fecha y horario de atención.'
-              : successful
-                ? 'Conserva este comprobante para tu atención.'
-                : 'La hora quedará reservada cuando confirmes.'}
+            {isLookupTab
+              ? 'Ingresa tu RUT y correo verificado para revisar tus horas médicas y su estado.'
+              : activeView === 'horarios'
+                ? 'Elige profesional, fecha y horario de atención.'
+                : successful
+                  ? 'Conserva este comprobante para tu atención.'
+                  : bookingStep === 'verificacion'
+                    ? 'Ingresa el código de 6 dígitos enviado a tu correo antes de confirmar.'
+                    : 'La hora quedará reservada cuando confirmes.'}
           </p>
         </div>
       </div>
-      <div className="booking-steps-wrap no-print">
-        <motion.span
-          className="booking-progress"
-          aria-hidden="true"
-          initial={false}
-          animate={{ scaleX: stage / 2 }}
-          transition={reduceMotion ? { duration: 0 } : { duration: 0.25, ease: EASE_OUT_QUART }}
-        />
-        <ol className="booking-steps" aria-label="Etapas de reserva">
-          {['Profesional', 'Fecha y hora', 'Datos y reserva'].map((label, index) => (
-            <li
-              key={label}
-              aria-current={stage === index ? 'step' : undefined}
-              data-completed={index < stage ? 'true' : undefined}
-            >
-              <span>{index < stage ? <Check size={14} aria-hidden="true" /> : index + 1}</span>
-              {label}
-            </li>
-          ))}
-        </ol>
-      </div>
 
-      {activeView === 'horarios' ? (
+      <nav className="patient-tabs no-print" aria-label="Secciones del portal del paciente">
+        <div className="filter-tabs">
+          {[
+            { id: 'reservar', label: 'Reservar hora' },
+            { id: 'mis-citas', label: 'Consultar mis citas' },
+          ].map((tab) => {
+            const selected = (isLookupTab ? 'mis-citas' : 'reservar') === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                aria-pressed={selected}
+                disabled={submittingReserva}
+                onClick={() => setPortalTab(tab.id)}
+              >
+                {tab.label}
+                {selected && (
+                  <motion.span
+                    className="nav-active-indicator"
+                    layoutId="patient-portal-tab-indicator"
+                    initial={false}
+                    transition={reduceMotion ? { duration: 0 } : SPRING_CRISP}
+                    aria-hidden="true"
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      {!isLookupTab && (
+        <div className="booking-steps-wrap no-print">
+          <motion.span
+            className="booking-progress"
+            aria-hidden="true"
+            initial={false}
+            animate={{ scaleX: stage / 2 }}
+            transition={reduceMotion ? { duration: 0 } : { duration: 0.25, ease: EASE_OUT_QUART }}
+          />
+          <ol className="booking-steps" aria-label="Etapas de reserva">
+            {['Profesional', 'Fecha y hora', 'Datos y reserva'].map((label, index) => (
+              <li
+                key={label}
+                aria-current={stage === index ? 'step' : undefined}
+                data-completed={index < stage ? 'true' : undefined}
+              >
+                <span>{index < stage ? <Check size={14} aria-hidden="true" /> : index + 1}</span>
+                {label}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {isLookupTab ? (
+        <motion.div
+          key="mis-citas"
+          variants={stageVariants}
+          initial={reduceMotion ? false : 'initial'}
+          animate="animate"
+        >
+          <MisCitas onGoToBooking={() => setPortalTab('reservar')} />
+        </motion.div>
+      ) : activeView === 'horarios' ? (
         <motion.div
           key="horarios"
           variants={stageVariants}
@@ -684,9 +859,16 @@ export default function PatientPortal({ state, actions }) {
           <section className="booking-form" aria-labelledby="patient-data-title">
             <div className="section-heading">
               <h2 id="patient-data-title" ref={headingRef} tabIndex={-1}>
-                {bookingStep === 'revision' ? 'Revisión de la reserva' : 'Datos del paciente'}
+                {bookingStep === 'verificacion'
+                  ? 'Verificación de correo electrónico'
+                  : bookingStep === 'revision'
+                    ? 'Revisión de la reserva'
+                    : 'Datos del paciente'}
               </h2>
-              <Button disabled={submittingReserva} onClick={() => changeHour(true)}>
+              <Button
+                disabled={submittingReserva || verificationLoading}
+                onClick={() => changeHour(true)}
+              >
                 Cambiar hora
               </Button>
             </div>
@@ -701,7 +883,7 @@ export default function PatientPortal({ state, actions }) {
         </motion.div>
       )}
       <Dialog
-        open={bookingOpen && activeView === 'horarios' && Boolean(selectedBloque)}
+        open={!isLookupTab && bookingOpen && activeView === 'horarios' && Boolean(selectedBloque)}
         className="booking-dialog"
         title="Completa tus datos"
         onClose={() => setBookingOpen(false)}

@@ -14,6 +14,9 @@ const ACCION_LABELS = {
   CITA_RESERVAR_MANUAL: 'Reserva manual de cita',
   CITA_CANCELAR: 'Cancelación de cita',
   CITA_REPROGRAMAR: 'Reprogramación de cita',
+  CITA_RECUPERACION_INICIAR: 'Inicio de recuperación de citas',
+  CITA_RECUPERACION_REVOCAR: 'Revocación de recuperación de citas',
+  CITA_RECUPERACION_COMPLETAR: 'Confirmación de recuperación de citas',
 };
 
 function formatDetailSummary(accion, detalles) {
@@ -49,6 +52,12 @@ function formatDetailSummary(accion, detalles) {
       return `Cita ${detalles.codigo_reserva || ''} cancelada. Motivo: "${detalles.motivo || 's/m'}".`;
     case 'CITA_REPROGRAMAR':
       return `Cita ${detalles.codigo_reserva || ''} movida a nueva fecha. Motivo: "${detalles.motivo || 's/m'}".`;
+    case 'CITA_RECUPERACION_INICIAR':
+      return `Solicitó recuperación de ${detalles.cantidad_citas || 0} cita(s). Motivo: "${detalles.motivo || 's/m'}".`;
+    case 'CITA_RECUPERACION_REVOCAR':
+      return `Revocó solicitud de recuperación (${detalles.cantidad_citas || 0} cita(s)).`;
+    case 'CITA_RECUPERACION_COMPLETAR':
+      return `Paciente confirmó recuperación de ${detalles.cantidad_citas || 0} cita(s).`;
     default:
       return JSON.stringify(detalles);
   }

@@ -53,6 +53,26 @@ test('a retry after a network error reuses the same reservation idempotency key'
   globalThis.fetch = async (url, options) => {
     if (url.startsWith('/api/disponibilidad'))
       return jsonResponse({ ok: true, bloques: [], latencia_ms: 0 });
+    if (url === '/api/reservas/verificacion-correo/solicitudes')
+      return jsonResponse(
+        {
+          ok: true,
+          solicitud_id: 'sol_test_1234567890123456789012',
+          rut: '12.345.678-5',
+          correo: 'prueba@example.cl',
+          expira_en: new Date(Date.now() + 600_000).toISOString(),
+          reenvio_disponible_en: new Date(Date.now() + 60_000).toISOString(),
+        },
+        202,
+      );
+    if (url === '/api/reservas/verificacion-correo/verificar')
+      return jsonResponse({
+        ok: true,
+        autorizacion_reserva: 'auth_token_12345678901234567890123456789012',
+        expira_en: new Date(Date.now() + 600_000).toISOString(),
+        rut: '12.345.678-5',
+        correo: 'prueba@example.cl',
+      });
     if (url === '/api/reservas') {
       reservationHeaders.push(options.headers.get('Idempotency-Key'));
       reservationAttempts += 1;
@@ -70,8 +90,11 @@ test('a retry after a network error reuses the same reservation idempotency key'
     result.current.actions.setPacienteNombre('Paciente de prueba');
     result.current.actions.setPacienteEmail('prueba@example.cl');
     result.current.actions.setPacienteTelefono('+56912345678');
-    result.current.actions.setBookingStep('revision');
   });
+  await act(async () => result.current.actions.handleReservarSubmit({ preventDefault() {} }));
+  act(() => result.current.actions.setVerificationCode('123456'));
+  await act(async () => result.current.actions.handleReservarSubmit({ preventDefault() {} }));
+  assert.equal(result.current.state.bookingStep, 'revision');
 
   await act(async () => result.current.actions.handleReservarSubmit({ preventDefault() {} }));
   assert.equal(result.current.state.reservaResult.type, 'error');
@@ -246,6 +269,26 @@ test('a reservation conflict refreshes availability and preserves patient data f
             : [],
       });
     }
+    if (url === '/api/reservas/verificacion-correo/solicitudes')
+      return jsonResponse(
+        {
+          ok: true,
+          solicitud_id: 'sol_test_1234567890123456789012',
+          rut: '12.345.678-5',
+          correo: 'paciente@example.cl',
+          expira_en: new Date(Date.now() + 600_000).toISOString(),
+          reenvio_disponible_en: new Date(Date.now() + 60_000).toISOString(),
+        },
+        202,
+      );
+    if (url === '/api/reservas/verificacion-correo/verificar')
+      return jsonResponse({
+        ok: true,
+        autorizacion_reserva: 'auth_token_12345678901234567890123456789012',
+        expira_en: new Date(Date.now() + 600_000).toISOString(),
+        rut: '12.345.678-5',
+        correo: 'paciente@example.cl',
+      });
     if (url === '/api/reservas') {
       keys.push(options.headers.get('Idempotency-Key'));
       return keys.length === 1
@@ -262,11 +305,14 @@ test('a reservation conflict refreshes availability and preserves patient data f
     result.current.actions.setPacienteNombre('Paciente conservado');
     result.current.actions.setPacienteEmail('paciente@example.cl');
     result.current.actions.setPacienteTelefono('+56912345678');
-    result.current.actions.setBookingStep('revision');
   });
+  await act(async () => result.current.actions.handleReservarSubmit({ preventDefault() {} }));
+  act(() => result.current.actions.setVerificationCode('123456'));
+  await act(async () => result.current.actions.handleReservarSubmit({ preventDefault() {} }));
   await act(async () => result.current.actions.handleReservarSubmit({ preventDefault() {} }));
   await waitFor(() => assert.equal(availabilityCalls, 2));
   assert.equal(result.current.state.reservaResult.status, 409);
+  assert.equal(result.current.state.hasValidEmailAuth, true);
   assert.equal(result.current.state.pacienteNombre, 'Paciente conservado');
   assert.equal(result.current.state.pacienteRut, '12.345.678-5');
   assert.equal(result.current.state.pacienteEmail, 'paciente@example.cl');
@@ -330,6 +376,26 @@ test('a transient concurrency conflict can be retried with the same idempotency 
   const slot = { agenda_id: 7, medico_nombre: 'Dra. Prueba', hora_inicio: '09:00' };
   globalThis.fetch = async (url, options) => {
     if (url.startsWith('/api/disponibilidad')) return jsonResponse({ ok: true, bloques: [slot] });
+    if (url === '/api/reservas/verificacion-correo/solicitudes')
+      return jsonResponse(
+        {
+          ok: true,
+          solicitud_id: 'sol_test_1234567890123456789012',
+          rut: '12.345.678-5',
+          correo: 'paciente@example.cl',
+          expira_en: new Date(Date.now() + 600_000).toISOString(),
+          reenvio_disponible_en: new Date(Date.now() + 60_000).toISOString(),
+        },
+        202,
+      );
+    if (url === '/api/reservas/verificacion-correo/verificar')
+      return jsonResponse({
+        ok: true,
+        autorizacion_reserva: 'auth_token_12345678901234567890123456789012',
+        expira_en: new Date(Date.now() + 600_000).toISOString(),
+        rut: '12.345.678-5',
+        correo: 'paciente@example.cl',
+      });
     if (url === '/api/reservas') {
       keys.push(options.headers.get('Idempotency-Key'));
       return keys.length === 1
@@ -346,8 +412,10 @@ test('a transient concurrency conflict can be retried with the same idempotency 
     result.current.actions.setPacienteNombre('Paciente');
     result.current.actions.setPacienteEmail('paciente@example.cl');
     result.current.actions.setPacienteTelefono('+56912345678');
-    result.current.actions.setBookingStep('revision');
   });
+  await act(async () => result.current.actions.handleReservarSubmit({ preventDefault() {} }));
+  act(() => result.current.actions.setVerificationCode('123456'));
+  await act(async () => result.current.actions.handleReservarSubmit({ preventDefault() {} }));
   await act(async () => result.current.actions.handleReservarSubmit({ preventDefault() {} }));
   assert.equal(result.current.state.reservaResult.data.code, 'CONCURRENT_RESERVATION');
   await waitFor(() => assert.equal(result.current.state.loadingDisp, false));
@@ -356,6 +424,47 @@ test('a transient concurrency conflict can be retried with the same idempotency 
   assert.equal(keys.length, 2);
   assert.equal(keys[0], keys[1]);
   assert.equal(result.current.state.reservaResult.type, 'success');
+});
+
+test('cambiar RUT o correo descarta la autorización de verificación vigente', async () => {
+  globalThis.fetch = async (url) => {
+    if (url.startsWith('/api/disponibilidad')) return jsonResponse({ ok: true, bloques: [] });
+    if (url === '/api/reservas/verificacion-correo/solicitudes')
+      return jsonResponse(
+        {
+          ok: true,
+          solicitud_id: 'sol_test_1234567890123456789012',
+          rut: '12.345.678-5',
+          correo: 'paciente@example.cl',
+          expira_en: new Date(Date.now() + 600_000).toISOString(),
+          reenvio_disponible_en: new Date(Date.now() + 60_000).toISOString(),
+        },
+        202,
+      );
+    if (url === '/api/reservas/verificacion-correo/verificar')
+      return jsonResponse({
+        ok: true,
+        autorizacion_reserva: 'auth_token_12345678901234567890123456789012',
+        expira_en: new Date(Date.now() + 600_000).toISOString(),
+        rut: '12.345.678-5',
+        correo: 'paciente@example.cl',
+      });
+    throw new Error(`Unexpected request: ${url}`);
+  };
+  const { result } = renderHook(() => usePatientPortal({ medicos: [], especialidades: [] }));
+  await waitFor(() => assert.equal(result.current.state.loadingDisp, false));
+  act(() => {
+    result.current.actions.setSelectedBloque({ agenda_id: 7 });
+    result.current.actions.setPacienteRut('12.345.678-5');
+    result.current.actions.setPacienteEmail('paciente@example.cl');
+  });
+  await act(async () => result.current.actions.handleReservarSubmit({ preventDefault() {} }));
+  act(() => result.current.actions.setVerificationCode('123456'));
+  await act(async () => result.current.actions.handleReservarSubmit({ preventDefault() {} }));
+  assert.equal(result.current.state.hasValidEmailAuth, true);
+
+  act(() => result.current.actions.setPacienteEmail('otro@example.cl'));
+  assert.equal(result.current.state.hasValidEmailAuth, false);
 });
 
 test('retira el filtro de un profesional ausente tras actualizar el catálogo', async () => {

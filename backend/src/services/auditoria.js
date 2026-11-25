@@ -13,6 +13,9 @@ const AUDIT_ACTIONS = Object.freeze({
   CITA_RESERVAR_MANUAL: 'CITA_RESERVAR_MANUAL',
   CITA_CANCELAR: 'CITA_CANCELAR',
   CITA_REPROGRAMAR: 'CITA_REPROGRAMAR',
+  CITA_RECUPERACION_INICIAR: 'CITA_RECUPERACION_INICIAR',
+  CITA_RECUPERACION_REVOCAR: 'CITA_RECUPERACION_REVOCAR',
+  CITA_RECUPERACION_COMPLETAR: 'CITA_RECUPERACION_COMPLETAR',
 });
 const AUDIT_ACTION_NAMES = Object.freeze(Object.values(AUDIT_ACTIONS));
 
@@ -26,7 +29,7 @@ const AUDIT_ENTITY_TYPE_NAMES = Object.freeze(Object.values(AUDIT_ENTITY_TYPES))
 const AUDIT_IDENTITY_ORIGINS = Object.freeze(['SESION_INDIVIDUAL', 'ANTERIOR_O_DESCONOCIDO']);
 
 const FORBIDDEN_KEYS_REGEX =
-  /contrasena|password|pass|secret|token|hash|salt|cookie|authorization|foto_datos|paciente_rut|paciente_nombre|paciente_email|paciente_telefono|response_url/i;
+  /contrasena|password|pass|secret|token|hash|salt|cookie|authorization|foto_datos|paciente_rut|paciente_nombre|paciente_email|paciente_telefono|correo_destino|correo_normalizado|codigo_verificacion|codigo_hmac|autorizacion_reserva|citas_historial|response_url/i;
 const SENSITIVE_VALUES_REGEX = /cita_token=|Bearer |\$scrypt\$/i;
 const MAX_DETAILS_BYTES = 8192;
 

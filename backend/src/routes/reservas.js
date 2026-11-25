@@ -7,9 +7,25 @@ const { parseReservation, parseReservationManagement } = require('../schemas/inp
 const { withTransaction } = require('../db/transaction');
 const { createReservation } = require('../services/reservas');
 const { manageReservation } = require('../services/gestionar-reserva');
+const {
+  requestBookingVerification,
+  verifyBookingCode,
+  requestLookupVerification,
+  verifyLookupCode,
+  searchRecoveryAppointments,
+  createRecoveryRequest,
+  revokeRecoveryRequest,
+  confirmRecoveryCode,
+} = require('../services/verificacion-correo');
 const { processNotificationQueue } = require('../notifications/queue');
+const { processVerificationQueue } = require('../notifications/verification-worker');
 
 const router = express.Router();
+
+function setPrivateNoStoreHeaders(res) {
+  res.set('Cache-Control', 'no-store');
+  res.set('X-Content-Type-Options', 'nosniff');
+}
 
 function triggerNotifications(req) {
   const worker = req?.app?.locals?.notificationWorker || processNotificationQueue;
@@ -19,6 +35,180 @@ function triggerNotifications(req) {
     });
   });
 }
+
+function triggerVerificationEmails(req) {
+  const worker = req?.app?.locals?.verificationWorker || processVerificationQueue;
+  setImmediate(() => {
+    worker().catch((error) => {
+      console.error('[Verificación] Error en despacho inmediato:', error.message);
+    });
+  });
+}
+
+function handleVerificationError(res, error) {
+  if (error instanceof HttpError && error.code === 'INVALID_RUT') {
+    return sendError(res, 400, 'INVALID_RUT', error.message, error.fields, 'RUT_INVALIDO');
+  }
+  throw error;
+}
+
+router.post(
+  '/reservas/verificacion-correo/solicitudes',
+  asyncHandler(async (req, res) => {
+    setPrivateNoStoreHeaders(res);
+    const database = req.app.locals.database || pool;
+    try {
+      const result = await requestBookingVerification({
+        database,
+        rut: req.body?.rut,
+        correo: req.body?.correo,
+        clientIp: req.ip,
+      });
+      triggerVerificationEmails(req);
+      return res.status(202).json({ ok: true, jira: 'MED-29', ...result });
+    } catch (error) {
+      return handleVerificationError(res, error);
+    }
+  }),
+);
+
+router.post(
+  '/reservas/verificacion-correo/verificar',
+  asyncHandler(async (req, res) => {
+    setPrivateNoStoreHeaders(res);
+    const database = req.app.locals.database || pool;
+    const result = await verifyBookingCode({
+      database,
+      solicitudId: req.body?.solicitud_id,
+      codigo: req.body?.codigo,
+    });
+    return res.json({
+      ok: true,
+      jira: 'MED-29',
+      autorizacion_reserva: result.autorizacion_reserva,
+      expira_en: result.expira_en,
+      rut: result.rut,
+      correo: result.correo,
+    });
+  }),
+);
+
+router.post(
+  '/reservas/mis-citas/solicitudes',
+  asyncHandler(async (req, res) => {
+    setPrivateNoStoreHeaders(res);
+    const database = req.app.locals.database || pool;
+    try {
+      const result = await requestLookupVerification({
+        database,
+        rut: req.body?.rut,
+        correo: req.body?.correo,
+        clientIp: req.ip,
+      });
+      if (result._enqueued) triggerVerificationEmails(req);
+      return res.status(202).json({
+        ok: true,
+        jira: 'MED-29',
+        solicitud_id: result.solicitud_id,
+        expira_en: result.expira_en,
+        reenvio_disponible_en: result.reenvio_disponible_en,
+        mensaje: result.mensaje,
+      });
+    } catch (error) {
+      return handleVerificationError(res, error);
+    }
+  }),
+);
+
+router.post(
+  '/reservas/mis-citas/verificar',
+  asyncHandler(async (req, res) => {
+    setPrivateNoStoreHeaders(res);
+    const database = req.app.locals.database || pool;
+    const { rut, citas } = await verifyLookupCode({
+      database,
+      solicitudId: req.body?.solicitud_id,
+      codigo: req.body?.codigo,
+    });
+    return res.json({
+      ok: true,
+      jira: 'MED-29',
+      rut,
+      total: citas.length,
+      citas,
+    });
+  }),
+);
+
+router.post(
+  '/reservas/mis-citas/recuperacion/confirmar',
+  asyncHandler(async (req, res) => {
+    setPrivateNoStoreHeaders(res);
+    const database = req.app.locals.database || pool;
+    const result = await confirmRecoveryCode({
+      database,
+      solicitudId: req.body?.solicitud_id,
+      codigo: req.body?.codigo,
+    });
+    return res.json({ ok: true, jira: 'MED-29', ...result });
+  }),
+);
+
+router.post(
+  '/secretaria/recuperacion-citas/buscar',
+  requireSecretary,
+  asyncHandler(async (req, res) => {
+    setPrivateNoStoreHeaders(res);
+    const database = req.app.locals.database || pool;
+    try {
+      const result = await searchRecoveryAppointments({
+        database,
+        rut: req.body?.rut,
+      });
+      return res.json({ ok: true, jira: 'MED-29', ...result });
+    } catch (error) {
+      return handleVerificationError(res, error);
+    }
+  }),
+);
+
+router.post(
+  '/secretaria/recuperacion-citas/solicitudes',
+  requireSecretary,
+  asyncHandler(async (req, res) => {
+    setPrivateNoStoreHeaders(res);
+    const database = req.app.locals.database || pool;
+    try {
+      const result = await createRecoveryRequest({
+        database,
+        rut: req.body?.rut,
+        correoDestino: req.body?.correo_destino,
+        citasIds: req.body?.citas_ids,
+        motivo: req.body?.motivo,
+        secretary: req.secretary,
+      });
+      triggerVerificationEmails(req);
+      return res.status(202).json({ ok: true, jira: 'MED-29', ...result });
+    } catch (error) {
+      return handleVerificationError(res, error);
+    }
+  }),
+);
+
+router.post(
+  '/secretaria/recuperacion-citas/solicitudes/:id/revocar',
+  requireSecretary,
+  asyncHandler(async (req, res) => {
+    setPrivateNoStoreHeaders(res);
+    const database = req.app.locals.database || pool;
+    const result = await revokeRecoveryRequest({
+      database,
+      solicitudId: req.params.id,
+      secretary: req.secretary,
+    });
+    return res.json({ ok: true, jira: 'MED-29', ...result });
+  }),
+);
 
 router.get(
   '/reservas',

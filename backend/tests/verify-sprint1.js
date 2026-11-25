@@ -6,6 +6,7 @@
 const { requireDisposableTestEnvironment } = require('./disposable-env');
 const { apiUrl: API_URL } = requireDisposableTestEnvironment();
 const { ensureTestSecretary } = require('./secretary-fixture');
+const { authorizeWebBookingEmail, clearMailpit } = require('./mailpit-fixture');
 
 const REQUEST_TIMEOUT_MS = 5000;
 
@@ -141,6 +142,26 @@ async function runTests() {
 
   // 5. Verificar MED-16 (RNF-01): 40 pacientes consultan disponibilidad y disputan un mismo cupo.
   const CONCURRENT_USERS = 40;
+  await clearMailpit();
+  const seenMessages = new Set();
+  const concurrentAuths = [];
+  for (let start = 0; start < CONCURRENT_USERS; start += 8) {
+    const chunk = Array.from(
+      { length: Math.min(8, CONCURRENT_USERS - start) },
+      (_, offset) => start + offset,
+    );
+    const results = await Promise.all(
+      chunk.map((idx) =>
+        authorizeWebBookingEmail({
+          apiUrl: API_URL,
+          rut: '12.345.678-5',
+          correo: `paciente${idx + 1}@medisalud.cl`,
+          seenMessageIds: seenMessages,
+        }),
+      ),
+    );
+    concurrentAuths.push(...results);
+  }
   console.log(
     `\n🚀 [MED-16 | 3 pts] Lanzando una carga mixta de ${CONCURRENT_USERS} pacientes concurrentes...`,
   );
@@ -158,6 +179,7 @@ async function runTests() {
         paciente_nombre: `Paciente Concurrente #${idx + 1}`,
         paciente_email: `paciente${idx + 1}@medisalud.cl`,
         paciente_telefono: '+56998765432',
+        autorizacion_reserva: concurrentAuths[idx].autorizacionReserva,
       }),
     }),
   );
@@ -229,6 +251,16 @@ async function runTests() {
         block.agenda_id !== targetBlock.agenda_id && block.agenda_id !== blockToLock.agenda_id,
     )
     .slice(0, 4);
+  const distinctAuths = await Promise.all(
+    distinctBlocks.map((_, idx) =>
+      authorizeWebBookingEmail({
+        apiUrl: API_URL,
+        rut: '12.345.678-5',
+        correo: `bloque-independiente-${idx + 1}@medisalud.cl`,
+        seenMessageIds: seenMessages,
+      }),
+    ),
+  );
   const distinctSlotResults = await Promise.all(
     distinctBlocks.map((block, idx) =>
       measuredJsonRequest(`${API_URL}/reservas`, {
@@ -240,6 +272,7 @@ async function runTests() {
           paciente_nombre: `Paciente Bloque Independiente #${idx + 1}`,
           paciente_email: `bloque-independiente-${idx + 1}@medisalud.cl`,
           paciente_telefono: '+56998765432',
+          autorizacion_reserva: distinctAuths[idx].autorizacionReserva,
         }),
       }),
     ),

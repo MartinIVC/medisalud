@@ -7,6 +7,7 @@ import CrearMedico from '../../components/CrearMedico';
 import DoctorPhoto from '../../components/DoctorPhoto.jsx';
 import Profesionales from './Profesionales.jsx';
 import Auditoria from './Auditoria.jsx';
+import RecuperacionCitas from './RecuperacionCitas.jsx';
 import { SPRING_CRISP } from '../../utils/motionPresets.js';
 import {
   Alert,
@@ -327,6 +328,13 @@ export default function SecretaryPortal({ state, actions }) {
             Profesionales
           </Button>
           <Button
+            variant={currentNavTab === 'recuperacion' ? 'primary' : 'secondary'}
+            aria-current={currentNavTab === 'recuperacion' ? 'page' : undefined}
+            onClick={() => setSecretaryView('recuperacion')}
+          >
+            Recuperación de citas
+          </Button>
+          <Button
             variant={currentNavTab === 'auditoria' ? 'primary' : 'secondary'}
             aria-current={currentNavTab === 'auditoria' ? 'page' : undefined}
             onClick={() => setSecretaryView('auditoria')}
@@ -343,6 +351,10 @@ export default function SecretaryPortal({ state, actions }) {
 
       {secretaryView === 'auditoria' && (
         <Auditoria token={secretaryToken} onUnauthorized={handleSecretaryUnauthorized} />
+      )}
+
+      {secretaryView === 'recuperacion' && (
+        <RecuperacionCitas token={secretaryToken} onUnauthorized={handleSecretaryUnauthorized} />
       )}
 
       {secretaryView === 'profesionales' && (

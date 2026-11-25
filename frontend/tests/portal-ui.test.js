@@ -594,6 +594,26 @@ for (const outcome of ['success', 'error']) {
       if (url === '/api/medicos')
         return json({ ok: true, medicos: [{ id: 1, nombre: 'Dra. Prueba', especialidad_id: 1 }] });
       if (url.startsWith('/api/disponibilidad')) return json({ ok: true, bloques: [slot] });
+      if (url === '/api/reservas/verificacion-correo/solicitudes')
+        return json(
+          {
+            ok: true,
+            solicitud_id: 'sol_ui_123456789012345678901234',
+            rut: '12.345.678-5',
+            correo: 'paciente@example.cl',
+            expira_en: new Date(Date.now() + 600_000).toISOString(),
+            reenvio_disponible_en: new Date(Date.now() + 60_000).toISOString(),
+          },
+          202,
+        );
+      if (url === '/api/reservas/verificacion-correo/verificar')
+        return json({
+          ok: true,
+          autorizacion_reserva: 'auth_ui_12345678901234567890123456789012',
+          expira_en: new Date(Date.now() + 600_000).toISOString(),
+          rut: '12.345.678-5',
+          correo: 'paciente@example.cl',
+        });
       if (url === '/api/reservas')
         return new Promise((resolve) => {
           finishReservation = resolve;
@@ -645,8 +665,17 @@ for (const outcome of ['success', 'error']) {
       fireEvent.change(screen.getByLabelText('Teléfono móvil, ocho dígitos después de +56 9'), {
         target: { value: '12345678' },
       });
-      fireEvent.click(screen.getByRole('button', { name: 'Revisar reserva', exact: true }));
-      fireEvent.click(screen.getByRole('button', { name: 'Confirmar reserva', exact: true }));
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Verificar correo y continuar', exact: true }),
+      );
+      const codeInput = await screen.findByLabelText('Código de verificación (6 dígitos)');
+      fireEvent.change(codeInput, { target: { value: '123456' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Verificar código', exact: true }));
+      const confirmBtn = await screen.findByRole('button', {
+        name: 'Confirmar reserva',
+        exact: true,
+      });
+      fireEvent.click(confirmBtn);
       await waitFor(() => assert.equal(typeof finishReservation, 'function'));
       fireEvent.click(screen.getByRole('button', { name: 'Secretaría', exact: true }));
       fireEvent.click(screen.getByRole('button', { name: 'Reserva tu hora', exact: true }));
