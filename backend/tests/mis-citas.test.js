@@ -8,6 +8,10 @@ const {
   GENERIC_INVALID_CODE_MESSAGE,
   computeCodeHmac,
   verifyCodeHmac,
+  validateHmacSecretConfig,
+  requestBookingVerification,
+  requestLookupVerification,
+  confirmRecoveryCode,
 } = require('../src/services/verificacion-correo');
 const {
   buildVerificationEmail,
@@ -339,4 +343,283 @@ test('POST /api/secretaria/recuperacion-citas/* exige sesión de secretaría', a
     });
     assert.equal(res.status, 401);
   }
+});
+
+test('MED-30: validateHmacSecretConfig y start() exigen VERIFICATION_HMAC_SECRET robusto en producción', () => {
+  const { start } = require('../src/index');
+
+  assert.equal(validateHmacSecretConfig({ NODE_ENV: 'development' }).length > 0, true);
+  assert.equal(validateHmacSecretConfig({ NODE_ENV: 'test' }).length > 0, true);
+
+  assert.throws(
+    () => validateHmacSecretConfig({ NODE_ENV: 'production' }),
+    /VERIFICATION_HMAC_SECRET/,
+  );
+  assert.throws(
+    () =>
+      validateHmacSecretConfig({
+        NODE_ENV: 'production',
+        VERIFICATION_HMAC_SECRET: 'medisalud-demo-hmac-secret-local-only',
+      }),
+    /demostración/,
+  );
+  assert.throws(
+    () =>
+      validateHmacSecretConfig({
+        NODE_ENV: 'production',
+        VERIFICATION_HMAC_SECRET: 'disposable-hmac-secret-test-only',
+      }),
+    /demostración/,
+  );
+  assert.throws(
+    () =>
+      validateHmacSecretConfig({
+        NODE_ENV: 'production',
+        VERIFICATION_HMAC_SECRET: 'dev-only-medisalud-verification-hmac-secret-change-me',
+      }),
+    /demostración/,
+  );
+  assert.throws(
+    () =>
+      validateHmacSecretConfig({
+        NODE_ENV: 'production',
+        VERIFICATION_HMAC_SECRET: 'change-me-in-production-medisalud-hmac-secret-2026',
+      }),
+    /demostración/,
+  );
+  assert.throws(
+    () =>
+      validateHmacSecretConfig({
+        NODE_ENV: 'staging',
+        VERIFICATION_HMAC_SECRET: 'demasiado-corto-123',
+      }),
+    /32 caracteres/,
+  );
+
+  const strongSecret = 'prod-medisalud-secret-9f8e7d6c5b4a3210fedcba9876543210';
+  assert.equal(
+    validateHmacSecretConfig({
+      NODE_ENV: 'production',
+      VERIFICATION_HMAC_SECRET: strongSecret,
+    }),
+    strongSecret,
+  );
+
+  assert.throws(
+    () =>
+      start({
+        port: 0,
+        env: { NODE_ENV: 'production', VERIFICATION_HMAC_SECRET: 'demo' },
+      }),
+    /VERIFICATION_HMAC_SECRET/,
+  );
+});
+
+test('MED-30: las cuotas de CONSULTA y RESERVA están aisladas y bloquean clave_hash en orden determinista con ON CONFLICT', async () => {
+  const limitsTable = new Map();
+  const lockOrders = [];
+  let currentTxLocks = [];
+  let sawOnConflictInsert = false;
+
+  const database = {
+    async connect() {
+      return {
+        async query(sql, params = []) {
+          if (sql.startsWith('BEGIN')) {
+            currentTxLocks = [];
+            return { rowCount: 0, rows: [] };
+          }
+          if (sql === 'COMMIT' || sql === 'ROLLBACK') {
+            if (currentTxLocks.length > 0) {
+              lockOrders.push([...currentTxLocks]);
+            }
+            return { rowCount: 0, rows: [] };
+          }
+          if (
+            sql.includes('INSERT INTO limites_verificacion_correo') &&
+            sql.includes('ON CONFLICT (clave_hash) DO NOTHING')
+          ) {
+            sawOnConflictInsert = true;
+            const [claveHash, ambito] = params;
+            if (!limitsTable.has(claveHash)) {
+              limitsTable.set(claveHash, {
+                clave_hash: claveHash,
+                ambito,
+                conteo: 1,
+                ventana_inicio: '1970-01-01T00:00:00.000Z',
+                ultimo_evento: '1970-01-01T00:00:00.000Z',
+              });
+            }
+            return { rowCount: 1, rows: [] };
+          }
+          if (sql.includes('FROM limites_verificacion_correo') && sql.includes('FOR UPDATE')) {
+            const [claveHash] = params;
+            currentTxLocks.push(claveHash);
+            const row = limitsTable.get(claveHash);
+            return row ? { rowCount: 1, rows: [{ ...row }] } : { rowCount: 0, rows: [] };
+          }
+          if (sql.includes('UPDATE limites_verificacion_correo')) {
+            const [claveHash] = params;
+            const row = limitsTable.get(claveHash);
+            const nowIso = new Date().toISOString();
+            if (sql.includes('SET conteo = 1')) {
+              limitsTable.set(claveHash, {
+                ...row,
+                conteo: 1,
+                ventana_inicio: nowIso,
+                ultimo_evento: nowIso,
+              });
+            } else {
+              limitsTable.set(claveHash, {
+                ...row,
+                conteo: row.conteo + 1,
+                ultimo_evento: nowIso,
+              });
+            }
+            return { rowCount: 1, rows: [] };
+          }
+          if (sql.includes('FROM vinculos_consulta_paciente')) {
+            return { rowCount: 1, rows: [{ id: 42, version: 1 }] };
+          }
+          return { rowCount: 1, rows: [] };
+        },
+        release() {},
+      };
+    },
+  };
+
+  const env = {
+    VERIFICATION_MAX_SENDS_PER_PAIR: '1',
+    VERIFICATION_MAX_SENDS_PER_EMAIL: '1',
+    VERIFICATION_MAX_SENDS_PER_IP: '1',
+    VERIFICATION_RESEND_COOLDOWN_SECONDS: '60',
+    VERIFICATION_WINDOW_MINUTES: '15',
+  };
+
+  // Agotar por completo las cuotas y cooldown de CONSULTA para un par conocido
+  const enqueuedStates = [];
+  for (let i = 0; i < 2; i += 1) {
+    const lookupRes = await requestLookupVerification({
+      rut: '12.345.678-5',
+      correo: 'aislado@example.cl',
+      clientIp: '198.51.100.20',
+      database,
+      env,
+    });
+    assert.equal(lookupRes.mensaje, GENERIC_LOOKUP_MESSAGE);
+    enqueuedStates.push(lookupRes._enqueued);
+  }
+  assert.deepEqual(enqueuedStates, [true, false]);
+
+  // RESERVA con el mismo RUT, correo e IP debe seguir permitida (cuotas disjuntas)
+  const bookingRes = await requestBookingVerification({
+    rut: '12.345.678-5',
+    correo: 'aislado@example.cl',
+    clientIp: '198.51.100.20',
+    database,
+    env,
+  });
+  assert.match(bookingRes.solicitud_id, /^[A-Za-z0-9_-]{24,64}$/);
+  assert.equal(sawOnConflictInsert, true);
+
+  // Verificar que todas las transacciones adquirieron locks en orden ascendente de clave_hash
+  assert.ok(lockOrders.length >= 2);
+  for (const order of lockOrders) {
+    const sorted = [...order].sort((a, b) => a.localeCompare(b));
+    assert.deepEqual(order, sorted);
+  }
+});
+
+test('MED-30: confirmRecoveryCode rechaza con 409 y revoca solicitud si cambió el vínculo de origen de una cita', async () => {
+  const solicitudId = 'sol_rec_obsolete_12345678901234';
+  const env = { VERIFICATION_HMAC_SECRET: 'test-med30-recovery-hmac-secret' };
+  const codeHmac = computeCodeHmac(
+    {
+      solicitudId,
+      proposito: PURPOSES.RECUPERACION,
+      rut: '12.345.678-5',
+      correo: 'destino-viejo@example.cl',
+      codigo: '778899',
+    },
+    env,
+  );
+
+  let revokedRequest = false;
+  let updatedAppointments = false;
+
+  const database = {
+    async connect() {
+      return {
+        async query(sql) {
+          if (sql.includes('FROM solicitudes_verificacion_correo')) {
+            return {
+              rowCount: 1,
+              rows: [
+                {
+                  id: solicitudId,
+                  proposito: PURPOSES.RECUPERACION,
+                  paciente_rut: '12.345.678-5',
+                  correo_normalizado: 'destino-viejo@example.cl',
+                  secretaria_id: 1,
+                  vinculo_id: 10,
+                  vinculo_version: 1,
+                  citas_ids: [501],
+                  codigo_hmac: codeHmac,
+                  intentos_verificacion: 0,
+                  creado_en: new Date(Date.now() - 60_000).toISOString(),
+                  expira_en: new Date(Date.now() + 600_000).toISOString(),
+                  consumida_en: null,
+                  revocada_en: null,
+                },
+              ],
+            };
+          }
+          if (sql.includes('FROM limites_verificacion_correo')) {
+            return { rowCount: 0, rows: [] };
+          }
+          if (sql.includes('FROM citas_medicas c')) {
+            // La cita ahora apunta a otro vínculo posterior (id 25, versión 1)
+            return {
+              rowCount: 1,
+              rows: [
+                {
+                  id: 501,
+                  vinculo_consulta_id: 25,
+                  vinculo_version_actual: 1,
+                  vinculo_actualizado_en: new Date().toISOString(),
+                },
+              ],
+            };
+          }
+          if (sql.includes('SET revocada_en = NOW()')) {
+            revokedRequest = true;
+            return { rowCount: 1, rows: [] };
+          }
+          if (sql.includes('UPDATE citas_medicas')) {
+            updatedAppointments = true;
+            return { rowCount: 1, rows: [] };
+          }
+          return { rowCount: 1, rows: [] };
+        },
+        release() {},
+      };
+    },
+  };
+
+  await assert.rejects(
+    () =>
+      confirmRecoveryCode({
+        solicitudId,
+        codigo: '778899',
+        database,
+        env,
+      }),
+    (error) => {
+      assert.equal(error.status, 409);
+      assert.equal(error.code, 'APPOINTMENTS_SCOPE_MISMATCH');
+      return true;
+    },
+  );
+  assert.equal(revokedRequest, true);
+  assert.equal(updatedAppointments, false);
 });

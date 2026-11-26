@@ -2,13 +2,16 @@ const { app } = require('./app');
 const { pool } = require('./db');
 const { processNotificationQueue } = require('./notifications/queue');
 const { processVerificationQueue } = require('./notifications/verification-worker');
+const { validateHmacSecretConfig } = require('./services/verificacion-correo');
 
 function start({
   port = Number(process.env.PORT || 4000),
   database = pool,
   notificationWorker = app.locals.notificationWorker || processNotificationQueue,
   verificationWorker = app.locals.verificationWorker || processVerificationQueue,
+  env = process.env,
 } = {}) {
+  validateHmacSecretConfig(env);
   let processingQueue = false;
   const processNotifications = async () => {
     if (processingQueue) return;

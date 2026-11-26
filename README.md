@@ -140,7 +140,7 @@ Después de editar la configuración de correo, recrea el backend para que tome 
 docker compose up -d --force-recreate backend
 ```
 
-Para despliegues públicos, configura `PUBLIC_WEB_URL` con la dirección HTTPS del frontend.
+Para despliegues públicos, configura `PUBLIC_WEB_URL` con la dirección HTTPS del frontend y define un `VERIFICATION_HMAC_SECRET` propio de al menos 32 caracteres aleatorios (cuando `NODE_ENV=production` o fuera de `development`/`test`, el backend rechaza arrancar si falta el secreto o si usa el valor de demostración).
 
 ## Ejecutar en Windows
 
