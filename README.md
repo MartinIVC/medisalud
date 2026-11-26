@@ -11,6 +11,14 @@ Aplicación web académica que reúne la reserva de horas médicas y la gestión
 | [`develop`](https://github.com/MartinIVC/medisalud/tree/develop) | Desarrollo actual: portales de paciente y secretaría, gestión de citas y médicos, fotos y notificaciones en cola. |
 | [`main`](https://github.com/MartinIVC/medisalud/tree/main) | Implementación inicial del núcleo de agendamiento. No incluye las ampliaciones actuales de esta rama. |
 
+## Equipo y proceso de desarrollo
+
+MediSalud es un proyecto académico con aportes documentados de **Diego Alcántara, Juan Ortiz y Martín Verdugo** durante el Sprint 1. La distribución original de historias y sus fuentes históricas se encuentran en [CONTRIBUCIONES.md](CONTRIBUCIONES.md). Este registro no presupone igual participación en todos los sprints ni atribuye retroactivamente cambios individuales sin evidencia.
+
+Para evaluar el flujo de trabajo, consultar [historial de commits](https://github.com/MartinIVC/medisalud/commits/develop), [pull requests](https://github.com/MartinIVC/medisalud/pulls?q=is%3Apr), [CI / Actions](https://github.com/MartinIVC/medisalud/actions) y las historias MED-XX referenciadas en los cambios. Las prácticas para contribuciones **futuras** se describen en [CONTRIBUTING.md](CONTRIBUTING.md) y la [propuesta de protección de ramas](.github/BRANCH_PROTECTION.md); estas últimas no deben confundirse con controles históricos ya aplicados. Los PR antiguos no presentan revisiones formales registradas.
+
+`main` conserva el hito inicial mientras `develop` integra trabajo posterior. Una promoción a `main` se realizará únicamente cuando su alcance y pruebas hayan sido validados; tener ramas divergentes no equivale, por sí solo, a un fallo.
+
 ## Vista previa
 
 Capturas de la versión funcional en desarrollo, tomadas el 5 de noviembre de 2026 en un entorno local aislado con datos ficticios. Muestran la consulta de horarios, una reserva completada y su gestión desde secretaría. El envío real de notificaciones no está habilitado en esta demo.
@@ -62,7 +70,7 @@ Una notificación encolada o aceptada por un proveedor **no equivale a una entre
 
 ## En desarrollo y limitaciones
 
-- Auditoría general de acciones por cuenta: pendiente de implementación (MED-27). MED-24 registra la última desvinculación con responsable, fecha y motivo; secretaría puede filtrar profesionales por especialidad y revincularlos sin perder agendas ni citas.
+- La auditoría de acciones administrativas de secretaría (MED-27) está implementada en `develop`: registra operaciones asociadas a cuentas individuales y dispone de una consulta para secretaría. La cobertura automatizada específica se ejecuta en CI. MED-24 registra la última desvinculación con responsable, fecha y motivo; secretaría puede filtrar profesionales por especialidad y revincularlos sin perder agendas ni citas.
 - Validación de entrega real de notificaciones, callbacks de entrega y configuración de dominio SPF/DKIM/DMARC: pendientes.
 - La existencia de pruebas automatizadas no implica que todas las historias hayan completado su aceptación funcional.
 - Los 15 médicos iniciales son datos semilla de demostración, no un límite del sistema.
