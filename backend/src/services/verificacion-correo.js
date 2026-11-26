@@ -18,9 +18,39 @@ const GENERIC_INVALID_CODE_MESSAGE =
   'El código ingresado no es válido o venció. Solicita uno nuevo e intenta nuevamente.';
 
 const FALLBACK_PROCESS_SECRET = crypto.randomBytes(32).toString('hex');
+const MIN_PRODUCTION_HMAC_SECRET_LENGTH = 32;
+const INSECURE_HMAC_SECRETS = new Set([
+  'medisalud-demo-hmac-secret-local-only',
+  'disposable-hmac-secret-test-only',
+]);
+const INSECURE_HMAC_PATTERN = /(demo|test-only|local-only|dev[-_]?only|change[-_]?me|default)/i;
+
+function isStrictHmacEnvironment(env = process.env) {
+  const nodeEnv = typeof env.NODE_ENV === 'string' ? env.NODE_ENV.trim().toLowerCase() : '';
+  return Boolean(nodeEnv) && nodeEnv !== 'development' && nodeEnv !== 'test';
+}
+
+function validateHmacSecretConfig(env = process.env) {
+  const raw =
+    typeof env.VERIFICATION_HMAC_SECRET === 'string' ? env.VERIFICATION_HMAC_SECRET.trim() : '';
+  if (isStrictHmacEnvironment(env)) {
+    if (
+      !raw ||
+      raw.length < MIN_PRODUCTION_HMAC_SECRET_LENGTH ||
+      INSECURE_HMAC_SECRETS.has(raw) ||
+      INSECURE_HMAC_PATTERN.test(raw)
+    ) {
+      throw new Error(
+        'VERIFICATION_HMAC_SECRET debe configurarse explícitamente con al menos 32 caracteres aleatorios (sin valores de demostración) cuando NODE_ENV no es development ni test.',
+      );
+    }
+    return raw;
+  }
+  return raw || FALLBACK_PROCESS_SECRET;
+}
 
 function getHmacSecret(env = process.env) {
-  return env.VERIFICATION_HMAC_SECRET || FALLBACK_PROCESS_SECRET;
+  return validateHmacSecretConfig(env);
 }
 
 function getLimitsConfig(env = process.env) {
@@ -127,123 +157,119 @@ async function purgeExpiredVerificationData(database = defaultPool) {
   );
 }
 
-async function inspectAndConsumeLimit(client, { ambito, key, maxCount, windowMs, cooldownMs = 0 }) {
-  const keyHash = limitKeyHash(ambito, key);
-  const existing = await client.query(
-    `SELECT conteo, ventana_inicio, ultimo_evento
-     FROM limites_verificacion_correo
-     WHERE clave_hash = $1
-     FOR UPDATE`,
-    [keyHash],
-  );
+const EPOCH_ISO = '1970-01-01T00:00:00.000Z';
+
+async function evaluateAndConsumeLimits(client, checks) {
+  // Orden determinista por clave_hash para evitar deadlocks bajo solicitudes concurrentes.
+  const ordered = checks
+    .map((check) => ({
+      ...check,
+      keyHash: limitKeyHash(check.ambito, check.key),
+    }))
+    .sort((left, right) => left.keyHash.localeCompare(right.keyHash));
 
   const nowMs = Date.now();
-  if (!existing.rowCount) {
+  const lockedStates = [];
+
+  for (const check of ordered) {
+    // Creación idempotente antes de bloquear: evita errores 23505 (unique_violation) bajo concurrencia.
     await client.query(
       `INSERT INTO limites_verificacion_correo (clave_hash, ambito, conteo, ventana_inicio, ultimo_evento)
-       VALUES ($1, $2, 1, NOW(), NOW())`,
-      [keyHash, ambito],
+       VALUES ($1, $2, 1, 'epoch'::timestamptz, 'epoch'::timestamptz)
+       ON CONFLICT (clave_hash) DO NOTHING`,
+      [check.keyHash, check.ambito],
     );
-    return { allowed: true, retryAfterMs: 0 };
-  }
 
-  const row = existing.rows[0];
-  const windowStartMs = new Date(row.ventana_inicio).getTime();
-  const lastEventMs = new Date(row.ultimo_evento).getTime();
-
-  if (nowMs - windowStartMs >= windowMs) {
-    await client.query(
-      `UPDATE limites_verificacion_correo
-       SET conteo = 1, ventana_inicio = NOW(), ultimo_evento = NOW()
-       WHERE clave_hash = $1`,
-      [keyHash],
+    const existing = await client.query(
+      `SELECT conteo, ventana_inicio, ultimo_evento
+       FROM limites_verificacion_correo
+       WHERE clave_hash = $1
+       FOR UPDATE`,
+      [check.keyHash],
     );
-    return { allowed: true, retryAfterMs: 0 };
-  }
 
-  if (cooldownMs > 0 && nowMs - lastEventMs < cooldownMs) {
-    return { allowed: false, reason: 'COOLDOWN', retryAfterMs: cooldownMs - (nowMs - lastEventMs) };
-  }
-
-  if (row.conteo >= maxCount) {
-    return {
-      allowed: false,
-      reason: 'QUOTA',
-      retryAfterMs: Math.max(1000, windowMs - (nowMs - windowStartMs)),
+    const row = existing.rows[0] || {
+      conteo: 0,
+      ventana_inicio: EPOCH_ISO,
+      ultimo_evento: EPOCH_ISO,
     };
+    const windowStartMs = new Date(row.ventana_inicio).getTime();
+    const lastEventMs = new Date(row.ultimo_evento).getTime();
+    const windowExpired = nowMs - windowStartMs >= check.windowMs;
+
+    if (!windowExpired) {
+      if (check.cooldownMs > 0 && nowMs - lastEventMs < check.cooldownMs) {
+        return {
+          allowed: false,
+          reason: 'COOLDOWN',
+          retryAfterMs: check.cooldownMs - (nowMs - lastEventMs),
+        };
+      }
+      if (row.conteo >= check.maxCount) {
+        return {
+          allowed: false,
+          reason: 'QUOTA',
+          retryAfterMs: Math.max(1000, check.windowMs - (nowMs - windowStartMs)),
+        };
+      }
+    }
+
+    lockedStates.push({ check, windowExpired });
   }
 
-  await client.query(
-    `UPDATE limites_verificacion_correo
-     SET conteo = conteo + 1, ultimo_evento = NOW()
-     WHERE clave_hash = $1`,
-    [keyHash],
-  );
+  for (const { check, windowExpired } of lockedStates) {
+    if (windowExpired) {
+      await client.query(
+        `UPDATE limites_verificacion_correo
+         SET conteo = 1, ventana_inicio = NOW(), ultimo_evento = NOW()
+         WHERE clave_hash = $1`,
+        [check.keyHash],
+      );
+    } else {
+      await client.query(
+        `UPDATE limites_verificacion_correo
+         SET conteo = conteo + 1, ultimo_evento = NOW()
+         WHERE clave_hash = $1`,
+        [check.keyHash],
+      );
+    }
+  }
+
   return { allowed: true, retryAfterMs: 0 };
 }
 
+async function inspectAndConsumeLimit(client, { ambito, key, maxCount, windowMs, cooldownMs = 0 }) {
+  return evaluateAndConsumeLimits(client, [{ ambito, key, maxCount, windowMs, cooldownMs }]);
+}
+
 async function checkSendLimits(client, { proposito, rut, correo, clientIp, config }) {
-  const pairKey = `${proposito}|${rut}|${correo}`;
+  // Todas las cuotas de envío se aíslan por propósito para evitar filtrar existencia de vínculos
+  // entre CONSULTA (202 indistinguible) y RESERVA (429 observable).
   const checks = [
     {
       ambito: 'SEND_PAIR',
-      key: pairKey,
+      key: `${proposito}|${rut}|${correo}`,
       maxCount: config.maxSendsPerPair,
       windowMs: config.windowMs,
       cooldownMs: config.resendCooldownMs,
     },
     {
       ambito: 'SEND_EMAIL',
-      key: correo,
+      key: `${proposito}|${correo}`,
       maxCount: config.maxSendsPerEmail,
       windowMs: config.windowMs,
       cooldownMs: 0,
     },
     {
       ambito: 'SEND_IP',
-      key: normalizeClientIp(clientIp),
+      key: `${proposito}|${normalizeClientIp(clientIp)}`,
       maxCount: config.maxSendsPerIp,
       windowMs: config.windowMs,
       cooldownMs: 0,
     },
   ];
 
-  // Verificar antes de incrementar todos para no quemar cuotas si uno ya está bloqueado
-  const nowMs = Date.now();
-  for (const check of checks) {
-    const keyHash = limitKeyHash(check.ambito, check.key);
-    const existing = await client.query(
-      `SELECT conteo, ventana_inicio, ultimo_evento
-       FROM limites_verificacion_correo
-       WHERE clave_hash = $1
-       FOR UPDATE`,
-      [keyHash],
-    );
-    if (!existing.rowCount) continue;
-    const row = existing.rows[0];
-    const windowStartMs = new Date(row.ventana_inicio).getTime();
-    const lastEventMs = new Date(row.ultimo_evento).getTime();
-    if (nowMs - windowStartMs >= check.windowMs) continue;
-    if (check.cooldownMs > 0 && nowMs - lastEventMs < check.cooldownMs) {
-      return {
-        allowed: false,
-        reason: 'COOLDOWN',
-        retryAfterMs: check.cooldownMs - (nowMs - lastEventMs),
-      };
-    }
-    if (row.conteo >= check.maxCount) {
-      return {
-        allowed: false,
-        reason: 'QUOTA',
-        retryAfterMs: Math.max(1000, check.windowMs - (nowMs - windowStartMs)),
-      };
-    }
-  }
-
-  for (const check of checks) {
-    await inspectAndConsumeLimit(client, check);
-  }
-  return { allowed: true, retryAfterMs: 0 };
+  return evaluateAndConsumeLimits(client, checks);
 }
 
 async function requestBookingVerification({
@@ -349,7 +375,7 @@ async function verifyBookingCode({
 
     const pairLimit = await inspectAndConsumeLimit(client, {
       ambito: 'VERIFY_PAIR',
-      key: `${reqRow.paciente_rut}|${reqRow.correo_normalizado}`,
+      key: `${reqRow.proposito}|${reqRow.paciente_rut}|${reqRow.correo_normalizado}`,
       maxCount: config.maxAttemptsPerPair,
       windowMs: config.windowMs,
     });
@@ -522,7 +548,7 @@ async function verifyLookupCode({
 
     const pairLimit = await inspectAndConsumeLimit(client, {
       ambito: 'VERIFY_PAIR',
-      key: `${reqRow.paciente_rut}|${reqRow.correo_normalizado}`,
+      key: `${reqRow.proposito}|${reqRow.paciente_rut}|${reqRow.correo_normalizado}`,
       maxCount: config.maxAttemptsPerPair,
       windowMs: config.windowMs,
     });
@@ -713,9 +739,12 @@ async function createRecoveryRequest({
 
   return withTransaction(database, async (client) => {
     const found = await client.query(
-      `SELECT id FROM citas_medicas
-       WHERE id = ANY($1::int[]) AND paciente_rut = $2
-       FOR UPDATE`,
+      `SELECT c.id, c.vinculo_consulta_id, v.version AS vinculo_version
+       FROM citas_medicas c
+       LEFT JOIN vinculos_consulta_paciente v ON v.id = c.vinculo_consulta_id
+       WHERE c.id = ANY($1::int[]) AND c.paciente_rut = $2
+       ORDER BY c.id ASC
+       FOR UPDATE OF c`,
       [citasIds, rut],
     );
     if (found.rowCount !== citasIds.length) {
@@ -726,16 +755,49 @@ async function createRecoveryRequest({
       );
     }
 
+    // Revocar atómicamente solicitudes de recuperación pendientes superpuestas sobre estas citas
+    // para evitar que un código vigente anterior sobrescriba esta nueva gestión.
+    await client.query(
+      `UPDATE solicitudes_verificacion_correo
+       SET revocada_en = NOW(),
+           estado_envio = CASE WHEN estado_envio = 'PENDIENTE' THEN 'OMITIDA' ELSE estado_envio END
+       WHERE proposito = 'RECUPERACION'
+         AND paciente_rut = $1
+         AND consumida_en IS NULL
+         AND revocada_en IS NULL
+         AND citas_ids && $2::int[]`,
+      [rut, citasIds],
+    );
+
+    // Capturar el estado de origen de los vínculos cuando todas las citas comparten el mismo origen.
+    const uniqueOriginLinks = new Set(
+      found.rows.map((row) => (row.vinculo_consulta_id ? Number(row.vinculo_consulta_id) : null)),
+    );
+    let snapshotLinkId = null;
+    let snapshotLinkVersion = null;
+    if (uniqueOriginLinks.size === 1) {
+      const [onlyOrigin] = uniqueOriginLinks;
+      if (onlyOrigin === null) {
+        snapshotLinkId = null;
+        snapshotLinkVersion = 0; // Todas las citas estaban sin vínculo al emitir la solicitud
+      } else {
+        snapshotLinkId = onlyOrigin;
+        snapshotLinkVersion = Number(found.rows[0].vinculo_version);
+      }
+    }
+
     await client.query(
       `INSERT INTO solicitudes_verificacion_correo (
-         id, proposito, paciente_rut, correo_normalizado, citas_ids,
-         secretaria_id, motivo, estado_envio, expira_en
-       ) VALUES ($1, $2, $3, $4, $5::int[], $6, $7, 'PENDIENTE', $8)`,
+         id, proposito, paciente_rut, correo_normalizado, vinculo_id, vinculo_version,
+         citas_ids, secretaria_id, motivo, estado_envio, expira_en
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7::int[], $8, $9, 'PENDIENTE', $10)`,
       [
         solicitudId,
         PURPOSES.RECUPERACION,
         rut,
         correo,
+        snapshotLinkId,
+        snapshotLinkVersion,
         citasIds,
         secretary.id,
         motivo,
@@ -850,9 +912,9 @@ async function confirmRecoveryCode({
 
   const outcome = await withTransaction(database, async (client) => {
     const found = await client.query(
-      `SELECT id, proposito, paciente_rut, correo_normalizado, citas_ids,
-              secretaria_id, motivo, codigo_hmac, intentos_verificacion,
-              expira_en, consumida_en, revocada_en
+      `SELECT id, proposito, paciente_rut, correo_normalizado, vinculo_id, vinculo_version,
+              citas_ids, secretaria_id, motivo, codigo_hmac, intentos_verificacion,
+              expira_en, consumida_en, revocada_en, creado_en
        FROM solicitudes_verificacion_correo
        WHERE id = $1
        FOR UPDATE`,
@@ -877,7 +939,7 @@ async function confirmRecoveryCode({
 
     const pairLimit = await inspectAndConsumeLimit(client, {
       ambito: 'VERIFY_PAIR',
-      key: `${reqRow.paciente_rut}|${reqRow.correo_normalizado}`,
+      key: `${reqRow.proposito}|${reqRow.paciente_rut}|${reqRow.correo_normalizado}`,
       maxCount: config.maxAttemptsPerPair,
       windowMs: config.windowMs,
     });
@@ -907,16 +969,47 @@ async function confirmRecoveryCode({
       return { ok: false };
     }
 
-    // Revalidar citas y su RUT dentro de la misma transacción
+    // Revalidar citas, su RUT y que su vínculo actual no haya cambiado desde la emisión
     const lockedAppointments = await client.query(
-      `SELECT id, vinculo_consulta_id
-       FROM citas_medicas
-       WHERE id = ANY($1::int[]) AND paciente_rut = $2
-       FOR UPDATE`,
+      `SELECT c.id, c.vinculo_consulta_id,
+              v.version AS vinculo_version_actual,
+              v.actualizado_en AS vinculo_actualizado_en
+       FROM citas_medicas c
+       LEFT JOIN vinculos_consulta_paciente v ON v.id = c.vinculo_consulta_id
+       WHERE c.id = ANY($1::int[]) AND c.paciente_rut = $2
+       ORDER BY c.id ASC
+       FOR UPDATE OF c`,
       [reqRow.citas_ids, reqRow.paciente_rut],
     );
 
     if (lockedAppointments.rowCount !== reqRow.citas_ids.length) {
+      return { ok: false, scopeMismatch: true };
+    }
+
+    const requestCreatedMs = new Date(reqRow.creado_en).getTime();
+    const originChanged = lockedAppointments.rows.some((row) => {
+      if (reqRow.vinculo_version === 0 && reqRow.vinculo_id === null) {
+        return row.vinculo_consulta_id !== null;
+      }
+      if (reqRow.vinculo_id !== null) {
+        return (
+          Number(row.vinculo_consulta_id) !== Number(reqRow.vinculo_id) ||
+          Number(row.vinculo_version_actual) !== Number(reqRow.vinculo_version)
+        );
+      }
+      if (row.vinculo_actualizado_en) {
+        return new Date(row.vinculo_actualizado_en).getTime() > requestCreatedMs;
+      }
+      return false;
+    });
+
+    if (originChanged) {
+      await client.query(
+        `UPDATE solicitudes_verificacion_correo
+         SET revocada_en = NOW()
+         WHERE id = $1 AND revocada_en IS NULL`,
+        [reqRow.id],
+      );
       return { ok: false, scopeMismatch: true };
     }
 
@@ -960,6 +1053,20 @@ async function confirmRecoveryCode({
          AND consumida_en IS NULL
          AND revocada_en IS NULL`,
       [[...affectedLinkIds]],
+    );
+
+    // Revocar cualquier otra solicitud de recuperación pendiente que se superponga con estas citas
+    await client.query(
+      `UPDATE solicitudes_verificacion_correo
+       SET revocada_en = NOW(),
+           estado_envio = CASE WHEN estado_envio = 'PENDIENTE' THEN 'OMITIDA' ELSE estado_envio END
+       WHERE proposito = 'RECUPERACION'
+         AND id <> $1
+         AND paciente_rut = $2
+         AND consumida_en IS NULL
+         AND revocada_en IS NULL
+         AND citas_ids && $3::int[]`,
+      [reqRow.id, reqRow.paciente_rut, reqRow.citas_ids],
     );
 
     // Actualizar únicamente el vínculo de las citas seleccionadas (conserva paciente_email original)
@@ -1023,6 +1130,10 @@ module.exports = {
   PURPOSES,
   GENERIC_LOOKUP_MESSAGE,
   GENERIC_INVALID_CODE_MESSAGE,
+  INSECURE_HMAC_SECRETS,
+  MIN_PRODUCTION_HMAC_SECRET_LENGTH,
+  isStrictHmacEnvironment,
+  validateHmacSecretConfig,
   getLimitsConfig,
   generateOpaqueId,
   generateSixDigitCode,

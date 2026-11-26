@@ -656,7 +656,164 @@ async function run() {
     '✅ Caso 6: Idempotencia ligada a autorización, reutilización tras 409 y exclusividad concurrente OK.',
   );
 
-  console.log('--- Verificación MED-29 exitosa: todos los criterios de aceptación validados ---');
+  // ---------------------------------------------------------------------------
+  // Caso 7 (MED-30): Privacidad en cuotas — CONSULTA jamás altera las cuotas observables de RESERVA
+  // ---------------------------------------------------------------------------
+  await db.query('DELETE FROM limites_verificacion_correo');
+  const unknownOracleEmail = 'oraculo-desconocido-med30@medisalud.test';
+
+  // Lanzar 8 consultas para el par conocido (rutA, emailX) y 8 para el desconocido
+  for (let i = 0; i < 8; i += 1) {
+    const knownLookup = await apiJson('/reservas/mis-citas/solicitudes', {
+      body: { rut: rutA, correo: emailX },
+    });
+    const unknownLookup = await apiJson('/reservas/mis-citas/solicitudes', {
+      body: { rut: rutA, correo: unknownOracleEmail },
+    });
+    assert.equal(knownLookup.status, 202);
+    assert.equal(unknownLookup.status, 202);
+    assert.equal(knownLookup.data.mensaje, unknownLookup.data.mensaje);
+  }
+
+  // En RESERVA, tanto el buzón conocido (que sí agotó cuota de CONSULTA) como el desconocido deben responder 202 igual
+  const bookingAfterKnownLookup = await apiJson('/reservas/verificacion-correo/solicitudes', {
+    body: { rut: rutA, correo: emailX },
+  });
+  const bookingAfterUnknownLookup = await apiJson('/reservas/verificacion-correo/solicitudes', {
+    body: { rut: rutA, correo: unknownOracleEmail },
+  });
+  assert.equal(
+    bookingAfterKnownLookup.status,
+    202,
+    `CONSULTA no debe agotar la cuota observable de RESERVA: ${JSON.stringify(bookingAfterKnownLookup)}`,
+  );
+  assert.equal(bookingAfterUnknownLookup.status, 202);
+  console.log(
+    '✅ Caso 7 (MED-30): Cuotas aisladas por propósito; CONSULTA no delata vínculos en RESERVA OK.',
+  );
+
+  // ---------------------------------------------------------------------------
+  // Caso 8 (MED-30): Concurrencia en límites (sin errores 23505 / HTTP 500)
+  // ---------------------------------------------------------------------------
+  await db.query('DELETE FROM limites_verificacion_correo');
+  const concurrentSamePairEmail = 'concurrencia-limites-med30@medisalud.test';
+  const concurrentLimitResponses = await Promise.all(
+    Array.from({ length: 12 }, () =>
+      apiJson('/reservas/verificacion-correo/solicitudes', {
+        body: { rut: rutA, correo: concurrentSamePairEmail },
+      }),
+    ),
+  );
+  const statusCounts = concurrentLimitResponses.reduce((acc, res) => {
+    acc[res.status] = (acc[res.status] || 0) + 1;
+    return acc;
+  }, {});
+  assert.equal(
+    concurrentLimitResponses.some((res) => res.status >= 500),
+    false,
+    `No debe haber errores 500 (23505) bajo concurrencia en límites: ${JSON.stringify(statusCounts)}`,
+  );
+  assert.equal(
+    statusCounts[202],
+    1,
+    `Solo 1 solicitud debe pasar el cooldown: ${JSON.stringify(statusCounts)}`,
+  );
+  assert.equal(
+    statusCounts[429],
+    11,
+    `Las 11 restantes deben recibir 429 sin fallar: ${JSON.stringify(statusCounts)}`,
+  );
+  console.log(
+    '✅ Caso 8 (MED-30): Concurrencia en creación/actualización de límites (1×202, 11×429, 0×500) OK.',
+  );
+
+  // ---------------------------------------------------------------------------
+  // Caso 9 (MED-30): Recuperación asistida obsoleta con dos destinos distintos
+  // ---------------------------------------------------------------------------
+  const destOne = 'recuperacion-destino-uno-med30@medisalud.test';
+  const destTwo = 'recuperacion-destino-dos-med30@medisalud.test';
+
+  // 9a. Secretaría emite S1 hacia destino 1 para citaA1Id y llega su código C1
+  const recOne = await apiJson('/secretaria/recuperacion-citas/solicitudes', {
+    token: secretaryToken,
+    body: {
+      rut: rutA,
+      correo_destino: destOne,
+      citas_ids: [citaA1Id],
+      motivo: 'Primera solicitud hacia destino 1',
+    },
+  });
+  assert.equal(recOne.status, 202, JSON.stringify(recOne));
+  const codeOne = await waitForVerificationCode({
+    email: destOne,
+    subjectIncludes: 'recuperación',
+    seenMessageIds: seenMessages,
+  });
+
+  // 9b. Antes de confirmar S1, secretaría emite S2 hacia destino 2 para la misma citaA1Id
+  const recTwo = await apiJson('/secretaria/recuperacion-citas/solicitudes', {
+    token: secretaryToken,
+    body: {
+      rut: rutA,
+      correo_destino: destTwo,
+      citas_ids: [citaA1Id],
+      motivo: 'Segunda solicitud hacia destino 2 reemplaza la anterior',
+    },
+  });
+  assert.equal(recTwo.status, 202, JSON.stringify(recTwo));
+  const codeTwo = await waitForVerificationCode({
+    email: destTwo,
+    subjectIncludes: 'recuperación',
+    seenMessageIds: seenMessages,
+  });
+
+  // 9c. Confirmar S1 (obsoleta/revocada al emitir S2) debe fallar sin alterar el vínculo
+  const confirmStaleBeforeTwo = await apiJson('/reservas/mis-citas/recuperacion/confirmar', {
+    body: { solicitud_id: recOne.data.solicitud_id, codigo: codeOne.code },
+  });
+  assert.equal(confirmStaleBeforeTwo.status, 400);
+  assert.equal(confirmStaleBeforeTwo.data.code, 'VERIFICATION_CODE_INVALID');
+
+  // 9d. Confirmar S2 aplica el traslado a destino 2
+  const confirmTwo = await apiJson('/reservas/mis-citas/recuperacion/confirmar', {
+    body: { solicitud_id: recTwo.data.solicitud_id, codigo: codeTwo.code },
+  });
+  assert.equal(confirmTwo.status, 200, JSON.stringify(confirmTwo));
+
+  // 9e. Incluso si una solicitud antigua no hubiese sido revocada (snapshot de vínculo origen ya no coincide),
+  //     al intentar confirmarla debe fallar con 409 sin sobrescribir destino 2.
+  await db.query(`UPDATE solicitudes_verificacion_correo SET revocada_en = NULL WHERE id = $1`, [
+    recOne.data.solicitud_id,
+  ]);
+  const confirmStaleAfterMove = await apiJson('/reservas/mis-citas/recuperacion/confirmar', {
+    body: { solicitud_id: recOne.data.solicitud_id, codigo: codeOne.code },
+  });
+  assert.equal(
+    confirmStaleAfterMove.status,
+    409,
+    `Una solicitud con vínculo de origen desactualizado debe rechazarse con 409: ${JSON.stringify(confirmStaleAfterMove)}`,
+  );
+  assert.equal(confirmStaleAfterMove.data.code, 'APPOINTMENTS_SCOPE_MISMATCH');
+
+  // Confirmar que destino 2 conserva citaA1Code intacta
+  await db.query('DELETE FROM limites_verificacion_correo');
+  const histDestTwo = await queryHistoryWithCode({
+    rut: rutA,
+    correo: destTwo,
+    seenMessageIds: seenMessages,
+  });
+  assert.equal(histDestTwo.verRes.status, 200);
+  assert.deepEqual(
+    histDestTwo.verRes.data.citas.map((c) => c.codigo_reserva),
+    [citaA1Code],
+  );
+  console.log(
+    '✅ Caso 9 (MED-30): Recuperación asistida obsoleta (dos destinos) revocada y bloqueada por snapshot de vínculo OK.',
+  );
+
+  console.log(
+    '--- Verificación MED-29 / MED-30 exitosa: todos los criterios de aceptación validados ---',
+  );
 }
 
 run()
